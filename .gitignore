@@ -1,0 +1,9 @@
+node_modules/
+client/out/
+server/out/
+*.vsix
+.vscode-test/
+*.tsbuildinfo
+.DS_Store
+*.log
+.sysml-cache/

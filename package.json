@@ -1,0 +1,99 @@
+{
+  "name": "sysml-v2-lsp",
+  "displayName": "SysML v2 Language Server",
+  "description": "Language Server Protocol implementation for SysML v2, powered by ANTLR4",
+  "version": "0.1.0",
+  "publisher": "JamieD",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/daltskin/sysml-v2-lsp.git"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "sysml",
+    "sysml2",
+    "systems modeling",
+    "mbse",
+    "lsp",
+    "language server"
+  ],
+  "activationEvents": [
+    "onLanguage:sysml"
+  ],
+  "main": "./client/out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "sysml",
+        "aliases": [
+          "SysML",
+          "sysml"
+        ],
+        "extensions": [
+          ".sysml",
+          ".kerml"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "SysML v2 Language Server",
+      "properties": {
+        "sysml.trace.server": {
+          "scope": "window",
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Traces the communication between VS Code and the SysML language server."
+        },
+        "sysml.maxNumberOfProblems": {
+          "scope": "resource",
+          "type": "number",
+          "default": 100,
+          "description": "Maximum number of problems reported per file."
+        },
+        "sysml.library.path": {
+          "scope": "resource",
+          "type": "string",
+          "default": "",
+          "description": "Path to SysML v2 standard library directory."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "generate": "antlr-ng -Dlanguage=TypeScript -o server/src/generated -visitor -listener -Xexact-output-dir grammar/SysMLv2Lexer.g4 grammar/SysMLv2Parser.g4",
+    "compile": "tsc -b",
+    "watch": "tsc -b -w",
+    "build": "npm run generate && npm run compile && node esbuild.mjs",
+    "build:production": "npm run generate && npm run compile && node esbuild.mjs --production",
+    "lint": "eslint ./client/src ./server/src",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "node ./client/out/test/runTest.js",
+    "package": "vsce package",
+    "clean": "rm -rf client/out server/out *.vsix",
+    "update-grammar": "curl -fsSL https://raw.githubusercontent.com/daltskin/sysml-v2-grammar/main/grammar/SysMLv2Lexer.g4 -o grammar/SysMLv2Lexer.g4 && curl -fsSL https://raw.githubusercontent.com/daltskin/sysml-v2-grammar/main/grammar/SysMLv2Parser.g4 -o grammar/SysMLv2Parser.g4 && curl -fsSL https://raw.githubusercontent.com/daltskin/sysml-v2-grammar/main/grammar/SysMLv2Lexer.tokens -o grammar/SysMLv2Lexer.tokens && echo '✅ Grammar files updated from daltskin/sysml-v2-grammar'",
+    "postinstall": "cd client && npm install && cd ../server && npm install"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@vscode/vsce": "^3.0.0",
+    "antlr-ng": "^1.0.10",
+    "esbuild": "^0.24.0",
+    "eslint": "^9.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.0.0"
+  }
+}
