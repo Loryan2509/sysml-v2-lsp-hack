@@ -59,6 +59,70 @@ export class SymbolTable {
     }
 
     /**
+     * Resolve a symbol from document text at a given position.
+     * First tries the declaration at that position, then falls back
+     * to looking up the word (or quoted name) under the cursor.
+     */
+    resolveAt(
+        uri: string,
+        line: number,
+        character: number,
+        text: string,
+    ): SysMLSymbol | undefined {
+        // 1. Try direct declaration match
+        const direct = this.findSymbolAtPosition(uri, line, character);
+        if (direct) return direct;
+
+        // 2. Fallback: resolve the word under the cursor as a reference
+        const word = SymbolTable.getWordAtPosition(text, line, character);
+        if (!word) return undefined;
+
+        const matches = this.findByName(word);
+        return matches.length > 0 ? matches[0] : undefined;
+    }
+
+    /**
+     * Extract the word (identifier or quoted name) at a given position.
+     * Handles both regular identifiers and SysML v2 unrestricted names
+     * enclosed in single quotes (e.g., 'Drive Batmobile').
+     */
+    static getWordAtPosition(
+        text: string,
+        line: number,
+        character: number,
+    ): string | undefined {
+        const lines = text.split('\n');
+        if (line >= lines.length) return undefined;
+
+        const lineText = lines[line];
+        if (character >= lineText.length) return undefined;
+
+        // First, check if the cursor is inside a quoted (unrestricted) name
+        const quotePattern = /'([^']+)'/g;
+        let qMatch: RegExpExecArray | null;
+        while ((qMatch = quotePattern.exec(lineText)) !== null) {
+            const start = qMatch.index;
+            const end = start + qMatch[0].length;
+            if (character >= start && character < end) {
+                return qMatch[1]; // name without quotes
+            }
+        }
+
+        // Regular identifiers
+        const wordPattern = /[a-zA-Z_]\w*/g;
+        let match: RegExpExecArray | null;
+        while ((match = wordPattern.exec(lineText)) !== null) {
+            const start = match.index;
+            const end = start + match[0].length;
+            if (character >= start && character <= end) {
+                return match[0];
+            }
+        }
+
+        return undefined;
+    }
+
+    /**
      * Find all symbols in a given URI.
      */
     getSymbolsForUri(uri: string): SysMLSymbol[] {
@@ -130,6 +194,16 @@ export class SymbolTable {
     }
 
     /**
+     * Compound usage rules whose first child usage should be skipped
+     * because the parent already captures the name.
+     */
+    private static readonly COMPOUND_RULES = new Set([
+        'PerformActionUsage',
+        'SatisfyRequirementUsage',
+        'AssertConstraintUsage',
+    ]);
+
+    /**
      * Recursively walk the parse tree, extracting SysML element declarations.
      *
      * This is a generic tree walker that inspects rule names to identify
@@ -141,8 +215,26 @@ export class SymbolTable {
         uri: string,
         currentScope: Scope,
         parentQualifiedName: string,
+        skipChildUsages: boolean = false,
     ): void {
         const ruleName = this.getRuleName(ctx);
+
+        // When inside a compound rule (e.g., PerformActionUsage), skip
+        // direct child usage rules like ActionUsage that would duplicate
+        // the symbol already registered by the parent.
+        if (skipChildUsages) {
+            const kind = this.inferKind(ruleName, ctx);
+            if (kind !== undefined) {
+                // This is a direct child usage rule — skip it but walk deeper
+                for (let i = 0; i < ctx.getChildCount(); i++) {
+                    const child = ctx.getChild(i);
+                    if (child instanceof ParserRuleContext) {
+                        this.walkTree(child, uri, currentScope, parentQualifiedName, false);
+                    }
+                }
+                return;
+            }
+        }
 
         // Try to extract a symbol from this context
         const symbol = this.tryExtractSymbol(ctx, uri, ruleName, parentQualifiedName);
@@ -155,6 +247,9 @@ export class SymbolTable {
             childScope = new Scope(symbol.qualifiedName, currentScope);
         }
 
+        // Determine if children should skip duplicate usage rules
+        const isCompound = SymbolTable.COMPOUND_RULES.has(ruleName);
+
         // Walk children
         for (let i = 0; i < ctx.getChildCount(); i++) {
             const child = ctx.getChild(i);
@@ -164,12 +259,40 @@ export class SymbolTable {
                     uri,
                     childScope,
                     symbol?.qualifiedName ?? parentQualifiedName,
+                    isCompound && symbol !== undefined,
                 );
             }
         }
     }
 
     private registerSymbol(symbol: SysMLSymbol, uri: string, scope: Scope): void {
+        // Deduplicate: if a symbol at the same position already exists, skip.
+        // This prevents wrapper rules (e.g., PerformActionUsage → ActionUsage)
+        // from creating duplicate entries for the same declaration.
+        const existing = this.symbols.get(symbol.qualifiedName);
+        if (existing && existing.uri === uri &&
+            existing.range.start.line === symbol.range.start.line) {
+            return;
+        }
+
+        // Skip symbols with repeated trailing segments — these are
+        // artifacts of nested wrapper rules (e.g., Parent::X::Y::X::Y).
+        // Only apply when there are enough segments to indicate nesting
+        // (at least 3), so we don't reject legitimate cases like
+        // Package::Package where a definition shares its package name.
+        const segments = symbol.qualifiedName.split('::');
+        if (segments.length >= 3) {
+            // Check for repeated suffix of length 1..half
+            const maxRepeatLen = Math.floor(segments.length / 2);
+            for (let len = 1; len <= maxRepeatLen; len++) {
+                const tail = segments.slice(-len).join('::');
+                const prev = segments.slice(-2 * len, -len).join('::');
+                if (tail === prev) {
+                    return;
+                }
+            }
+        }
+
         this.symbols.set(symbol.qualifiedName, symbol);
         const uriSymbols = this.symbolsByUri.get(uri) ?? [];
         uriSymbols.push(symbol);
@@ -237,52 +360,119 @@ export class SymbolTable {
 
     /**
      * Infer the SysML element kind from the ANTLR rule name.
+     *
+     * IMPORTANT: Definitions and usages are checked BEFORE package to avoid
+     * false matches from wrapper rules (PackageMember, PackageBodyElement).
+     * Only exact package rule names are matched.
      */
     private inferKind(
         ruleName: string,
-        ctx: ParserRuleContext,
+        _ctx: ParserRuleContext,
     ): SysMLElementKind | undefined {
+        // Use a map for O(1) lookup on exact rule names first
+        const exact = SymbolTable.RULE_KIND_MAP.get(ruleName);
+        if (exact !== undefined) return exact;
+
+        // Fallback: pattern matching for less common rule variants
         const lower = ruleName.toLowerCase();
 
-        // Package
-        if (lower.includes('package') && (lower.includes('declaration') || lower.includes('definition') || lower === 'packagemember')) {
-            return SysMLElementKind.Package;
-        }
-
         // Definitions
-        if (lower.includes('partdefinition') || lower.includes('partdef')) return SysMLElementKind.PartDef;
-        if (lower.includes('attributedefinition') || lower.includes('attributedef')) return SysMLElementKind.AttributeDef;
-        if (lower.includes('portdefinition') || lower.includes('portdef')) return SysMLElementKind.PortDef;
-        if (lower.includes('connectiondefinition') || lower.includes('connectiondef')) return SysMLElementKind.ConnectionDef;
-        if (lower.includes('interfacedefinition') || lower.includes('interfacedef')) return SysMLElementKind.InterfaceDef;
-        if (lower.includes('actiondefinition') || lower.includes('actiondef')) return SysMLElementKind.ActionDef;
-        if (lower.includes('statedefinition') || lower.includes('statedef')) return SysMLElementKind.StateDef;
-        if (lower.includes('requirementdefinition') || lower.includes('requirementdef')) return SysMLElementKind.RequirementDef;
-        if (lower.includes('constraintdefinition') || lower.includes('constraintdef')) return SysMLElementKind.ConstraintDef;
-        if (lower.includes('itemdefinition') || lower.includes('itemdef')) return SysMLElementKind.ItemDef;
-        if (lower.includes('allocationdefinition') || lower.includes('allocationdef')) return SysMLElementKind.AllocationDef;
-        if (lower.includes('usecasedefinition') || lower.includes('usecasedef')) return SysMLElementKind.UseCaseDef;
-        if (lower.includes('enumerationdefinition') || lower.includes('enumdef') || lower.includes('enumerationdef')) return SysMLElementKind.EnumDef;
-        if (lower.includes('calcdefinition') || lower.includes('calcdef')) return SysMLElementKind.CalcDef;
-        if (lower.includes('viewdefinition') || lower.includes('viewdef')) return SysMLElementKind.ViewDef;
-        if (lower.includes('viewpointdefinition') || lower.includes('viewpointdef')) return SysMLElementKind.ViewpointDef;
-        if (lower.includes('metadatadefinition') || lower.includes('metadatadef')) return SysMLElementKind.MetadataDef;
+        if (lower.includes('partdefinition')) return SysMLElementKind.PartDef;
+        if (lower.includes('attributedefinition')) return SysMLElementKind.AttributeDef;
+        if (lower.includes('portdefinition')) return SysMLElementKind.PortDef;
+        if (lower.includes('connectiondefinition')) return SysMLElementKind.ConnectionDef;
+        if (lower.includes('interfacedefinition')) return SysMLElementKind.InterfaceDef;
+        if (lower.includes('actiondefinition')) return SysMLElementKind.ActionDef;
+        if (lower.includes('statedefinition')) return SysMLElementKind.StateDef;
+        if (lower.includes('requirementdefinition')) return SysMLElementKind.RequirementDef;
+        if (lower.includes('constraintdefinition')) return SysMLElementKind.ConstraintDef;
+        if (lower.includes('itemdefinition')) return SysMLElementKind.ItemDef;
+        if (lower.includes('allocationdefinition')) return SysMLElementKind.AllocationDef;
+        if (lower.includes('usecasedefinition')) return SysMLElementKind.UseCaseDef;
+        if (lower.includes('enumerationdefinition')) return SysMLElementKind.EnumDef;
+        if (lower.includes('calculationdefinition') || lower.includes('calcdefinition')) return SysMLElementKind.CalcDef;
+        if (lower.includes('viewdefinition')) return SysMLElementKind.ViewDef;
+        if (lower.includes('viewpointdefinition')) return SysMLElementKind.ViewpointDef;
+        if (lower.includes('metadatadefinition')) return SysMLElementKind.MetadataDef;
+        if (lower.includes('renderingdefinition')) return SysMLElementKind.RenderingDef;
+        if (lower.includes('analysiscasedefinition')) return SysMLElementKind.AnalysisCaseDef;
+        if (lower.includes('verificationcasedefinition')) return SysMLElementKind.VerificationCaseDef;
 
-        // Usages
-        if (lower.includes('partusage') || (lower.includes('part') && lower.includes('usage'))) return SysMLElementKind.PartUsage;
-        if (lower.includes('attributeusage') || (lower.includes('attribute') && lower.includes('usage'))) return SysMLElementKind.AttributeUsage;
-        if (lower.includes('portusage') || (lower.includes('port') && lower.includes('usage'))) return SysMLElementKind.PortUsage;
-        if (lower.includes('connectionusage') || (lower.includes('connection') && lower.includes('usage'))) return SysMLElementKind.ConnectionUsage;
-        if (lower.includes('actionusage') || (lower.includes('action') && lower.includes('usage'))) return SysMLElementKind.ActionUsage;
-        if (lower.includes('stateusage') || (lower.includes('state') && lower.includes('usage'))) return SysMLElementKind.StateUsage;
-        if (lower.includes('requirementusage') || (lower.includes('requirement') && lower.includes('usage'))) return SysMLElementKind.RequirementUsage;
-        if (lower.includes('constraintusage') || (lower.includes('constraint') && lower.includes('usage'))) return SysMLElementKind.ConstraintUsage;
-        if (lower.includes('itemusage') || (lower.includes('item') && lower.includes('usage'))) return SysMLElementKind.ItemUsage;
-        if (lower.includes('allocationusage') || (lower.includes('allocation') && lower.includes('usage'))) return SysMLElementKind.AllocationUsage;
-        if (lower.includes('usecaseusage') || (lower.includes('usecase') && lower.includes('usage'))) return SysMLElementKind.UseCaseUsage;
+        // Usages (specific compound names first)
+        if (lower.includes('performactionusage')) return SysMLElementKind.ActionUsage;
+        if (lower.includes('partusage')) return SysMLElementKind.PartUsage;
+        if (lower.includes('attributeusage')) return SysMLElementKind.AttributeUsage;
+        if (lower.includes('portusage')) return SysMLElementKind.PortUsage;
+        if (lower.includes('connectionusage')) return SysMLElementKind.ConnectionUsage;
+        if (lower.includes('interfaceusage')) return SysMLElementKind.InterfaceUsage;
+        if (lower.includes('actionusage')) return SysMLElementKind.ActionUsage;
+        if (lower.includes('stateusage')) return SysMLElementKind.StateUsage;
+        if (lower.includes('requirementusage')) return SysMLElementKind.RequirementUsage;
+        if (lower.includes('constraintusage')) return SysMLElementKind.ConstraintUsage;
+        if (lower.includes('itemusage')) return SysMLElementKind.ItemUsage;
+        if (lower.includes('allocationusage')) return SysMLElementKind.AllocationUsage;
+        if (lower.includes('usecaseusage')) return SysMLElementKind.UseCaseUsage;
+        if (lower.includes('viewusage')) return SysMLElementKind.ViewUsage;
+        if (lower.includes('viewpointusage')) return SysMLElementKind.ViewpointUsage;
+        if (lower.includes('concernusage')) return SysMLElementKind.ConstraintUsage;
+        if (lower.includes('portionusage')) return SysMLElementKind.PartUsage; // timeslice/snapshot
+        if (lower.includes('satisfyrequirementusage')) return SysMLElementKind.RequirementUsage;
+        if (lower.includes('assertconstraintusage')) return SysMLElementKind.ConstraintUsage;
 
         return undefined;
     }
+
+    /** Exact rule name → kind map for fast lookup on common rules. */
+    private static readonly RULE_KIND_MAP = new Map<string, SysMLElementKind>([
+        // Package
+        ['Package', SysMLElementKind.Package],
+        ['PackageDeclaration', SysMLElementKind.Package],
+        ['LibraryPackage', SysMLElementKind.Package],
+        // Definitions
+        ['PartDefinition', SysMLElementKind.PartDef],
+        ['AttributeDefinition', SysMLElementKind.AttributeDef],
+        ['PortDefinition', SysMLElementKind.PortDef],
+        ['ConnectionDefinition', SysMLElementKind.ConnectionDef],
+        ['InterfaceDefinition', SysMLElementKind.InterfaceDef],
+        ['ActionDefinition', SysMLElementKind.ActionDef],
+        ['StateDefinition', SysMLElementKind.StateDef],
+        ['RequirementDefinition', SysMLElementKind.RequirementDef],
+        ['ConstraintDefinition', SysMLElementKind.ConstraintDef],
+        ['ItemDefinition', SysMLElementKind.ItemDef],
+        ['AllocationDefinition', SysMLElementKind.AllocationDef],
+        ['UseCaseDefinition', SysMLElementKind.UseCaseDef],
+        ['EnumerationDefinition', SysMLElementKind.EnumDef],
+        ['CalculationDefinition', SysMLElementKind.CalcDef],
+        ['ViewDefinition', SysMLElementKind.ViewDef],
+        ['ViewpointDefinition', SysMLElementKind.ViewpointDef],
+        ['MetadataDefinition', SysMLElementKind.MetadataDef],
+        ['RenderingDefinition', SysMLElementKind.RenderingDef],
+        ['AnalysisCaseDefinition', SysMLElementKind.AnalysisCaseDef],
+        ['VerificationCaseDefinition', SysMLElementKind.VerificationCaseDef],
+        // Usages
+        ['PartUsage', SysMLElementKind.PartUsage],
+        ['AttributeUsage', SysMLElementKind.AttributeUsage],
+        ['PortUsage', SysMLElementKind.PortUsage],
+        ['ConnectionUsage', SysMLElementKind.ConnectionUsage],
+        ['InterfaceUsage', SysMLElementKind.InterfaceUsage],
+        ['ActionUsage', SysMLElementKind.ActionUsage],
+        ['StateUsage', SysMLElementKind.StateUsage],
+        ['RequirementUsage', SysMLElementKind.RequirementUsage],
+        ['ConstraintUsage', SysMLElementKind.ConstraintUsage],
+        ['ItemUsage', SysMLElementKind.ItemUsage],
+        ['AllocationUsage', SysMLElementKind.AllocationUsage],
+        ['UseCaseUsage', SysMLElementKind.UseCaseUsage],
+        ['EnumerationUsage', SysMLElementKind.EnumUsage],
+        ['CalcUsage', SysMLElementKind.CalcUsage],
+        ['ViewUsage', SysMLElementKind.ViewUsage],
+        ['ViewpointUsage', SysMLElementKind.ViewpointUsage],
+        // Additional behavioral/structural usage rules
+        ['PerformActionUsage', SysMLElementKind.ActionUsage],
+        ['SatisfyRequirementUsage', SysMLElementKind.RequirementUsage],
+        ['AssertConstraintUsage', SysMLElementKind.ConstraintUsage],
+        ['ConcernUsage', SysMLElementKind.ConstraintUsage],
+        ['PortionUsage', SysMLElementKind.PartUsage], // timeslice/snapshot
+    ]);
 
     /**
      * Extract the declared name from a parse tree context.
@@ -293,12 +483,11 @@ export class SymbolTable {
         for (let i = 0; i < ctx.getChildCount(); i++) {
             const child = ctx.getChild(i);
 
-            // Direct terminal (identifier token)
+            // Direct terminal (identifier token or unrestricted name)
             if (child instanceof TerminalNode) {
                 const token = child.symbol;
-                // Skip keywords — we want identifier tokens only
                 if (this.isIdentifierToken(token)) {
-                    return token.text ?? undefined;
+                    return this.getTokenName(token);
                 }
             }
 
@@ -311,7 +500,7 @@ export class SymbolTable {
                     childRule.toLowerCase().includes('qualifiedname') ||
                     childRule.toLowerCase() === 'name'
                 ) {
-                    const name = this.extractTextFromSubtree(child);
+                    const name = this.extractNameFromSubtree(child);
                     if (name) return name;
                 }
             }
@@ -336,7 +525,17 @@ export class SymbolTable {
         for (let i = 0; i < ctx.getChildCount(); i++) {
             const child = ctx.getChild(i);
             if (child instanceof TerminalNode && this.isIdentifierToken(child.symbol)) {
-                return tokenToRange(child.symbol);
+                const range = tokenToRange(child.symbol);
+                // For quoted names like 'Drive Batmobile', shrink the range
+                // to exclude the quotes (for better rename/hover experience)
+                const text = child.symbol.text;
+                if (text && text.startsWith("'") && text.endsWith("'")) {
+                    return {
+                        start: { line: range.start.line, character: range.start.character + 1 },
+                        end: { line: range.end.line, character: range.end.character - 1 },
+                    };
+                }
+                return range;
             }
             if (child instanceof ParserRuleContext) {
                 const result = this.extractNameRange(child);
@@ -373,13 +572,31 @@ export class SymbolTable {
     }
 
     /**
-     * Check if a token is an identifier (not a keyword or punctuation).
+     * Check if a token is an identifier or unrestricted name (quoted name).
+     * SysML v2 allows names like 'Drive Batmobile' enclosed in single quotes.
      */
     private isIdentifierToken(token: Token): boolean {
         const text = token.text;
         if (!text) return false;
-        // Identifiers start with a letter or underscore
+        // Unrestricted names are enclosed in single quotes
+        if (text.startsWith("'") && text.endsWith("'") && text.length > 2) {
+            return true;
+        }
+        // Regular identifiers start with a letter or underscore
         return /^[a-zA-Z_]/.test(text) && !this.isKeyword(text);
+    }
+
+    /**
+     * Get the display name from a token (strips quotes from unrestricted names).
+     */
+    private getTokenName(token: Token): string | undefined {
+        const text = token.text;
+        if (!text) return undefined;
+        // Strip quotes from unrestricted names
+        if (text.startsWith("'") && text.endsWith("'") && text.length > 2) {
+            return text.slice(1, -1);
+        }
+        return text;
     }
 
     /**
@@ -411,6 +628,27 @@ export class SymbolTable {
     }
 
     /**
+     * Extract a name from a subtree, handling unrestricted (quoted) names.
+     * Used specifically for Identification/Name rules.
+     */
+    private extractNameFromSubtree(ctx: ParserRuleContext): string | undefined {
+        const parts: string[] = [];
+        for (let i = 0; i < ctx.getChildCount(); i++) {
+            const child = ctx.getChild(i);
+            if (child instanceof TerminalNode) {
+                if (this.isIdentifierToken(child.symbol)) {
+                    const name = this.getTokenName(child.symbol);
+                    if (name) parts.push(name);
+                }
+            } else if (child instanceof ParserRuleContext) {
+                const sub = this.extractNameFromSubtree(child);
+                if (sub) parts.push(sub);
+            }
+        }
+        return parts.length > 0 ? parts.join('::') : undefined;
+    }
+
+    /**
      * Extract all text content from a subtree (concatenate terminal nodes).
      */
     private extractTextFromSubtree(ctx: ParserRuleContext): string | undefined {
@@ -420,7 +658,8 @@ export class SymbolTable {
             if (child instanceof TerminalNode) {
                 const text = child.symbol.text;
                 if (text && this.isIdentifierToken(child.symbol)) {
-                    parts.push(text);
+                    const name = this.getTokenName(child.symbol);
+                    if (name) parts.push(name);
                 }
             } else if (child instanceof ParserRuleContext) {
                 const sub = this.extractTextFromSubtree(child);

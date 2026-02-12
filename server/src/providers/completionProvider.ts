@@ -71,9 +71,9 @@ const SYSML_KEYWORDS: { label: string; kind: CompletionItemKind; detail: string;
  * TODO: integrate antlr4-c3 for grammar-aware contextual completions.
  */
 export class CompletionProvider {
-    constructor(private documentManager: DocumentManager) {}
+    constructor(private documentManager: DocumentManager) { }
 
-    provideCompletions(params: TextDocumentPositionParams): CompletionItem[] {
+    provideCompletions(_params: TextDocumentPositionParams): CompletionItem[] {
         const items: CompletionItem[] = [];
 
         for (const kw of SYSML_KEYWORDS) {

@@ -1,0 +1,273 @@
+{
+    "Part Definition": {
+        "prefix": "partdef",
+        "body": [
+            "part def ${1:Name} {",
+            "\t$0",
+            "}"
+        ],
+        "description": "SysML part definition"
+    },
+    "Part Usage": {
+        "prefix": "part",
+        "body": [
+            "part ${1:name} : ${2:Type} {",
+            "\t$0",
+            "}"
+        ],
+        "description": "SysML part usage"
+    },
+    "Package": {
+        "prefix": "package",
+        "body": [
+            "package ${1:Name} {",
+            "\t$0",
+            "}"
+        ],
+        "description": "SysML package"
+    },
+    "Attribute Definition": {
+        "prefix": "attrdef",
+        "body": [
+            "attribute def ${1:Name} {",
+            "\t$0",
+            "}"
+        ],
+        "description": "SysML attribute definition"
+    },
+    "Attribute": {
+        "prefix": "attr",
+        "body": [
+            "attribute ${1:name} : ${2:Type}${3: = ${4:value}};$0"
+        ],
+        "description": "SysML attribute usage"
+    },
+    "Port Definition": {
+        "prefix": "portdef",
+        "body": [
+            "port def ${1:Name} {",
+            "\tattribute ${2:signal} : ${3:Type};",
+            "\t$0",
+            "}"
+        ],
+        "description": "SysML port definition"
+    },
+    "Port": {
+        "prefix": "port",
+        "body": [
+            "port ${1:name} : ${2:PortType};$0"
+        ],
+        "description": "SysML port usage"
+    },
+    "Interface Definition": {
+        "prefix": "interfacedef",
+        "body": [
+            "interface def ${1:Name} {",
+            "\tend port ${2:p1} : ${3:PortType};",
+            "\tend port ${4:p2} : ~${3:PortType};",
+            "\t$0",
+            "}"
+        ],
+        "description": "SysML interface definition"
+    },
+    "Action Definition": {
+        "prefix": "actiondef",
+        "body": [
+            "action def ${1:Name} {",
+            "\tin ${2:input} : ${3:Type};",
+            "\tout ${4:output} : ${5:Type};",
+            "\t$0",
+            "}"
+        ],
+        "description": "SysML action definition"
+    },
+    "Action": {
+        "prefix": "action",
+        "body": [
+            "action ${1:name} : ${2:ActionType} {",
+            "\t$0",
+            "}"
+        ],
+        "description": "SysML action usage"
+    },
+    "State Definition": {
+        "prefix": "statedef",
+        "body": [
+            "state def ${1:Name} {",
+            "\tstate ${2:idle};",
+            "\tstate ${3:active};",
+            "\ttransition first ${2:idle} then ${3:active};",
+            "\t$0",
+            "}"
+        ],
+        "description": "SysML state definition"
+    },
+    "State": {
+        "prefix": "state",
+        "body": [
+            "state ${1:name} : ${2:StateType} {",
+            "\t$0",
+            "}"
+        ],
+        "description": "SysML state usage"
+    },
+    "Transition": {
+        "prefix": "transition",
+        "body": [
+            "transition ${1:name} first ${2:source} accept ${3:trigger} then ${4:target};$0"
+        ],
+        "description": "SysML state transition"
+    },
+    "Requirement Definition": {
+        "prefix": "reqdef",
+        "body": [
+            "requirement def ${1:Name} {",
+            "\tdoc /* ${2:description} */",
+            "\tsubject ${3:subject} : ${4:Type};",
+            "\trequire constraint {",
+            "\t\t$0",
+            "\t}",
+            "}"
+        ],
+        "description": "SysML requirement definition"
+    },
+    "Requirement": {
+        "prefix": "req",
+        "body": [
+            "requirement ${1:name} : ${2:ReqType} {",
+            "\t$0",
+            "}"
+        ],
+        "description": "SysML requirement usage"
+    },
+    "Constraint": {
+        "prefix": "constraint",
+        "body": [
+            "constraint ${1:name} { ${2:expression} }$0"
+        ],
+        "description": "SysML constraint"
+    },
+    "Item Definition": {
+        "prefix": "itemdef",
+        "body": [
+            "item def ${1:Name} {",
+            "\t$0",
+            "}"
+        ],
+        "description": "SysML item definition"
+    },
+    "Enum Definition": {
+        "prefix": "enumdef",
+        "body": [
+            "enum def ${1:Name} {",
+            "\tenum ${2:value1};",
+            "\tenum ${3:value2};",
+            "\t$0",
+            "}"
+        ],
+        "description": "SysML enumeration definition"
+    },
+    "Connection": {
+        "prefix": "connect",
+        "body": [
+            "connect ${1:source}.${2:port1} to ${3:target}.${4:port2};$0"
+        ],
+        "description": "SysML connection"
+    },
+    "Flow": {
+        "prefix": "flow",
+        "body": [
+            "flow from ${1:source}.${2:outPort} to ${3:target}.${4:inPort};$0"
+        ],
+        "description": "SysML flow connection"
+    },
+    "Allocation": {
+        "prefix": "allocate",
+        "body": [
+            "allocate ${1:logical} to ${2:physical};$0"
+        ],
+        "description": "SysML allocation"
+    },
+    "Import": {
+        "prefix": "import",
+        "body": [
+            "import ${1:PackageName}::${2:*};$0"
+        ],
+        "description": "SysML import statement"
+    },
+    "Verification": {
+        "prefix": "verification",
+        "body": [
+            "verification def ${1:Name} {",
+            "\tsubject ${2:uut} : ${3:Type};",
+            "\tobjective {",
+            "\t\tverify ${4:requirement};",
+            "\t}",
+            "\t$0",
+            "}"
+        ],
+        "description": "SysML verification definition"
+    },
+    "Use Case": {
+        "prefix": "usecase",
+        "body": [
+            "use case def ${1:Name} {",
+            "\tactor ${2:actor} : ${3:ActorType};",
+            "\tobjective {",
+            "\t\tdoc /* ${4:objective description} */",
+            "\t}",
+            "\t$0",
+            "}"
+        ],
+        "description": "SysML use case definition"
+    },
+    "View": {
+        "prefix": "viewdef",
+        "body": [
+            "view def ${1:Name} {",
+            "\tfilter @SysML::${2:PartUsage};",
+            "\t$0",
+            "}"
+        ],
+        "description": "SysML view definition"
+    },
+    "Analysis": {
+        "prefix": "analysis",
+        "body": [
+            "analysis def ${1:Name} {",
+            "\tsubject ${2:subject} : ${3:Type};",
+            "\t$0",
+            "}"
+        ],
+        "description": "SysML analysis definition"
+    },
+    "Calc Definition": {
+        "prefix": "calcdef",
+        "body": [
+            "calc def ${1:Name} {",
+            "\tin ${2:input} : ${3:Real};",
+            "\treturn : ${4:Real};",
+            "\t$0",
+            "}"
+        ],
+        "description": "SysML calculation definition"
+    },
+    "Doc Comment": {
+        "prefix": "doc",
+        "body": [
+            "doc /* ${1:Documentation text} */$0"
+        ],
+        "description": "SysML documentation comment"
+    },
+    "Variation": {
+        "prefix": "variation",
+        "body": [
+            "variation part ${1:name} : ${2:Type} {",
+            "\tvariant part ${3:option1};",
+            "\tvariant part ${4:option2};",
+            "\t$0",
+            "}"
+        ],
+        "description": "SysML variation with variants"
+    }
+}

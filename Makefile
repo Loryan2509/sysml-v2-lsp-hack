@@ -1,4 +1,4 @@
-.PHONY: help install generate build watch test test-e2e lint package clean update-grammar ci
+.PHONY: help install generate build watch test test-e2e lint package package-server clean update-grammar ci
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -27,6 +27,17 @@ lint: ## Run ESLint
 
 package: ## Build VSIX for distribution
 	npm run package
+
+package-server: ## Build server tarball for use in other extensions
+	npm run package:server
+	@echo ""
+	@echo "✅ Server package created:"
+	@ls -lh sysml-v2-lsp-*.tgz
+	@echo ""
+	@echo "Install in your extension with:"
+	@echo "  npm install ./path/to/sysml-v2-lsp-*.tgz"
+	@echo "  — or —"
+	@echo "  npm install github:daltskin/sysml-v2-lsp"
 
 clean: ## Clean build artifacts
 	npm run clean

@@ -1,0 +1,42 @@
+# npm publish whitelist strategy: include only what's needed
+# Everything is excluded by default, then we un-exclude specifics below.
+
+# Exclude everything first
+*
+
+# Include the bundled server files
+!dist/server/**
+
+# Exclude sourcemaps from dist
+dist/**/*.map
+
+# Include the CJS entry point
+!index.cjs
+
+# Include package metadata (auto-included by npm but explicit for clarity)
+!package.json
+!README.md
+!LICENSE
+!CHANGELOG.md
+
+# Exclude dev/build artifacts
+.github/
+.vscode/
+.vscodeignore
+client/
+server/
+grammar/
+test/
+examples/
+snippets/
+syntaxes/
+node_modules/
+*.vsix
+*.tgz
+*.tsbuildinfo
+esbuild.mjs
+eslint.config.mjs
+vitest.config.ts
+tsconfig.json
+Makefile
+ARCHITECTURE.md

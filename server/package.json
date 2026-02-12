@@ -1,6 +1,7 @@
 {
   "name": "sysml-v2-lsp-server",
   "version": "0.1.0",
+  "type": "module",
   "private": true,
   "description": "SysML v2 Language Server",
   "license": "MIT",
@@ -9,12 +10,12 @@
   },
   "dependencies": {
     "antlr4ng": "^3.0.16",
-    "antlr4-c3": "^3.4.1",
+    "antlr4-c3": "^3.4.4",
     "vscode-languageserver": "^9.0.1",
     "vscode-languageserver-textdocument": "^1.0.11"
   },
   "devDependencies": {
-    "@types/node": "^20.11.0",
-    "typescript": "^5.6.0"
+    "@types/node": "^22.0.0",
+    "typescript": "^5.9.0"
   }
 }

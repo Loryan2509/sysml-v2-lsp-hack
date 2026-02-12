@@ -39,7 +39,7 @@ export const tokenModifiers = [
  * and surrounding context.
  */
 export class SemanticTokensProvider {
-    constructor(private documentManager: DocumentManager) {}
+    constructor(private documentManager: DocumentManager) { }
 
     provideSemanticTokens(params: SemanticTokensParams): SemanticTokens {
         const builder = new SemanticTokensBuilder();
@@ -96,7 +96,7 @@ export class SemanticTokensProvider {
         }
 
         // Operators and punctuation
-        if (/^[+\-*\/<>=!&|^~%]+$/.test(text) || text === '::' || text === ':>' || text === ':>>') {
+        if (/^[+\-*/<>=!&|^~%]+$/.test(text) || text === '::' || text === ':>' || text === ':>>') {
             return 10; // operator
         }
 

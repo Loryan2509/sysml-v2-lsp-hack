@@ -4,7 +4,6 @@ import {
     WorkspaceEdit,
     TextEdit,
     Range,
-    PrepareRenameParams,
 } from 'vscode-languageserver/node.js';
 import { DocumentManager } from '../documentManager.js';
 import { SymbolTable } from '../symbols/symbolTable.js';
@@ -16,7 +15,7 @@ import { SymbolTable } from '../symbols/symbolTable.js';
 export class RenameProvider {
     private symbolTable = new SymbolTable();
 
-    constructor(private documentManager: DocumentManager) {}
+    constructor(private documentManager: DocumentManager) { }
 
     /**
      * Check if the token at position is renameable and return its range.
@@ -25,12 +24,16 @@ export class RenameProvider {
         const result = this.documentManager.get(params.textDocument.uri);
         if (!result) return null;
 
+        const text = this.documentManager.getText(params.textDocument.uri);
+        if (!text) return null;
+
         this.symbolTable.build(params.textDocument.uri, result);
 
-        const symbol = this.symbolTable.findSymbolAtPosition(
+        const symbol = this.symbolTable.resolveAt(
             params.textDocument.uri,
             params.position.line,
             params.position.character,
+            text,
         );
 
         if (!symbol) return null;
@@ -45,20 +48,21 @@ export class RenameProvider {
         const result = this.documentManager.get(params.textDocument.uri);
         if (!result) return null;
 
+        const text = this.documentManager.getText(params.textDocument.uri);
+        if (!text) return null;
+
         this.symbolTable.build(params.textDocument.uri, result);
 
-        const symbol = this.symbolTable.findSymbolAtPosition(
+        const symbol = this.symbolTable.resolveAt(
             params.textDocument.uri,
             params.position.line,
             params.position.character,
+            text,
         );
 
         if (!symbol) return null;
 
         // Find all occurrences of this symbol name in the document text
-        const text = this.documentManager.getText(params.textDocument.uri);
-        if (!text) return null;
-
         const edits: TextEdit[] = [];
         const oldName = symbol.name;
         const newName = params.newName;

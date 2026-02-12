@@ -1,0 +1,38 @@
+# Source files (bundled by esbuild into dist/)
+server/**
+client/**
+grammar/**
+test/**
+examples/temp/**
+examples/.vscode/**
+
+# npm packaging (not needed in VSIX)
+index.cjs
+.npmignore
+
+# Dependencies (bundled by esbuild)
+node_modules/**
+
+# Dev containers
+.devcontainer/**
+
+# Build tooling
+esbuild.mjs
+eslint.config.mjs
+vitest.config.ts
+tsconfig.json
+Makefile
+CONTRIBUTING.md
+ARCHITECTURE.md
+
+# Dev artifacts
+**/*.tsbuildinfo
+*.tgz
+**/*.map
+.github/**
+.vscode/**
+.gitignore
+
+# MCP server not needed in VSIX (install via npm for MCP)
+dist/server/mcpServer.mjs
+dist/server/mcpServer.mjs.map

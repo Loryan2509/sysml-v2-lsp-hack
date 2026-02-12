@@ -6,7 +6,7 @@ import {
 } from 'vscode-languageserver/node.js';
 import { DocumentManager } from '../documentManager.js';
 import { SymbolTable } from '../symbols/symbolTable.js';
-import { SysMLElementKind, isDefinition } from '../symbols/sysmlElements.js';
+
 
 /**
  * Provides hover information for SysML elements.
@@ -15,7 +15,7 @@ import { SysMLElementKind, isDefinition } from '../symbols/sysmlElements.js';
 export class HoverProvider {
     private symbolTable = new SymbolTable();
 
-    constructor(private documentManager: DocumentManager) {}
+    constructor(private documentManager: DocumentManager) { }
 
     provideHover(params: TextDocumentPositionParams): Hover | null {
         const result = this.documentManager.get(params.textDocument.uri);
@@ -23,14 +23,18 @@ export class HoverProvider {
             return null;
         }
 
+        const text = this.documentManager.getText(params.textDocument.uri);
+        if (!text) return null;
+
         // Build symbol table for this document
         this.symbolTable.build(params.textDocument.uri, result);
 
-        // Find symbol at hover position
-        const symbol = this.symbolTable.findSymbolAtPosition(
+        // Find symbol at hover position (declaration or reference)
+        const symbol = this.symbolTable.resolveAt(
             params.textDocument.uri,
             params.position.line,
             params.position.character,
+            text,
         );
 
         if (!symbol) {

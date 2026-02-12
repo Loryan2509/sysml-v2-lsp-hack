@@ -7,3 +7,6 @@ server/out/
 .DS_Store
 *.log
 .sysml-cache/
+examples/temp/
+*:Zone.Identifier
+dist/

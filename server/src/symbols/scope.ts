@@ -1,4 +1,4 @@
-import { SysMLSymbol, SysMLElementKind } from './sysmlElements.js';
+import { SysMLSymbol } from './sysmlElements.js';
 
 /**
  * A lexical scope in the SysML model.
@@ -13,7 +13,7 @@ export class Scope {
         public readonly id: string,
         /** Parent scope, or null for the global scope */
         public readonly parent: Scope | null = null,
-    ) {}
+    ) { }
 
     /**
      * Define a new symbol in this scope.
@@ -50,7 +50,7 @@ export class Scope {
         }
 
         // Walk down from the first part
-        let current: SysMLSymbol | undefined = this.resolve(parts[0]);
+        const current: SysMLSymbol | undefined = this.resolve(parts[0]);
         // For now, simple resolution — just look up the last part globally
         // TODO: proper nested scope resolution
         if (!current) {
@@ -73,6 +73,7 @@ export class Scope {
     getAllVisibleSymbols(): SysMLSymbol[] {
         const result = new Map<string, SysMLSymbol>();
 
+        // eslint-disable-next-line @typescript-eslint/no-this-alias
         let scope: Scope | null = this;
         while (scope) {
             for (const [name, symbol] of scope.symbols) {

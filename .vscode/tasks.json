@@ -6,7 +6,9 @@
       "script": "compile",
       "group": "build",
       "label": "npm: compile",
-      "problemMatcher": ["$tsc"]
+      "problemMatcher": [
+        "$tsc"
+      ]
     },
     {
       "type": "npm",
@@ -14,14 +16,35 @@
       "group": "build",
       "label": "npm: watch",
       "isBackground": true,
-      "problemMatcher": ["$tsc-watch"]
+      "problemMatcher": [
+        "$tsc-watch"
+      ]
     },
     {
       "type": "npm",
       "script": "build",
       "group": "build",
       "label": "npm: build",
-      "problemMatcher": ["$tsc"]
+      "problemMatcher": [
+        "$tsc"
+      ]
+    },
+    {
+      "label": "esbuild",
+      "type": "shell",
+      "command": "node esbuild.mjs",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "compile + bundle",
+      "dependsOn": [
+        "npm: compile",
+        "esbuild"
+      ],
+      "dependsOrder": "sequence",
+      "group": "build",
+      "problemMatcher": []
     }
   ]
 }

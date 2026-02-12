@@ -11,7 +11,7 @@ import { SymbolTable } from '../symbols/symbolTable.js';
 export class ReferencesProvider {
     private symbolTable = new SymbolTable();
 
-    constructor(private documentManager: DocumentManager) {}
+    constructor(private documentManager: DocumentManager) { }
 
     provideReferences(params: ReferenceParams): Location[] {
         const result = this.documentManager.get(params.textDocument.uri);
@@ -19,14 +19,18 @@ export class ReferencesProvider {
             return [];
         }
 
+        const text = this.documentManager.getText(params.textDocument.uri);
+        if (!text) return [];
+
         // Build symbol table
         this.symbolTable.build(params.textDocument.uri, result);
 
-        // Find symbol at position
-        const symbol = this.symbolTable.findSymbolAtPosition(
+        // Find symbol at position (declaration or reference)
+        const symbol = this.symbolTable.resolveAt(
             params.textDocument.uri,
             params.position.line,
             params.position.character,
+            text,
         );
 
         if (!symbol) {

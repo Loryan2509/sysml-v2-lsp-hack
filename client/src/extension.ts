@@ -1,5 +1,5 @@
 import * as path from 'path';
-import { ExtensionContext, workspace } from 'vscode';
+import { ExtensionContext, workspace, window, commands, Uri, Position } from 'vscode';
 import {
     LanguageClient,
     LanguageClientOptions,
@@ -8,12 +8,16 @@ import {
 } from 'vscode-languageclient/node.js';
 
 let client: LanguageClient;
+const outputChannel = window.createOutputChannel('SysML v2 LSP');
 
 export function activate(context: ExtensionContext): void {
+    outputChannel.appendLine('SysML v2 extension activating...');
+
     // Path to the server module
     const serverModule = context.asAbsolutePath(
         path.join('server', 'out', 'server.js')
     );
+    outputChannel.appendLine(`Server module path: ${serverModule}`);
 
     // Debug options: the server is started with --inspect for debugging
     const debugOptions = { execArgv: ['--nolazy', '--inspect=6009'] };
@@ -41,6 +45,7 @@ export function activate(context: ExtensionContext): void {
             // Notify the server about file changes to .sysml and .kerml files
             fileEvents: workspace.createFileSystemWatcher('**/*.{sysml,kerml}'),
         },
+        outputChannel,
     };
 
     // Create and start the language client
@@ -52,7 +57,33 @@ export function activate(context: ExtensionContext): void {
     );
 
     // Start the client — this also starts the server
-    client.start();
+    client.start().then(
+        () => outputChannel.appendLine('Language client started successfully'),
+        (err) => outputChannel.appendLine(`Language client failed to start: ${err}`)
+    );
+
+    // Register restart command
+    context.subscriptions.push(
+        commands.registerCommand('sysml.restartServer', async () => {
+            outputChannel.appendLine('Restarting language server...');
+            if (client) {
+                await client.restart();
+                outputChannel.appendLine('Language server restarted successfully');
+                window.showInformationMessage('SysML Language Server restarted.');
+            }
+        })
+    );
+
+    // Bridge command for CodeLens "N references" — converts raw JSON
+    // arguments from the server into proper vscode.Uri / vscode.Position
+    // objects that editor.action.findReferences expects.
+    context.subscriptions.push(
+        commands.registerCommand('sysml.findReferences', (rawUri: string, rawPos: { line: number; character: number }) => {
+            const uri = Uri.parse(rawUri);
+            const pos = new Position(rawPos.line, rawPos.character);
+            return commands.executeCommand('editor.action.findReferences', uri, pos);
+        })
+    );
 }
 
 export function deactivate(): Thenable<void> | undefined {

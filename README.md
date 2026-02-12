@@ -4,17 +4,46 @@ A [Language Server Protocol (LSP)](https://microsoft.github.io/language-server-p
 
 ## Features
 
-| Feature | Status | Description |
-|---------|--------|-------------|
-| **Diagnostics** | ✅ | Syntax error reporting with red squiggles |
-| **Document Symbols** | ✅ | Outline panel with SysML model structure |
-| **Hover** | ✅ | Element kind, type, and documentation on hover |
-| **Go to Definition** | ✅ | Ctrl+Click navigation to declarations |
-| **Find References** | ✅ | Find all usages of a symbol |
-| **Code Completion** | ✅ | Keywords, snippets, and symbol suggestions |
-| **Semantic Tokens** | ✅ | Rich, context-aware syntax highlighting |
-| **Folding Ranges** | ✅ | Collapsible `{ }` blocks and comments |
-| **Rename** | ✅ | Rename symbol and all references |
+### Editing & Navigation
+
+| Feature | Shortcut | Description |
+|---------|----------|-------------|
+| **Diagnostics** | — | Syntax errors, unknown identifiers, keyword typos with red/yellow squiggles |
+| **Code Completion** | `Ctrl+Space` | Keywords, snippets, and symbol suggestions with documentation |
+| **Signature Help** | auto on `(` | Parameter tooltips when invoking `action def` / `calc def` |
+| **Hover** | mouse hover | Element kind, type, qualified name, and documentation |
+| **Go to Definition** | `Ctrl+Click` / `F12` | Jump to a symbol's declaration |
+| **Find References** | `Shift+F12` | Find all usages of a symbol across the document |
+| **Rename Symbol** | `F2` | Rename a symbol and update all references |
+| **Linked Editing** | auto | Edit a name and all same-scope occurrences update simultaneously |
+| **Document Links** | `Ctrl+Click` | Clickable `import` paths — jump to the imported namespace |
+
+### Code Intelligence
+
+| Feature | Shortcut | Description |
+|---------|----------|-------------|
+| **CodeLens** | — | "N references" shown above each definition, clickable |
+| **Inlay Hints** | — | Ghost text showing inferred types (`: Type`) and supertypes (`:> Super`) |
+| **Type Hierarchy** | `Shift+Alt+H` | Navigate specialization chains — supertypes and subtypes |
+| **Call Hierarchy** | `Shift+Alt+H` | Navigate `perform`/`include` chains between actions |
+| **Workspace Symbols** | `Ctrl+T` | Fuzzy search for any definition across all open files |
+
+### Presentation
+
+| Feature | Shortcut | Description |
+|---------|----------|-------------|
+| **Semantic Tokens** | — | Rich, context-aware syntax highlighting (definitions, usages, keywords, types) |
+| **Document Symbols** | `Ctrl+Shift+O` | Outline panel + breadcrumbs showing SysML model structure |
+| **Folding Ranges** | — | Collapsible `{ }` blocks and comment regions |
+| **Selection Ranges** | `Shift+Alt+Right/Left` | Smart expand/shrink selection (word → line → block → enclosing block) |
+
+### Productivity
+
+| Feature | Shortcut | Description |
+|---------|----------|-------------|
+| **Quick Fix** | `Ctrl+.` | Fix keyword typos (e.g., `paart` → `part`) |
+| **Formatting** | `Shift+Alt+F` | Auto-indent, normalize braces, trim trailing whitespace |
+| **Snippets** | type prefix + `Tab` | 30 SysML snippets — `partdef`, `actiondef`, `reqdef`, `statedef`, etc. |
 
 ## Quick Start
 
@@ -53,16 +82,30 @@ Use the **"Client + Server"** compound debug configuration to debug both sides s
 
 ```
 ┌──────────────────────┐     IPC     ┌──────────────────────────┐
-│   VS Code Extension  │ ◄─────────► │    Language Server        │
-│   (Language Client)   │             │    (Separate Process)     │
-├──────────────────────┤             ├──────────────────────────┤
-│ • Starts server       │             │ • ANTLR4 parser           │
-│ • Registers language  │             │ • Diagnostics             │
-│                       │             │ • Completion (keywords)   │
-│                       │             │ • Symbols / hover         │
-│                       │             │ • Go-to-def / references  │
-│                       │             │ • Semantic tokens         │
-│                       │             │ • Rename / folding        │
+│   VS Code Extension  │ ◄─────────► │      Language Server          │
+│   (Language Client)   │             │      (Separate Process)       │
+├──────────────────────┤             ├──────────────────────────────┤
+│ • Starts server       │             │ • ANTLR4 parser (worker thread)│
+│ • Registers language  │             │ • Diagnostics + keyword typos │
+│                       │             │ • Completions / signature help│
+│                       │             │ • Hover / go-to-def / refs    │
+│                       │             │ • Semantic tokens / CodeLens  │
+│                       │             │ • Rename / linked editing     │
+│                       │             │ • Inlay hints / document links│
+│                       │             │ • Type & call hierarchy       │
+│                       │             │ • Formatting / folding / sel. │
+│                       │             │ • Workspace symbols           │
+└──────────────────────┘             └──────────────────────────┘
+
+┌──────────────────────┐   stdio    ┌──────────────────────────┐
+│   AI Assistant       │ ◄─────────► │      MCP Server              │
+│   (Claude, Copilot)  │             │      (Standalone Process)     │
+├──────────────────────┤             ├──────────────────────────────┤
+│ • Sends tool calls   │             │ • Parse / validate SysML      │
+│ • Reads resources    │             │ • Symbol table queries         │
+│ • Uses prompts       │             │ • Hierarchy / references       │
+│                       │             │ • Grammar reference resources  │
+│                       │             │ • Review / generate prompts    │
 └──────────────────────┘             └──────────────────────────┘
 ```
 
@@ -75,6 +118,7 @@ sysml-v2-lsp/
 ├── server/                 # Language Server (runs in separate process)
 │   └── src/
 │       ├── server.ts       # LSP connection, capability registration
+│       ├── mcpServer.ts    # MCP server (standalone, stdio transport)
 │       ├── documentManager.ts  # Parse cache, document lifecycle
 │       ├── parser/         # ANTLR4 parse pipeline
 │       ├── symbols/        # Symbol table, scopes, element types
@@ -107,6 +151,85 @@ make update-grammar   # Pull latest grammar from upstream
 make ci               # Full CI pipeline
 ```
 
+## MCP Server (AI Integration)
+
+The project includes a [Model Context Protocol](https://modelcontextprotocol.io/) server that lets AI assistants parse, validate, and query SysML v2 models.
+
+### VS Code
+
+The workspace includes `.vscode/mcp.json` — the MCP server is automatically available to GitHub Copilot. Build first:
+
+```bash
+npm run build
+```
+
+### Claude Desktop
+
+Add to `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "sysml-v2": {
+      "command": "node",
+      "args": ["/path/to/sysml-v2-lsp/dist/server/mcpServer.mjs"]
+    }
+  }
+}
+```
+
+### Available Tools
+
+| Tool | Description |
+|------|-------------|
+| `parse` | Parse SysML source, build symbol table, return summary |
+| `validate` | Check syntax and return errors |
+| `getSymbols` | List symbols (filter by kind, URI, definitions/usages) |
+| `getDefinition` | Look up a symbol by name or qualified name |
+| `getReferences` | Find all references to a symbol |
+| `getHierarchy` | Get parent–child containment structure |
+| `getModelSummary` | Counts, kinds, and loaded documents |
+
+### Available Resources
+
+| URI | Description |
+|-----|-------------|
+| `sysml://element-kinds` | All recognised element kinds |
+| `sysml://keywords` | Complete keyword list |
+| `sysml://grammar-overview` | Language structure reference |
+
+### Available Prompts
+
+| Prompt | Description |
+|--------|-------------|
+| `review-sysml` | Review a SysML model for correctness |
+| `explain-element` | Explain a SysML element kind |
+| `generate-sysml` | Generate SysML from a description |
+
+### Quick Test Examples
+
+Once the MCP server is running (green dot in **MCP: List Servers**), try these prompts in Copilot Chat:
+
+**Parse a model:**
+> `@sysml-v2` parse this: `package Demo { part def Vehicle { attribute speed : Real; } part car : Vehicle; }`
+
+**Validate with errors:**
+> `@sysml-v2` validate this: `part def Broken { attribute x :`
+
+**List symbols after parsing:**
+> `@sysml-v2` what symbols are in the model?
+
+**Look up a definition:**
+> `@sysml-v2` find the definition of Vehicle
+
+**Get the hierarchy:**
+> `@sysml-v2` show the hierarchy of car
+
+**Get a model summary:**
+> `@sysml-v2` summarise the loaded model
+
+> **Tip:** Click the **tools icon** (wrench) at the bottom of the Chat input to see all available `sysml-v2` tools.
+
 ## Technology Stack
 
 | Component | Technology |
@@ -116,6 +239,7 @@ make ci               # Full CI pipeline
 | Parser | ANTLR4 via [antlr4ng](https://github.com/mike-lischke/antlr4ng) |
 | Generator | [antlr-ng](https://github.com/nicklockwood/antlr-ng) |
 | LSP | [vscode-languageserver](https://github.com/microsoft/vscode-languageserver-node) |
+| MCP | [@modelcontextprotocol/sdk](https://github.com/modelcontextprotocol/typescript-sdk) |
 | Bundler | esbuild |
 | Tests | vitest |
 

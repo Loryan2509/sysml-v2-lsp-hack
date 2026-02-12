@@ -7,7 +7,7 @@ import { DocumentManager } from '../documentManager.js';
 
 /**
  * Provides folding ranges for SysML documents.
- * Detects `{ ... }` blocks and `/* ... *​/` comments for folding.
+ * Detects `{ ... }` blocks and multi-line comments for folding.
  */
 export class FoldingRangeProvider {
     constructor(private documentManager: DocumentManager) {}

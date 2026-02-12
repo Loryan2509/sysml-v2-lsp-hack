@@ -7,12 +7,14 @@
       "request": "launch",
       "runtimeExecutable": "${execPath}",
       "args": [
-        "--extensionDevelopmentPath=${workspaceRoot}"
+        "--disable-extensions",
+        "--extensionDevelopmentPath=${workspaceFolder}",
+        "${workspaceFolder}/examples"
       ],
       "outFiles": [
-        "${workspaceRoot}/client/out/**/*.js"
+        "${workspaceFolder}/client/out/**/*.js"
       ],
-      "preLaunchTask": "npm: compile"
+      "preLaunchTask": "compile + bundle"
     },
     {
       "name": "Attach to Server",
@@ -21,14 +23,28 @@
       "port": 6009,
       "restart": true,
       "outFiles": [
-        "${workspaceRoot}/server/out/**/*.js"
+        "${workspaceFolder}/server/out/**/*.js"
+      ]
+    },
+    {
+      "name": "Debug MCP Server",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/dist/server/mcpServer.mjs",
+      "preLaunchTask": "compile + bundle",
+      "console": "integratedTerminal",
+      "outFiles": [
+        "${workspaceFolder}/dist/server/mcpServer.mjs.map"
       ]
     }
   ],
   "compounds": [
     {
       "name": "Client + Server",
-      "configurations": ["Launch Client", "Attach to Server"]
+      "configurations": [
+        "Launch Client",
+        "Attach to Server"
+      ]
     }
   ]
 }

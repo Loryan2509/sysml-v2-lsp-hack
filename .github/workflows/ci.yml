@@ -26,18 +26,18 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Generate ANTLR parser
-        run: npm run generate
-
-      - name: Compile TypeScript
-        run: npm run compile
+      - name: Build (generate + compile + bundle)
+        run: npm run build
 
       - name: Lint
         run: npm run lint
-        continue-on-error: true
 
       - name: Run tests
         run: npm run test
 
-      - name: Build
-        run: npm run build
+      - name: Verify npm package
+        run: npm pack --dry-run
+
+      - name: Verify VSIX packaging
+        if: matrix.node-version == 20
+        run: npx @vscode/vsce package --no-dependencies
