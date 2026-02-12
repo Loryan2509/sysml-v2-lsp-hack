@@ -10,6 +10,7 @@
     "url": "https://github.com/daltskin/sysml-v2-lsp.git"
   },
   "engines": {
+    "node": ">=20",
     "vscode": "^1.85.0"
   },
   "categories": [
