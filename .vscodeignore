@@ -1,14 +1,17 @@
 # Source files (bundled by esbuild into dist/)
 server/**
 client/**
+clients/**
 grammar/**
 test/**
+docs/**
 examples/temp/**
 examples/.vscode/**
 
 # npm packaging (not needed in VSIX)
 index.cjs
 .npmignore
+.npmrc
 
 # Dependencies (bundled by esbuild)
 node_modules/**
