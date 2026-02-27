@@ -7,6 +7,7 @@ const isWatch = process.argv.includes('--watch');
 const baseConfig = {
     bundle: true,
     minify: isProduction,
+    keepNames: true,
     sourcemap: !isProduction,
     platform: 'node',
     target: 'node20',
