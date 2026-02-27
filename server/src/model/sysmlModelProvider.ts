@@ -8,7 +8,9 @@
  */
 
 import { Range } from 'vscode-languageserver/node.js';
+import { analyseComplexity } from '../analysis/complexityAnalyzer.js';
 import { DocumentManager } from '../documentManager.js';
+import { ParseResult } from '../parser/parseDocument.js';
 import { SymbolTable } from '../symbols/symbolTable.js';
 import { SysMLElementKind, SysMLSymbol, isDefinition, isUsage } from '../symbols/sysmlElements.js';
 
@@ -34,9 +36,53 @@ import type {
 /**
  * Provides the full semantic model for a document by converting the
  * server's internal ANTLR parse tree and symbol table into serializable DTOs.
+ *
+ * The symbol table is cached per URI + document version so repeated
+ * `getModel()` calls (dashboard refresh, explorer update, etc.) skip
+ * the ANTLR tree walk when the source hasn't changed.
  */
 export class SysMLModelProvider {
+    /** Cached symbol tables keyed by URI. */
+    private _stCache = new Map<string, { version: number; table: SymbolTable }>();
+
     constructor(private readonly documentManager: DocumentManager) { }
+
+    /** Remove cached symbol table for a URI (e.g. on document close). */
+    removeUri(uri: string): void {
+        this._stCache.delete(uri);
+    }
+
+    /**
+     * Drop **all** cached symbol tables.
+     * Returns the number of entries that were evicted.
+     */
+    clearAll(): number {
+        const count = this._stCache.size;
+        this._stCache.clear();
+        return count;
+    }
+
+    /** Number of cached symbol tables (for diagnostics / stats). */
+    get cacheSize(): number {
+        return this._stCache.size;
+    }
+
+    /**
+     * Return a cached-or-fresh SymbolTable for a URI.
+     *
+     * The table is rebuilt only when the document version changes.
+     */
+    private _getSymbolTable(uri: string, parseResult: ParseResult): SymbolTable {
+        const version = this.documentManager.getVersion(uri);
+        const cached = this._stCache.get(uri);
+        if (cached && cached.version === version) {
+            return cached.table;
+        }
+        const table = new SymbolTable();
+        table.build(uri, parseResult);
+        this._stCache.set(uri, { version, table });
+        return table;
+    }
 
     /**
      * Build the model response for a document.
@@ -58,9 +104,8 @@ export class SysMLModelProvider {
                 : ['elements', 'relationships', 'sequenceDiagrams', 'activityDiagrams', 'resolvedTypes', 'diagnostics'],
         );
 
-        // Build symbol table from parse result
-        const symbolTable = new SymbolTable();
-        symbolTable.build(uri, parseResult);
+        // Build (or retrieve cached) symbol table from parse result
+        const symbolTable = this._getSymbolTable(uri, parseResult);
 
         const text = this.documentManager.getText(uri) ?? '';
 
@@ -98,10 +143,12 @@ export class SysMLModelProvider {
 
         // --- Stats ---
         const allSymbols = symbolTable.getSymbolsForUri(uri);
-        const resolved = allSymbols.filter(s => s.typeName);
+        const resolved = allSymbols.filter(s => s.typeNames.length > 0);
         // Use the real ANTLR parse time (from worker or lazy main-thread),
         // not the model-build time which is much smaller on cache hits.
         const parseTimeMs = this.documentManager.getParseTimeMs(uri);
+        const timingBreakdown = this.documentManager.getTimingBreakdown(uri);
+        const parseCached = this.documentManager.wasCached();
         const modelBuildTimeMs = Date.now() - startTime;
 
         result.stats = {
@@ -109,7 +156,11 @@ export class SysMLModelProvider {
             resolvedElements: resolved.length,
             unresolvedElements: allSymbols.length - resolved.length,
             parseTimeMs,
+            lexTimeMs: timingBreakdown.lexMs,
+            parseOnlyTimeMs: timingBreakdown.parseMs,
+            parseCached,
             modelBuildTimeMs,
+            complexity: analyseComplexity(allSymbols),
         };
 
         return result;
@@ -177,12 +228,14 @@ export class SysMLModelProvider {
         // Build attributes
         const attributes: Record<string, string | number | boolean> = {};
 
-        if (symbol.typeName) {
+        if (symbol.typeNames.length > 0) {
             // Determine correct attribute key based on kind
+            // Store all type names as comma-separated string
+            const typeLabel = symbol.typeNames.join(', ');
             if (symbol.kind === SysMLElementKind.PortUsage || symbol.kind === SysMLElementKind.PortDef) {
-                attributes['portType'] = symbol.typeName;
+                attributes['portType'] = typeLabel;
             } else {
-                attributes['partType'] = symbol.typeName;
+                attributes['partType'] = typeLabel;
             }
         }
 
@@ -223,22 +276,22 @@ export class SysMLModelProvider {
         // Inline relationships for this element
         const relationships: RelationshipDTO[] = [];
 
-        // Typing relationship (part x : Type)
-        if (symbol.typeName) {
+        // Typing relationships (part x : Type, or defined by A, B)
+        for (const tn of symbol.typeNames) {
             relationships.push({
                 type: 'typing',
                 source: symbol.name,
-                target: symbol.typeName,
+                target: tn,
             });
         }
 
-        // Specialization (detected from text ":>" syntax)
-        const specialization = this.extractSpecialization(symbol, text);
-        if (specialization) {
+        // Specialization (detected from text ":>" / "specializes" syntax)
+        const specializations = this.extractSpecializations(symbol, text);
+        for (const spec of specializations) {
             relationships.push({
                 type: 'specializes',
                 source: symbol.name,
-                target: specialization,
+                target: spec,
             });
         }
 
@@ -279,24 +332,26 @@ export class SysMLModelProvider {
                 continue;
             }
 
-            // Typing relationships (part x : Type)
+            // Typing relationships (part x : Type, or defined by A, B)
             // Only for usages — definitions' typeName can be a false positive
             // from child element text captured by ctx.getText()
-            if (symbol.typeName && isUsage(symbol.kind)) {
-                relationships.push({
-                    type: 'typing',
-                    source: symbol.name,
-                    target: symbol.typeName,
-                });
+            if (symbol.typeNames.length > 0 && isUsage(symbol.kind)) {
+                for (const tn of symbol.typeNames) {
+                    relationships.push({
+                        type: 'typing',
+                        source: symbol.name,
+                        target: tn,
+                    });
+                }
             }
 
-            // Specialization (part def X :> Y)
-            const specialization = this.extractSpecialization(symbol, text);
-            if (specialization) {
+            // Specialization (part def X :> Y, Z  or  specializes Y, Z)
+            const specializations = this.extractSpecializations(symbol, text);
+            for (const spec of specializations) {
                 relationships.push({
                     type: 'specializes',
                     source: symbol.name,
-                    target: specialization,
+                    target: spec,
                 });
             }
 
@@ -373,7 +428,7 @@ export class SysMLModelProvider {
                     child.kind === SysMLElementKind.ItemUsage) {
                     participants.push({
                         name: child.name,
-                        type: child.typeName ?? child.kind,
+                        type: child.typeNames.join(', ') || child.kind,
                         range: this.rangeToDTO(child.range),
                     });
                 }
@@ -481,7 +536,7 @@ export class SysMLModelProvider {
                 .filter(c => c.kind === SysMLElementKind.ActionUsage || c.kind === SysMLElementKind.ActionDef)
                 .map(c => ({
                     name: c.name,
-                    type: c.typeName ?? 'action',
+                    type: c.typeNames.join(', ') || 'action',
                     range: this.rangeToDTO(c.range),
                 }));
 
@@ -710,17 +765,17 @@ export class SysMLModelProvider {
 
         for (const symbol of symbols) {
             // Only include definitions and typed usages
-            if (!isDefinition(symbol.kind) && !symbol.typeName) {
+            if (!isDefinition(symbol.kind) && symbol.typeNames.length === 0) {
                 continue;
             }
 
             const specializes: string[] = [];
-            const specialization = this.extractSpecialization(symbol, text);
-            if (specialization) {
-                specializes.push(specialization);
+            const specList = this.extractSpecializations(symbol, text);
+            for (const s of specList) {
+                if (!specializes.includes(s)) { specializes.push(s); }
             }
-            if (symbol.typeName && !specializes.includes(symbol.typeName)) {
-                specializes.push(symbol.typeName);
+            for (const tn of symbol.typeNames) {
+                if (!specializes.includes(tn)) { specializes.push(tn); }
             }
 
             // Build specialization chain (currently single-level without library)
@@ -733,7 +788,7 @@ export class SysMLModelProvider {
                 .map(c => ({
                     name: c.name,
                     kind: this.featureKindFromElementKind(c.kind),
-                    type: c.typeName,
+                    type: c.typeNames.join(', ') || undefined,
                     isDerived: false,
                     isReadonly: false,
                 }));
@@ -770,15 +825,17 @@ export class SysMLModelProvider {
         const allSymbolNames = new Set(symbolTable.getAllSymbols().map(s => s.name));
 
         for (const symbol of symbols) {
-            // Check for unresolved type references
-            if (symbol.typeName && !allSymbolNames.has(symbol.typeName)) {
-                diagnostics.push({
-                    code: 'unresolved-type',
-                    message: `Type '${symbol.typeName}' could not be resolved in the current scope`,
-                    severity: 'warning',
-                    range: this.rangeToDTO(symbol.selectionRange),
-                    elementName: symbol.name,
-                });
+            // Check for unresolved type references (check all typeNames)
+            for (const tn of symbol.typeNames) {
+                if (!allSymbolNames.has(tn)) {
+                    diagnostics.push({
+                        code: 'unresolved-type',
+                        message: `Type '${tn}' could not be resolved in the current scope`,
+                        severity: 'warning',
+                        range: this.rangeToDTO(symbol.selectionRange),
+                        elementName: symbol.name,
+                    });
+                }
             }
 
             // Enum definitions without any enum values
@@ -909,16 +966,24 @@ export class SysMLModelProvider {
         return undefined;
     }
 
-    /** Extract specialization target from `:>` syntax. */
-    private extractSpecialization(symbol: SysMLSymbol, text: string): string | undefined {
+    /** Extract all specialization targets from `:>` or `specializes` syntax. */
+    private extractSpecializations(symbol: SysMLSymbol, text: string): string[] {
         const lines = text.split('\n');
         const elementText = this.getElementText(symbol, lines);
-        // Match `:>` or `specializes` syntax
-        const match = elementText.match(/:>\s*([A-Za-z_][\w:]*)/);
-        if (match) return match[1];
-        const specMatch = elementText.match(/\bspecializes\s+([A-Za-z_][\w:]*)/);
-        if (specMatch) return specMatch[1];
-        return undefined;
+
+        // Match `:>` syntax with comma-separated names
+        const colonMatch = elementText.match(/:>\s*([A-Za-z_][\w:]*(?:\s*,\s*[A-Za-z_][\w:]*)*)/) ;
+        if (colonMatch) {
+            return colonMatch[1].split(',').map(s => s.trim()).filter(Boolean);
+        }
+
+        // Match `specializes` syntax with comma-separated names
+        const specMatch = elementText.match(/\bspecializes\s+([A-Za-z_][\w:]*(?:\s*,\s*[A-Za-z_][\w:]*)*)/) ;
+        if (specMatch) {
+            return specMatch[1].split(',').map(s => s.trim()).filter(Boolean);
+        }
+
+        return [];
     }
 
     /** Extract connection endpoints from `connect` syntax. */

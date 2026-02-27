@@ -1,28 +1,33 @@
 # SysML v2 Language Server
 
-[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/JamieD.sysml-v2-support?label=VS%20Code%20Marketplace&logo=visual-studio-code)](https://marketplace.visualstudio.com/items?itemName=JamieD.sysml-v2-support)
+[![SysML v2.0 Language Support VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/JamieD.sysml-v2-support?label=VS%20Code%20Marketplace&logo=visual-studio-code)](https://marketplace.visualstudio.com/items?itemName=JamieD.sysml-v2-support)
 
 A [Language Server Protocol (LSP)](https://microsoft.github.io/language-server-protocol/) implementation for [SysML v2](https://www.omgsysml.org/SysML-2.htm).
 
 ## Features
 
-| Feature | Status | Description |
-|---------|--------|-------------|
-| **Diagnostics** | ✅ | Syntax error reporting with red squiggles |
-| **Document Symbols** | ✅ | Outline panel with SysML model structure |
-| **Hover** | ✅ | Element kind, type, and documentation on hover |
-| **Go to Definition** | ✅ | Ctrl+Click navigation to declarations |
-| **Find References** | ✅ | Find all usages of a symbol |
-| **Code Completion** | ✅ | Keywords, snippets, and symbol suggestions |
-| **Semantic Tokens** | ✅ | Rich, context-aware syntax highlighting |
-| **Folding Ranges** | ✅ | Collapsible `{ }` blocks and comments |
-| **Rename** | ✅ | Rename symbol and all references |
+| Feature                 | Status | Description                                              |
+| ----------------------- | ------ | -------------------------------------------------------- |
+| **Diagnostics**         | ✅     | Syntax error reporting with red squiggles                |
+| **Document Symbols**    | ✅     | Outline panel with SysML model structure                 |
+| **Hover**               | ✅     | Element kind, type, and documentation on hover           |
+| **Go to Definition**    | ✅     | Ctrl+Click navigation to declarations                    |
+| **Find References**     | ✅     | Find all usages of a symbol                              |
+| **Code Completion**     | ✅     | Keywords, snippets, and symbol suggestions               |
+| **Semantic Tokens**     | ✅     | Rich, context-aware syntax highlighting                  |
+| **Folding Ranges**      | ✅     | Collapsible `{ }` blocks and comments                    |
+| **Rename**              | ✅     | Rename symbol and all references                         |
+| **Semantic Validation** | ✅     | Unresolved types, invalid multiplicity, duplicates       |
+| **Code Actions**        | ✅     | Quick-fixes: naming, doc stubs, empty enums, unused defs |
+| **Complexity Analysis** | ✅     | Structural metrics, composite index, hotspot detection   |
+| **Mermaid Preview**     | ✅     | 6 diagram types with auto-detect, focus, and diff modes  |
+| **MCP Server**          | ✅     | AI-assisted modelling via `sysml-mcp` CLI                |
 
 ## Quick Start
 
 ### Install from Marketplace
 
-Install the extension directly from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=JamieD.sysml-v2-support).
+Install via the VS Code extension from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=JamieD.sysml-v2-support).
 
 ### Dev Container (recommended)
 
@@ -81,7 +86,9 @@ sysml-v2-lsp/
 │       ├── documentManager.ts  # Parse cache, document lifecycle
 │       ├── parser/         # Parse pipeline
 │       ├── symbols/        # Symbol table, scopes, element types
-│       └── providers/      # LSP feature implementations
+│       ├── providers/      # LSP feature implementations
+│       ├── analysis/       # Complexity analyzer
+│       └── mcp/            # Mermaid diagram generator
 ├── grammar/                # Grammar files (.g4)
 ├── test/                   # Unit tests (vitest) + E2E tests
 └── package.json            # Extension manifest + monorepo scripts
@@ -111,15 +118,15 @@ make ci               # Full CI pipeline
 
 ## Technology Stack
 
-| Component | Technology |
-|-----------|-----------|
-| Language | TypeScript (strict mode) |
-| Runtime | Node.js ≥ 18 |
-| Parser | [antlr4ng](https://github.com/mike-lischke/antlr4ng) |
-| Generator | [antlr-ng](https://github.com/nicklockwood/antlr-ng) |
-| LSP | [vscode-languageserver](https://github.com/microsoft/vscode-languageserver-node) |
-| Bundler | esbuild |
-| Tests | vitest |
+| Component | Technology                                                                       |
+| --------- | -------------------------------------------------------------------------------- |
+| Language  | TypeScript (strict mode)                                                         |
+| Runtime   | Node.js ≥ 18                                                                     |
+| Parser    | [antlr4ng](https://github.com/mike-lischke/antlr4ng)                             |
+| Generator | [antlr-ng](https://github.com/nicklockwood/antlr-ng)                             |
+| LSP       | [vscode-languageserver](https://github.com/microsoft/vscode-languageserver-node) |
+| Bundler   | esbuild                                                                          |
+| Tests     | vitest                                                                           |
 
 ## Related Projects
 

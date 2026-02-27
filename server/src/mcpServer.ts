@@ -5,10 +5,10 @@
  * capabilities as tools, resources, and prompts for AI assistants.
  *
  * Run via stdio transport:
- *   node dist/server/mcpServer.mjs
+ *   node dist/server/mcpServer.js
  *
  * Or use in an MCP configuration (Claude Desktop, VS Code, etc.):
- *   { "command": "node", "args": ["path/to/dist/server/mcpServer.mjs"] }
+ *   { "command": "node", "args": ["path/to/dist/server/mcpServer.js"] }
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -16,19 +16,22 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 import {
     McpContext,
-    handleParse,
-    handleValidate,
-    handleGetSymbols,
+    handleGetComplexity,
     handleGetDefinition,
-    handleGetReferences,
+    handleGetDiagnostics,
     handleGetHierarchy,
     handleGetModelSummary,
-    handleResourceElementKinds,
-    handleResourceKeywords,
-    handleResourceGrammarOverview,
-    handlePromptReviewSysml,
+    handleGetReferences,
+    handleGetSymbols,
+    handleParse,
+    handlePreview,
     handlePromptExplainElement,
     handlePromptGenerateSysml,
+    handlePromptReviewSysml,
+    handleResourceElementKinds,
+    handleResourceGrammarOverview,
+    handleResourceKeywords,
+    handleValidate,
 } from './mcpCore.js';
 
 // ---------------------------------------------------------------------------
@@ -37,7 +40,21 @@ import {
 
 const server = new McpServer(
     { name: 'sysml-v2', version: '0.1.4' },
-    { capabilities: { logging: {} } },
+    {
+        capabilities: { logging: {} },
+        instructions:
+            'SysML v2 Model Context server. CRITICAL RULES:\n' +
+            '1. Call EXACTLY the tool(s) the user asked for — nothing more. Never add extra tool calls.\n' +
+            '2. "preview" means ONLY the preview tool. NEVER call getComplexity alongside preview.\n' +
+            '3. getComplexity may ONLY be called when the user literally asks for "complexity" or "metrics".\n' +
+            '4. AFTER calling the preview tool, you MUST IMMEDIATELY call the "renderMermaidDiagram" tool.\n' +
+            '   Pass the "mermaidMarkup" field from the preview response as the "markup" parameter.\n' +
+            '   Pass the "title" field as the "title" parameter.\n' +
+            '   Do NOT paste mermaid markup as text — it will not render visually.\n' +
+            '   The renderMermaidDiagram tool is the ONLY way to display diagrams to the user.\n' +
+            '5. After rendering the diagram, reply with ONLY a brief one-sentence summary.\n' +
+            '   NEVER show raw JSON, mermaid markup, element counts, participant counts, or semantic notes.',
+    },
 );
 
 const ctx = new McpContext();
@@ -69,8 +86,9 @@ server.registerTool(
     {
         title: 'Validate SysML Document',
         description:
-            'Validate a SysML v2 document and return all syntax errors. ' +
-            'Returns an empty errors array if the document is syntactically valid.',
+            'Parse and validate a SysML v2 document. Returns both syntax errors and ' +
+            'semantic issues (unresolved types, invalid multiplicity, empty enums, ' +
+            'duplicate definitions, unused definitions, naming conventions, missing docs).',
         inputSchema: {
             code: z.string().describe('The SysML v2 source code to validate'),
             uri: z.string().optional().describe('A URI/name to identify this document'),
@@ -78,6 +96,24 @@ server.registerTool(
     },
     async ({ code, uri }) => ({
         content: [{ type: 'text' as const, text: JSON.stringify(handleValidate(ctx, code, uri), null, 2) }],
+    }),
+);
+
+server.registerTool(
+    'getDiagnostics',
+    {
+        title: 'Get Model Diagnostics',
+        description:
+            'Return semantic diagnostics for a previously parsed document: unresolved types, ' +
+            'invalid multiplicity, empty enums, duplicate definitions, unused definitions, ' +
+            'naming convention violations, and missing documentation. ' +
+            'Parse the document first with the "parse" or "validate" tool.',
+        inputSchema: {
+            uri: z.string().optional().describe('The URI of the document to diagnose (defaults to "untitled.sysml")'),
+        },
+    },
+    async ({ uri }) => ({
+        content: [{ type: 'text' as const, text: JSON.stringify(handleGetDiagnostics(ctx, uri), null, 2) }],
     }),
 );
 
@@ -158,6 +194,112 @@ server.registerTool(
     async () => ({
         content: [{ type: 'text' as const, text: JSON.stringify(handleGetModelSummary(ctx), null, 2) }],
     }),
+);
+
+server.registerTool(
+    'getComplexity',
+    {
+        title: 'Get Model Complexity',
+        description:
+            'IMPORTANT: Do NOT call this tool unless the user\'s message contains the word ' +
+            '"complexity" or "metrics". Never call alongside preview or other tools. ' +
+            'Analyse the structural complexity of the loaded SysML model(s). ' +
+            'Returns a Model Complexity Index (0–100), per-definition hotspots, ' +
+            'coupling count, documentation coverage, and other metrics. ' +
+            'Optionally scope the analysis to a single document URI.',
+        annotations: {
+            title: 'Get Model Complexity',
+            readOnlyHint: true,
+            openWorldHint: false,
+        },
+        inputSchema: {
+            uri: z.string().optional().describe('Optional document URI to scope the analysis to a single file'),
+        },
+    },
+    async ({ uri }) => ({
+        content: [{ type: 'text' as const, text: JSON.stringify(handleGetComplexity(ctx, uri), null, 2) }],
+    }),
+);
+
+server.registerTool(
+    'preview',
+    {
+        title: 'Preview SysML Diagram',
+        description:
+            'Parse SysML v2 code and generate a Mermaid diagram. ' +
+            'Supports General, Activity, State, Sequence, Use Case, and Interconnection views — ' +
+            'the best type is auto-detected from the code, or you can specify one. ' +
+            'Optionally provide original code to see a diff of what changed.\n\n' +
+            'RENDERING: The response includes a `mermaidMarkup` field containing valid Mermaid syntax. ' +
+            'After receiving the response, you MUST call the `renderMermaidDiagram` tool, passing ' +
+            'the mermaidMarkup value as the `markup` parameter and the title as the `title` parameter. ' +
+            'This is the ONLY way to show the diagram visually to the user.',
+        inputSchema: {
+            code: z.string().describe(
+                'The SysML v2 source code to preview. Can be a complete model or a snippet.',
+            ),
+            originalCode: z.string().optional().describe(
+                'Optional original SysML code to compare against. When provided, the response ' +
+                'includes a diff summary showing added, changed, and removed elements.',
+            ),
+            diagramType: z.enum(['general', 'activity', 'state', 'sequence', 'interconnection', 'usecase']).optional().describe(
+                'Force a specific diagram type. If omitted, the best type is auto-detected ' +
+                'from the element kinds in the code (e.g., actions → activity, use cases → usecase diagram).',
+            ),
+            focus: z.string().optional().describe(
+                'Focus the diagram on a specific element by name. Only the element, its children, ' +
+                'parent, and related types will be rendered — useful for large models.',
+            ),
+            uri: z.string().optional().describe(
+                'A URI/name for the document (defaults to "preview.sysml")',
+            ),
+        },
+    },
+    async ({ code, originalCode, diagramType, focus, uri }) => {
+        const result = handlePreview(ctx, { code, originalCode, diagramType, focus, uri });
+
+        // Build a minimal data payload containing ONLY what renderMermaidDiagram
+        // needs (mermaidMarkup + title).  Extra metadata like elementCount,
+        // diagramType, semanticIssues are kept out so the model does not echo
+        // them verbatim to the user.
+        const renderData: Record<string, unknown> = {
+            mermaidMarkup: result.diagram,
+            title: result.description,
+        };
+
+        // Diff summaries are useful context when the user asked for a what-if
+        // comparison, so include them only when present.
+        if (result.diff) {
+            renderData.diff = result.diff;
+        }
+
+        // Syntax errors are critical — the user needs to know about them.
+        if (result.errors.length > 0) {
+            renderData.syntaxErrors = result.errors;
+        }
+
+        // Return TWO content blocks:
+        // 1. Strict behavioural instructions for the model
+        // 2. Minimal data needed for renderMermaidDiagram
+        return {
+            content: [
+                {
+                    type: 'text' as const,
+                    text: 'ACTION REQUIRED: You MUST now call the "renderMermaidDiagram" tool to display this diagram.\n' +
+                          'Pass the "mermaidMarkup" field from the data below as the "markup" parameter and the "title" field as the "title" parameter.\n\n' +
+                          'AFTER the diagram renders, respond with ONLY a single brief sentence such as ' +
+                          '"Here is your <diagramType> diagram." and nothing else.\n' +
+                          'Do NOT show or describe: mermaid markup, JSON data, element counts, participant counts, ' +
+                          'interaction counts, semantic notes, or any raw tool output.\n' +
+                          'If there are syntaxErrors in the data, mention them briefly. Otherwise output NOTHING extra.',
+                },
+                {
+                    type: 'text' as const,
+                    text: JSON.stringify(renderData, null, 2),
+                },
+            ],
+        };
+    },
 );
 
 // ---------------------------------------------------------------------------

@@ -7,7 +7,6 @@ import {
 import { DocumentManager } from '../documentManager.js';
 import { SymbolTable } from '../symbols/symbolTable.js';
 
-
 /**
  * Provides hover information for SysML elements.
  * Shows element kind, type, and documentation on hover.
@@ -23,18 +22,14 @@ export class HoverProvider {
             return null;
         }
 
-        const text = this.documentManager.getText(params.textDocument.uri);
-        if (!text) return null;
-
         // Build symbol table for this document
         this.symbolTable.build(params.textDocument.uri, result);
 
-        // Find symbol at hover position (declaration or reference)
-        const symbol = this.symbolTable.resolveAt(
+        // Find symbol at hover position
+        const symbol = this.symbolTable.findSymbolAtPosition(
             params.textDocument.uri,
             params.position.line,
             params.position.character,
-            text,
         );
 
         if (!symbol) {

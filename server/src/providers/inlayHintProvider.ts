@@ -6,7 +6,7 @@ import {
 } from 'vscode-languageserver/node.js';
 import { DocumentManager } from '../documentManager.js';
 import { SymbolTable } from '../symbols/symbolTable.js';
-import { isUsage, SysMLElementKind, isDefinition } from '../symbols/sysmlElements.js';
+import { isDefinition, isUsage, SysMLElementKind } from '../symbols/sysmlElements.js';
 
 /**
  * Provides inlay hints — ghost text shown inline for:
@@ -37,13 +37,13 @@ export class InlayHintProvider {
             }
 
             // Show type hints for usages that have a type but don't show it inline
-            if (isUsage(sym.kind) && sym.typeName) {
+            if (isUsage(sym.kind) && sym.typeNames.length > 0) {
                 hints.push({
                     position: Position.create(
                         sym.selectionRange.end.line,
                         sym.selectionRange.end.character,
                     ),
-                    label: `: ${sym.typeName}`,
+                    label: `: ${sym.typeNames.join(', ')}`,
                     kind: InlayHintKind.Type,
                     paddingLeft: false,
                     paddingRight: true,
@@ -51,13 +51,13 @@ export class InlayHintProvider {
             }
 
             // Show supertype hints for definitions
-            if (isDefinition(sym.kind) && sym.typeName) {
+            if (isDefinition(sym.kind) && sym.typeNames.length > 0) {
                 hints.push({
                     position: Position.create(
                         sym.selectionRange.end.line,
                         sym.selectionRange.end.character,
                     ),
-                    label: `:> ${sym.typeName}`,
+                    label: `:> ${sym.typeNames.join(', ')}`,
                     kind: InlayHintKind.Type,
                     paddingLeft: true,
                     paddingRight: true,

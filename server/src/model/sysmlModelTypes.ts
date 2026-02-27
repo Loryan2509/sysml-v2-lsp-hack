@@ -96,8 +96,35 @@ export interface SysMLModelResult {
         unresolvedElements: number;
         /** Actual ANTLR parse time (worker or lazy main-thread). */
         parseTimeMs: number;
+        /** ANTLR lexer time in milliseconds. */
+        lexTimeMs?: number;
+        /** ANTLR parser-only time in milliseconds (excludes lexing). */
+        parseOnlyTimeMs?: number;
+        /** Whether the parse result was served from cache (no re-parse). */
+        parseCached?: boolean;
         /** Time to build symbol table + extract DTOs for the requested scopes. */
         modelBuildTimeMs: number;
+        /** Model Complexity Index report. */
+        complexity?: {
+            complexityIndex: number;
+            rating: string;
+            definitions: number;
+            usages: number;
+            maxDepth: number;
+            avgChildrenPerDef: number;
+            couplingCount: number;
+            unusedDefinitions: number;
+            documentationCoverage: number;
+            hotspots: {
+                qualifiedName: string;
+                kind: string;
+                childCount: number;
+                depth: number;
+                typeRefs: number;
+                hasDoc: boolean;
+                score: number;
+            }[];
+        };
     };
 }
 

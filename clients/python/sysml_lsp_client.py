@@ -13,7 +13,7 @@ Usage:
 
 Prerequisites:
     - Node.js >= 20
-    - The LSP server bundle at dist/server/server.mjs (run `npm run build` first)
+    - The LSP server bundle at dist/server/server.js (run `npm run build` first)
 """
 
 from __future__ import annotations
@@ -325,7 +325,7 @@ def main() -> None:
     # Resolve paths
     script_dir = Path(__file__).resolve().parent
     repo_root = script_dir.parent.parent          # clients/python -> repo root
-    server_js = repo_root / "dist" / "server" / "server.mjs"
+    server_js = repo_root / "dist" / "server" / "server.js"
 
     if not server_js.exists():
         print(f"ERROR: Server bundle not found at {server_js}")

@@ -8,7 +8,7 @@ This demonstrates that the LSP is truly language-agnostic: any tool (Python, Rus
 
 ```
 ┌─────────────────────┐       stdio (JSON-RPC)       ┌─────────────────────┐
-│  sysml_lsp_client.py│ ◄──────────────────────────► │  server.mjs (Node)  │
+│  sysml_lsp_client.py│ ◄──────────────────────────► │  server.js (Node)   │
 │  (Python 3.10+)     │   Content-Length framing      │  ANTLR4 parser      │
 └─────────────────────┘                               └─────────────────────┘
         │                                                     │
@@ -63,7 +63,7 @@ The script performs a full LSP session against each `.sysml` file:
 ============================================================
 SysML v2 — Python LSP Client Demo
 ============================================================
-Server : dist/server/server.mjs
+Server : dist/server/server.js
 Files  : 4
 
 Server capabilities: codeActionProvider, codeLensProvider, completionProvider, ...
@@ -105,7 +105,7 @@ The script implements just enough of the LSP transport layer:
 
 1. **Content-Length framing** — each message is prefixed with `Content-Length: N\r\n\r\n`
 2. **JSON-RPC 2.0** — requests have an `id`, notifications don't
-3. **stdio** — the server is launched with `node dist/server/server.mjs --stdio`
+3. **stdio** — the server is launched with `node dist/server/server.js --stdio`
 
 This is the same wire protocol VS Code uses (via `vscode-languageclient`), just
 without the framework overhead.

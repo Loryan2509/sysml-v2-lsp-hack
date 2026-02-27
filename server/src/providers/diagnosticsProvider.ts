@@ -1,14 +1,13 @@
 import { Diagnostic, DiagnosticSeverity } from 'vscode-languageserver/node.js';
 import { DocumentManager } from '../documentManager.js';
 import { SyntaxError } from '../parser/errorListener.js';
-import { validateKeywords } from './keywordValidator.js';
 
 /**
  * Provides diagnostics (errors/warnings) for SysML documents.
  * Converts ANTLR parse errors into LSP Diagnostic objects.
  */
 export class DiagnosticsProvider {
-    constructor(private documentManager: DocumentManager) { }
+    constructor(private documentManager: DocumentManager) {}
 
     /**
      * Get diagnostics for a parsed document.
@@ -25,9 +24,6 @@ export class DiagnosticsProvider {
         for (const error of result.errors) {
             diagnostics.push(this.syntaxErrorToDiagnostic(error));
         }
-
-        // Check for likely keyword typos
-        diagnostics.push(...validateKeywords(result));
 
         return diagnostics;
     }

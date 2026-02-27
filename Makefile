@@ -59,7 +59,7 @@ test-package: package-server ## Test npm package in a simulated consumer project
 		const child = fork(pkg.serverPath, ['--stdio'], { silent: true }); \
 		child.on('error', e => { console.log('❌ Fork failed:', e.message); process.exit(1); }); \
 		setTimeout(() => { \
-			console.log('  ✅ server.mjs forks and runs (pid', child.pid + ')'); \
+			console.log('  ✅ server.js forks and runs (pid', child.pid + ')'); \
 			child.kill(); \
 			console.log(''); \
 			console.log('✅ npm package test passed'); \

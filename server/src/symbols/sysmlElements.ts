@@ -17,8 +17,11 @@ export enum SysMLElementKind {
     InterfaceUsage = 'interface',
     ActionDef = 'action def',
     ActionUsage = 'action',
+    PerformActionUsage = 'perform action',
     StateDef = 'state def',
     StateUsage = 'state',
+    ExhibitStateUsage = 'exhibit state',
+    TransitionUsage = 'transition',
     RequirementDef = 'requirement def',
     RequirementUsage = 'requirement',
     ConstraintDef = 'constraint def',
@@ -29,13 +32,9 @@ export enum SysMLElementKind {
     AllocationUsage = 'allocation',
     UseCaseDef = 'use case def',
     UseCaseUsage = 'use case',
-    ActorUsage = 'actor usage',
-    SubjectUsage = 'subject',
-    StakeholderUsage = 'stakeholder',
-    ObjectiveUsage = 'objective',
-    ConcernDef = 'concern def',
-    ConcernUsage = 'concern',
     IncludeUseCaseUsage = 'include use case',
+    ActorUsage = 'actor',
+    SubjectUsage = 'subject',
     EnumDef = 'enum def',
     EnumUsage = 'enum',
     CalcDef = 'calc def',
@@ -44,6 +43,9 @@ export enum SysMLElementKind {
     ViewUsage = 'view',
     ViewpointDef = 'viewpoint def',
     ViewpointUsage = 'viewpoint',
+    OccurrenceDef = 'occurrence def',
+    OccurrenceUsage = 'occurrence',
+    RefUsage = 'ref',
     MetadataDef = 'metadata def',
     RenderingDef = 'rendering def',
     AnalysisCaseDef = 'analysis case def',
@@ -73,12 +75,18 @@ export interface SysMLSymbol {
     uri: string;
     /** The type this symbol specializes (e.g., "Vehicle" in "part car : Vehicle") */
     typeName?: string;
+    /** Type names as an array (populated from typeName for multi-type support). */
+    typeNames: string[];
     /** Documentation string if available */
     documentation?: string;
     /** Parent symbol's qualified name */
     parentQualifiedName?: string;
     /** Child symbol qualified names */
     children: string[];
+    /** Multiplicity as a string (e.g., "1", "0..*", "2..5") */
+    multiplicity?: string;
+    /** Parsed multiplicity bounds */
+    multiplicityRange?: { lower: number; upper: number | '*' };
 }
 
 /**

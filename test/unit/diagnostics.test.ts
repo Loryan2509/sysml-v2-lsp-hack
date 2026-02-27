@@ -26,3 +26,143 @@ package ValidModel {
         expect(result.errors.length).toBe(0);
     });
 });
+
+/** Create a TextDocument from raw SysML text */
+async function makeDoc(text: string, uri = 'test://test.sysml') {
+    const mod = await import('../../server/node_modules/vscode-languageserver-textdocument/lib/esm/main.js');
+    return mod.TextDocument.create(uri, 'sysml', 1, text);
+}
+
+// Helper to get semantic diagnostics for a given SysML text
+async function getSemanticDiagnostics(text: string) {
+    const { DocumentManager } = await import('../../server/src/documentManager.js');
+    const { SemanticValidator } = await import('../../server/src/providers/semanticValidator.js');
+
+    const docManager = new DocumentManager();
+    const uri = 'file:///test.sysml';
+    const doc = await makeDoc(text, uri);
+    docManager.parse(doc);
+
+    const validator = new SemanticValidator(docManager);
+    return validator.validate(uri);
+}
+
+describe('Semantic Validation', () => {
+    describe('unresolved type references', () => {
+        it('should flag a type that does not exist in the document', async () => {
+            const text = `
+package Test {
+    part def Vehicle {
+        part engine : Engine[1];
+    }
+}
+`;
+            const diags = await getSemanticDiagnostics(text);
+            const unresolvedDiags = diags.filter(d => d.code === 'unresolved-type');
+            expect(unresolvedDiags.length).toBe(1);
+            expect(unresolvedDiags[0].message).toContain("'Engine'");
+        });
+
+        it('should not flag types that are defined in the document', async () => {
+            const text = `
+package Test {
+    part def Engine {
+        attribute power : Real;
+    }
+    part def Vehicle {
+        part engine : Engine[1];
+    }
+}
+`;
+            const diags = await getSemanticDiagnostics(text);
+            const unresolvedDiags = diags.filter(d => d.code === 'unresolved-type');
+            expect(unresolvedDiags.length).toBe(0);
+        });
+
+        it('should not flag standard library types (Real, String, Boolean, Integer)', async () => {
+            const text = `
+package Test {
+    part def Sensor {
+        attribute value : Real[1];
+        attribute name : String[1];
+        attribute active : Boolean[1];
+        attribute count : Integer[1];
+    }
+}
+`;
+            const diags = await getSemanticDiagnostics(text);
+            const unresolvedDiags = diags.filter(d => d.code === 'unresolved-type');
+            expect(unresolvedDiags.length).toBe(0);
+        });
+
+        it('should not flag ISQ quantity value types (LengthValue, MassValue, TorqueValue, etc.)', async () => {
+            const text = `
+package Test {
+    part def Wheel {
+        attribute diameter : LengthValue;
+    }
+    interface def WheelInterface {
+        attribute maxTorque : TorqueValue;
+    }
+    part def FuelTank {
+        attribute mass : MassValue;
+    }
+}
+`;
+            const diags = await getSemanticDiagnostics(text);
+            const unresolvedDiags = diags.filter(d => d.code === 'unresolved-type');
+            // LengthValue, TorqueValue, MassValue are all recognized ISQ types
+            expect(unresolvedDiags.length).toBe(0);
+        });
+
+        it('should recognize alias as a valid type definition', async () => {
+            const text = `
+package Test {
+    public import ISQ::*;
+    alias Torque for ISQ::TorqueValue;
+    
+    part def Engine {
+        attribute maxTorque : Torque;
+    }
+}
+`;
+            const diags = await getSemanticDiagnostics(text);
+            const unresolvedDiags = diags.filter(d => d.code === 'unresolved-type');
+            // Torque should be resolved via the alias
+            const torqueDiag = unresolvedDiags.find(d => d.message.includes("'Torque'"));
+            expect(torqueDiag).toBeUndefined();
+        });
+    });
+
+    describe('invalid multiplicity bounds', () => {
+        it('should flag when lower bound exceeds upper bound', async () => {
+            const text = `
+package Test {
+    part def Vehicle {
+        part wheels : Wheel[5..2];
+    }
+    part def Wheel;
+}
+`;
+            const diags = await getSemanticDiagnostics(text);
+            const multDiags = diags.filter(d => d.code === 'invalid-multiplicity');
+            expect(multDiags.length).toBe(1);
+            expect(multDiags[0].message).toContain('lower bound');
+            expect(multDiags[0].message).toContain('exceeds upper bound');
+        });
+    });
+
+    describe('empty enumerations', () => {
+        it('should flag enum definitions with no values', async () => {
+            const text = `
+package Test {
+    enum def Color;
+}
+`;
+            const diags = await getSemanticDiagnostics(text);
+            const enumDiags = diags.filter(d => d.code === 'empty-enum');
+            expect(enumDiags.length).toBe(1);
+            expect(enumDiags[0].message).toContain("'Color'");
+        });
+    });
+});

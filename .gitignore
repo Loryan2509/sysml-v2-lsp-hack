@@ -7,5 +7,6 @@ server/out/
 .DS_Store
 *.log
 .sysml-cache/
-docs/
+examples/temp/
+/docs/
 *.tgz

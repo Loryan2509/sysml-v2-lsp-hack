@@ -73,13 +73,9 @@ export class CallHierarchyProvider {
         const result = this.documentManager.get(uri);
         if (!result) return null;
 
-        const text = this.documentManager.getText(uri);
-
         this.symbolTable.build(uri, result);
 
-        const symbol = text
-            ? this.symbolTable.resolveAt(uri, params.position.line, params.position.character, text)
-            : this.symbolTable.findSymbolAtPosition(uri, params.position.line, params.position.character);
+        const symbol = this.symbolTable.findSymbolAtPosition(uri, params.position.line, params.position.character);
         if (!symbol) return null;
 
         // Call hierarchy makes sense for actions, states, and similar behavioral elements

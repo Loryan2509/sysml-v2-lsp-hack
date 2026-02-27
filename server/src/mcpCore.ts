@@ -6,11 +6,17 @@
  * spinning up a transport.
  */
 
-import { parseDocument } from './parser/parseDocument.js';
-import { SymbolTable } from './symbols/symbolTable.js';
-import { SysMLElementKind, isDefinition, isUsage } from './symbols/sysmlElements.js';
-import type { SysMLSymbol } from './symbols/sysmlElements.js';
+import type { Diagnostic } from 'vscode-languageserver/node.js';
+import type { ComplexityReport } from './analysis/complexityAnalyzer.js';
+import { analyseComplexity } from './analysis/complexityAnalyzer.js';
+import type { DiagramType } from './mcp/mermaidGenerator.js';
+import { diffSymbols, generateMermaidDiagram } from './mcp/mermaidGenerator.js';
 import type { SyntaxError } from './parser/errorListener.js';
+import { parseDocument } from './parser/parseDocument.js';
+import { SemanticValidator } from './providers/semanticValidator.js';
+import { SymbolTable } from './symbols/symbolTable.js';
+import type { SysMLSymbol } from './symbols/sysmlElements.js';
+import { SysMLElementKind, isDefinition, isUsage } from './symbols/sysmlElements.js';
 
 // ---------------------------------------------------------------------------
 // State container — one per MCP session
@@ -30,7 +36,7 @@ export function formatSymbol(sym: SysMLSymbol): Record<string, unknown> {
         name: sym.name,
         kind: sym.kind,
         qualifiedName: sym.qualifiedName,
-        ...(sym.typeName ? { type: sym.typeName } : {}),
+        ...(sym.typeNames.length > 0 ? { type: sym.typeNames.join(', ') } : {}),
         ...(sym.documentation ? { documentation: sym.documentation } : {}),
         ...(sym.parentQualifiedName ? { parent: sym.parentQualifiedName } : {}),
         ...(sym.children.length > 0 ? { children: sym.children } : {}),
@@ -99,17 +105,211 @@ export function handleParse(
     return summary;
 }
 
+// ---------------------------------------------------------------------------
+// Preview — parse SysML code and generate a Mermaid diagram
+// ---------------------------------------------------------------------------
+
+export interface PreviewOptions {
+    /** SysML source code to preview */
+    code: string;
+    /** Optional original code for diff highlighting */
+    originalCode?: string;
+    /** Force a specific diagram type (auto-detected if omitted) */
+    diagramType?: DiagramType;
+    /** Focus on a specific element by name (renders only its neighbourhood) */
+    focus?: string;
+    /** Document URI (defaults to 'preview.sysml') */
+    uri?: string;
+}
+
+export interface PreviewResult {
+    /** The Mermaid diagram markup */
+    diagram: string;
+    /** The diagram type used */
+    diagramType: DiagramType;
+    /** Human-readable description */
+    description: string;
+    /** Number of elements rendered */
+    elementCount: number;
+    /** Syntax errors in the code */
+    errors: ReturnType<typeof formatError>[];
+    /** Diff summary (only when originalCode is provided) */
+    diff?: {
+        added: string[];
+        changed: string[];
+        removed: string[];
+        unchangedCount: number;
+    };
+    /** Semantic issues (warnings/errors) */
+    semanticIssues?: Record<string, unknown>[];
+}
+
+export function handlePreview(
+    ctx: McpContext,
+    opts: PreviewOptions,
+): PreviewResult {
+    const docUri = opts.uri ?? 'preview.sysml';
+    const { errors } = parseAndBuild(ctx, opts.code, docUri);
+
+    const allSymbols = ctx.symbolTable.getSymbolsForUri(docUri);
+
+    // Optional semantic validation
+    const allNames = new Set(ctx.symbolTable.getAllSymbols().map(s => s.name));
+    const semanticDiags = SemanticValidator.validateSymbols(allSymbols, allNames);
+
+    // Determine which symbols to render
+    let renderSymbols = allSymbols;
+
+    // Focus mode: filter to the targeted element and its children/related types
+    if (opts.focus) {
+        const focusName = opts.focus;
+        const focusSet = new Set<string>();
+
+        // Build parent→children index (sym.children is not populated by parser)
+        const childrenOf = new Map<string, SysMLSymbol[]>();
+        for (const s of allSymbols) {
+            if (s.parentQualifiedName) {
+                const list = childrenOf.get(s.parentQualifiedName) ?? [];
+                list.push(s);
+                childrenOf.set(s.parentQualifiedName, list);
+            }
+        }
+
+        // Find the focused element(s) by name or qualified name
+        const focused = allSymbols.filter(s =>
+            s.name === focusName
+            || s.qualifiedName === focusName
+            || s.qualifiedName.endsWith(`::${focusName}`)
+        );
+
+        for (const f of focused) {
+            focusSet.add(f.qualifiedName);
+            // Include children via parentQualifiedName index
+            const children = childrenOf.get(f.qualifiedName) ?? [];
+            for (const child of children) {
+                focusSet.add(child.qualifiedName);
+            }
+            // Include parent
+            if (f.parentQualifiedName) {
+                focusSet.add(f.parentQualifiedName);
+            }
+            // Include typed elements referenced by the focused element or its children
+            const typeSource = [...f.typeNames];
+            for (const child of children) {
+                typeSource.push(...child.typeNames);
+            }
+            for (const tn of typeSource) {
+                const typed = allSymbols.find(s => s.name === tn || s.qualifiedName === tn);
+                if (typed) {
+                    focusSet.add(typed.qualifiedName);
+                    // Include children of the type definition too
+                    for (const child of (childrenOf.get(typed.qualifiedName) ?? [])) {
+                        focusSet.add(child.qualifiedName);
+                    }
+                }
+            }
+        }
+
+        if (focusSet.size > 0) {
+            renderSymbols = allSymbols.filter(s => focusSet.has(s.qualifiedName));
+        }
+    }
+
+    // Generate the Mermaid diagram
+    const mermaid = generateMermaidDiagram(renderSymbols, allSymbols, opts.diagramType);
+
+    const result: PreviewResult = {
+        diagram: mermaid.diagram,
+        diagramType: mermaid.diagramType,
+        description: mermaid.description,
+        elementCount: mermaid.elementCount,
+        errors: errors.map(formatError),
+    };
+
+    // Diff mode: compare original and modified
+    if (opts.originalCode) {
+        const origUri = 'preview-original.sysml';
+        const origResult = parseDocument(opts.originalCode);
+        const origTable = new SymbolTable();
+        origTable.build(origUri, origResult);
+        const origSymbols = origTable.getSymbolsForUri(origUri);
+
+        const diff = diffSymbols(origSymbols, allSymbols);
+        result.diff = {
+            added: diff.added.map(s => `${s.kind} ${s.qualifiedName}`),
+            changed: diff.changed.map(s => `${s.kind} ${s.qualifiedName}`),
+            removed: diff.removed,
+            unchangedCount: diff.unchanged.length,
+        };
+    }
+
+    // Include semantic issues if any are non-trivial
+    if (semanticDiags.length > 0) {
+        result.semanticIssues = semanticDiags.map((d: Diagnostic) => ({
+            line: d.range.start.line + 1,
+            column: d.range.start.character + 1,
+            message: d.message,
+            severity: d.severity === 1 ? 'error' : d.severity === 2 ? 'warning' : 'info',
+        }));
+    }
+
+    return result;
+}
+
 export function handleValidate(
     ctx: McpContext,
     code: string,
     uri?: string,
-): { valid: boolean; errorCount: number; errors: Record<string, unknown>[] } {
+): { valid: boolean; syntaxErrors: Record<string, unknown>[]; semanticIssues: Record<string, unknown>[]; totalIssues: number } {
     const docUri = uri ?? 'untitled.sysml';
     const { errors } = parseAndBuild(ctx, code, docUri);
+
+    // Run semantic validation on the built symbol table
+    const symbols = ctx.symbolTable.getSymbolsForUri(docUri);
+    const allNames = new Set(ctx.symbolTable.getAllSymbols().map(s => s.name));
+    const semanticDiags = SemanticValidator.validateSymbols(symbols, allNames);
+
+    const semanticIssues = semanticDiags.map((d: Diagnostic) => ({
+        line: d.range.start.line + 1,
+        column: d.range.start.character + 1,
+        message: d.message,
+        severity: d.severity === 1 ? 'error' : d.severity === 2 ? 'warning' : d.severity === 3 ? 'info' : 'hint',
+        code: d.code,
+    }));
+
     return {
-        valid: errors.length === 0,
-        errorCount: errors.length,
-        errors: errors.map(formatError),
+        valid: errors.length === 0 && semanticDiags.filter((d: Diagnostic) => d.severity === 1).length === 0,
+        syntaxErrors: errors.map(formatError),
+        semanticIssues,
+        totalIssues: errors.length + semanticDiags.length,
+    };
+}
+
+export function handleGetDiagnostics(
+    ctx: McpContext,
+    uri?: string,
+): { uri: string; diagnostics: Record<string, unknown>[]; summary: Record<string, number> } {
+    const docUri = uri ?? 'untitled.sysml';
+    const symbols = ctx.symbolTable.getSymbolsForUri(docUri);
+    const allNames = new Set(ctx.symbolTable.getAllSymbols().map(s => s.name));
+    const diags = SemanticValidator.validateSymbols(symbols, allNames);
+
+    const summary: Record<string, number> = {};
+    for (const d of diags) {
+        const code = String(d.code ?? 'unknown');
+        summary[code] = (summary[code] ?? 0) + 1;
+    }
+
+    return {
+        uri: docUri,
+        diagnostics: diags.map((d: Diagnostic) => ({
+            line: d.range.start.line + 1,
+            column: d.range.start.character + 1,
+            message: d.message,
+            severity: d.severity === 1 ? 'error' : d.severity === 2 ? 'warning' : d.severity === 3 ? 'info' : 'hint',
+            code: d.code,
+        })),
+        summary,
     };
 }
 
@@ -185,7 +385,7 @@ export function handleGetHierarchy(
             name: s.name,
             kind: s.kind,
             qualifiedName: s.qualifiedName,
-            ...(s.typeName ? { type: s.typeName } : {}),
+            ...(s.typeNames.length > 0 ? { type: s.typeNames.join(', ') } : {}),
         }));
 
     return {
@@ -193,7 +393,7 @@ export function handleGetHierarchy(
             name: target.name,
             kind: target.kind,
             qualifiedName: target.qualifiedName,
-            ...(target.typeName ? { type: target.typeName } : {}),
+            ...(target.typeNames.length > 0 ? { type: target.typeNames.join(', ') } : {}),
         },
         ancestors,
         children,
@@ -216,6 +416,20 @@ export function handleGetModelSummary(
         definitions: allSymbols.filter((s) => isDefinition(s.kind)).length,
         usages: allSymbols.filter((s) => isUsage(s.kind)).length,
     };
+}
+
+// ---------------------------------------------------------------------------
+// Complexity analysis handler
+// ---------------------------------------------------------------------------
+
+export function handleGetComplexity(
+    ctx: McpContext,
+    uri?: string,
+): ComplexityReport {
+    const symbols = uri
+        ? ctx.symbolTable.getSymbolsForUri(uri)
+        : ctx.symbolTable.getAllSymbols();
+    return analyseComplexity(symbols);
 }
 
 // ---------------------------------------------------------------------------

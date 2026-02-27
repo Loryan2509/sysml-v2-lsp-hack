@@ -1,9 +1,9 @@
 import {
+    SymbolKind,
     TypeHierarchyItem,
     TypeHierarchyPrepareParams,
     TypeHierarchySubtypesParams,
     TypeHierarchySupertypesParams,
-    SymbolKind,
 } from 'vscode-languageserver/node.js';
 import { DocumentManager } from '../documentManager.js';
 import { SymbolTable } from '../symbols/symbolTable.js';
@@ -32,8 +32,8 @@ export class TypeHierarchyProvider {
         this.buildAllSymbols();
         this.symbolTable.build(uri, result);
 
-        const symbol = this.symbolTable.resolveAt(
-            uri, params.position.line, params.position.character, text,
+        const symbol = this.symbolTable.findSymbolAtPosition(
+            uri, params.position.line, params.position.character,
         );
         if (!symbol || !isDefinition(symbol.kind)) return null;
 
@@ -50,13 +50,19 @@ export class TypeHierarchyProvider {
             s.name === item.name &&
             s.selectionRange.start.line === item.selectionRange.start.line
         );
-        if (!sym || !sym.typeName) return [];
+        if (!sym || sym.typeNames.length === 0) return [];
 
-        // The typeName holds the supertype name
-        const supertypes = this.symbolTable.findByName(sym.typeName);
-        return supertypes
-            .filter(s => isDefinition(s.kind))
-            .map(s => this.toTypeHierarchyItem(s));
+        // The typeNames holds all supertype names
+        const items: TypeHierarchyItem[] = [];
+        for (const tn of sym.typeNames) {
+            const supertypes = this.symbolTable.findByName(tn);
+            for (const s of supertypes) {
+                if (isDefinition(s.kind)) {
+                    items.push(this.toTypeHierarchyItem(s));
+                }
+            }
+        }
+        return items;
     }
 
     provideSubtypes(params: TypeHierarchySubtypesParams): TypeHierarchyItem[] {
@@ -65,9 +71,9 @@ export class TypeHierarchyProvider {
         const item = params.item;
         const allSymbols = this.symbolTable.getAllSymbols();
 
-        // Find all definitions whose typeName matches this item's name
+        // Find all definitions whose typeNames includes this item's name
         const subtypes = allSymbols.filter(s =>
-            isDefinition(s.kind) && s.typeName === item.name
+            isDefinition(s.kind) && s.typeNames.includes(item.name)
         );
 
         return subtypes.map(s => this.toTypeHierarchyItem(s));
@@ -89,7 +95,7 @@ export class TypeHierarchyProvider {
             uri: sym.uri,
             range: sym.range,
             selectionRange: sym.selectionRange,
-            detail: sym.typeName ? `specializes ${sym.typeName}` : sym.kind,
+            detail: sym.typeNames.length > 0 ? `specializes ${sym.typeNames.join(', ')}` : sym.kind,
         };
     }
 

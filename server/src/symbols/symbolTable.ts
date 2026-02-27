@@ -1,9 +1,10 @@
 import { ParserRuleContext, TerminalNode, Token } from 'antlr4ng';
 import { Range } from 'vscode-languageserver/node.js';
+import { MultiplicityBoundsContext } from '../generated/SysMLv2Parser.js';
 import { ParseResult } from '../parser/parseDocument.js';
 import { contextToRange, tokenToRange } from '../parser/positionUtils.js';
 import { Scope } from './scope.js';
-import { SysMLElementKind, SysMLSymbol } from './sysmlElements.js';
+import { SysMLElementKind, SysMLSymbol, isUsage as isUsageKind } from './sysmlElements.js';
 
 /**
  * Builds a symbol table from a parsed SysML document.
@@ -18,8 +19,6 @@ export class SymbolTable {
     private symbolsByUri = new Map<string, SysMLSymbol[]>();
     /** The global scope */
     private globalScope: Scope;
-    /** Parser rule names — cached from the last parse result for minification-safe rule lookup */
-    private ruleNames: string[] = [];
 
     constructor() {
         this.globalScope = new Scope('__global__');
@@ -31,13 +30,6 @@ export class SymbolTable {
     build(uri: string, parseResult: ParseResult): void {
         // Clear previous entries for this URI
         this.clearUri(uri);
-
-        // Cache parser rule names for minification-safe rule lookup.
-        // Under esbuild minification, constructor.name is mangled (e.g.
-        // PackageDeclarationContext → "w3"), but ruleIndex remains a
-        // stable numeric constant and ruleNames is a string array — both
-        // survive minification intact.
-        this.ruleNames = parseResult.parser.ruleNames;
 
         if (!parseResult.tree) {
             return;
@@ -65,70 +57,6 @@ export class SymbolTable {
             }
         }
         return results;
-    }
-
-    /**
-     * Resolve a symbol from document text at a given position.
-     * First tries the declaration at that position, then falls back
-     * to looking up the word (or quoted name) under the cursor.
-     */
-    resolveAt(
-        uri: string,
-        line: number,
-        character: number,
-        text: string,
-    ): SysMLSymbol | undefined {
-        // 1. Try direct declaration match
-        const direct = this.findSymbolAtPosition(uri, line, character);
-        if (direct) return direct;
-
-        // 2. Fallback: resolve the word under the cursor as a reference
-        const word = SymbolTable.getWordAtPosition(text, line, character);
-        if (!word) return undefined;
-
-        const matches = this.findByName(word);
-        return matches.length > 0 ? matches[0] : undefined;
-    }
-
-    /**
-     * Extract the word (identifier or quoted name) at a given position.
-     * Handles both regular identifiers and SysML v2 unrestricted names
-     * enclosed in single quotes (e.g., 'Drive Batmobile').
-     */
-    static getWordAtPosition(
-        text: string,
-        line: number,
-        character: number,
-    ): string | undefined {
-        const lines = text.split('\n');
-        if (line >= lines.length) return undefined;
-
-        const lineText = lines[line];
-        if (character >= lineText.length) return undefined;
-
-        // First, check if the cursor is inside a quoted (unrestricted) name
-        const quotePattern = /'([^']+)'/g;
-        let qMatch: RegExpExecArray | null;
-        while ((qMatch = quotePattern.exec(lineText)) !== null) {
-            const start = qMatch.index;
-            const end = start + qMatch[0].length;
-            if (character >= start && character < end) {
-                return qMatch[1]; // name without quotes
-            }
-        }
-
-        // Regular identifiers
-        const wordPattern = /[a-zA-Z_]\w*/g;
-        let match: RegExpExecArray | null;
-        while ((match = wordPattern.exec(lineText)) !== null) {
-            const start = match.index;
-            const end = start + match[0].length;
-            if (character >= start && character <= end) {
-                return match[0];
-            }
-        }
-
-        return undefined;
     }
 
     /**
@@ -183,44 +111,13 @@ export class SymbolTable {
 
     /**
      * Find all references to a symbol name across all documents.
+     * Matches symbols whose name equals the target OR whose typeNames include it.
      */
     findReferences(name: string): SysMLSymbol[] {
-        return this.findByName(name);
-    }
-
-    /**
-     * Find all text occurrences of an identifier in a document.
-     * Returns Location-style objects for every whole-word match,
-     * covering both declarations and usage references (e.g. type
-     * annotations like `action adjustWheels : AdjustWheelAngle`).
-     */
-    findTextReferences(
-        name: string,
-        uri: string,
-        text: string,
-    ): { uri: string; range: Range }[] {
-        const results: { uri: string; range: Range }[] = [];
-        // Escape regex special chars in name, then match as whole word.
-        // Also handle unrestricted (quoted) names: 'Some Name'
-        const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const pattern = new RegExp(`(?<![a-zA-Z0-9_])${escaped}(?![a-zA-Z0-9_])`, 'g');
-        const lines = text.split('\n');
-
-        for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
-            const lineText = lines[lineIdx];
-            let m: RegExpExecArray | null;
-            while ((m = pattern.exec(lineText)) !== null) {
-                // Skip matches inside comments
-                const before = lineText.slice(0, m.index);
-                if (before.includes('//') || before.includes('/*')) continue;
-
-                results.push({
-                    uri,
-                    range: {
-                        start: { line: lineIdx, character: m.index },
-                        end: { line: lineIdx, character: m.index + name.length },
-                    },
-                });
+        const results: SysMLSymbol[] = [];
+        for (const symbol of this.symbols.values()) {
+            if (symbol.name === name || symbol.typeNames.includes(name)) {
+                results.push(symbol);
             }
         }
         return results;
@@ -241,17 +138,6 @@ export class SymbolTable {
     }
 
     /**
-     * Compound usage rules whose first child usage should be skipped
-     * because the parent already captures the name.
-     */
-    private static readonly COMPOUND_RULES = new Set([
-        'PerformActionUsage',
-        'SatisfyRequirementUsage',
-        'AssertConstraintUsage',
-        'IncludeUseCaseUsage',
-    ]);
-
-    /**
      * Recursively walk the parse tree, extracting SysML element declarations.
      *
      * This is a generic tree walker that inspects rule names to identify
@@ -263,26 +149,8 @@ export class SymbolTable {
         uri: string,
         currentScope: Scope,
         parentQualifiedName: string,
-        skipChildUsages: boolean = false,
     ): void {
         const ruleName = this.getRuleName(ctx);
-
-        // When inside a compound rule (e.g., PerformActionUsage), skip
-        // direct child usage rules like ActionUsage that would duplicate
-        // the symbol already registered by the parent.
-        if (skipChildUsages) {
-            const kind = this.inferKind(ruleName, ctx);
-            if (kind !== undefined) {
-                // This is a direct child usage rule — skip it but walk deeper
-                for (let i = 0; i < ctx.getChildCount(); i++) {
-                    const child = ctx.getChild(i);
-                    if (child instanceof ParserRuleContext) {
-                        this.walkTree(child, uri, currentScope, parentQualifiedName, false);
-                    }
-                }
-                return;
-            }
-        }
 
         // Try to extract a symbol from this context
         const symbol = this.tryExtractSymbol(ctx, uri, ruleName, parentQualifiedName);
@@ -295,9 +163,6 @@ export class SymbolTable {
             childScope = new Scope(symbol.qualifiedName, currentScope);
         }
 
-        // Determine if children should skip duplicate usage rules
-        const isCompound = SymbolTable.COMPOUND_RULES.has(ruleName);
-
         // Walk children
         for (let i = 0; i < ctx.getChildCount(); i++) {
             const child = ctx.getChild(i);
@@ -307,40 +172,12 @@ export class SymbolTable {
                     uri,
                     childScope,
                     symbol?.qualifiedName ?? parentQualifiedName,
-                    isCompound && symbol !== undefined,
                 );
             }
         }
     }
 
     private registerSymbol(symbol: SysMLSymbol, uri: string, scope: Scope): void {
-        // Deduplicate: if a symbol at the same position already exists, skip.
-        // This prevents wrapper rules (e.g., PerformActionUsage → ActionUsage)
-        // from creating duplicate entries for the same declaration.
-        const existing = this.symbols.get(symbol.qualifiedName);
-        if (existing && existing.uri === uri &&
-            existing.range.start.line === symbol.range.start.line) {
-            return;
-        }
-
-        // Skip symbols with repeated trailing segments — these are
-        // artifacts of nested wrapper rules (e.g., Parent::X::Y::X::Y).
-        // Only apply when there are enough segments to indicate nesting
-        // (at least 3), so we don't reject legitimate cases like
-        // Package::Package where a definition shares its package name.
-        const segments = symbol.qualifiedName.split('::');
-        if (segments.length >= 3) {
-            // Check for repeated suffix of length 1..half
-            const maxRepeatLen = Math.floor(segments.length / 2);
-            for (let len = 1; len <= maxRepeatLen; len++) {
-                const tail = segments.slice(-len).join('::');
-                const prev = segments.slice(-2 * len, -len).join('::');
-                if (tail === prev) {
-                    return;
-                }
-            }
-        }
-
         this.symbols.set(symbol.qualifiedName, symbol);
         const uriSymbols = this.symbolsByUri.get(uri) ?? [];
         uriSymbols.push(symbol);
@@ -349,25 +186,12 @@ export class SymbolTable {
     }
 
     /**
-     * Get the parser rule name from a context (e.g., "PackageDeclaration").
-     *
-     * Uses the ANTLR ruleIndex + ruleNames lookup instead of
-     * constructor.name, because esbuild (and other bundlers) mangle
-     * class names during minification, making constructor.name unreliable.
-     *
-     * ANTLR ruleNames are camelCase (e.g. "packageDeclaration"), but the
-     * rest of this file expects PascalCase (e.g. "PackageDeclaration") for
-     * the RULE_KIND_MAP and pattern matching, so we capitalize the first letter.
+     * Get the parser rule name from a context (e.g., "packageDeclaration").
      */
     private getRuleName(ctx: ParserRuleContext): string {
-        const idx = ctx.ruleIndex;
-        if (idx >= 0 && idx < this.ruleNames.length) {
-            const name = this.ruleNames[idx];
-            // Capitalize first letter: camelCase → PascalCase
-            return name.charAt(0).toUpperCase() + name.slice(1);
-        }
-        // Fallback: try constructor.name for non-parser contexts
         const ctorName = ctx.constructor.name;
+        // ANTLR generates contexts like "PackageDeclarationContext"
+        // Strip "Context" suffix to get the rule name
         if (ctorName.endsWith('Context')) {
             return ctorName.slice(0, -'Context'.length);
         }
@@ -391,14 +215,9 @@ export class SymbolTable {
         }
 
         // Extract the name from the context
-        let name = this.extractName(ctx);
+        const name = this.extractName(ctx);
         if (!name) {
-            // Objectives are often anonymous — use a placeholder name
-            if (kind === SysMLElementKind.ObjectiveUsage) {
-                name = '(anonymous objective)';
-            } else {
-                return undefined;
-            }
+            return undefined;
         }
 
         const qualifiedName = parentQualifiedName
@@ -407,8 +226,12 @@ export class SymbolTable {
 
         const range = contextToRange(ctx);
         const selectionRange = this.extractNameRange(ctx) ?? range;
-        const typeName = this.extractTypeName(ctx);
+        // Extract type names for both usages (typing) and definitions (specialization)
+        const typeNames = this.extractTypeNames(ctx);
+        const typeName = typeNames[0];
         const documentation = this.extractDocumentation(ctx);
+        // Only extract multiplicity for usages
+        const { multiplicity, multiplicityRange } = isUsageKind(kind) ? this.extractMultiplicity(ctx) : {};
 
         return {
             name,
@@ -418,140 +241,80 @@ export class SymbolTable {
             selectionRange,
             uri,
             typeName,
+            typeNames,
             documentation,
             parentQualifiedName: parentQualifiedName || undefined,
             children: [],
+            multiplicity,
+            multiplicityRange,
         };
     }
 
     /**
      * Infer the SysML element kind from the ANTLR rule name.
-     *
-     * IMPORTANT: Definitions and usages are checked BEFORE package to avoid
-     * false matches from wrapper rules (PackageMember, PackageBodyElement).
-     * Only exact package rule names are matched.
      */
     private inferKind(
         ruleName: string,
         _ctx: ParserRuleContext,
     ): SysMLElementKind | undefined {
-        // Use a map for O(1) lookup on exact rule names first
-        const exact = SymbolTable.RULE_KIND_MAP.get(ruleName);
-        if (exact !== undefined) return exact;
-
-        // Fallback: pattern matching for less common rule variants
         const lower = ruleName.toLowerCase();
 
-        // Definitions
-        if (lower.includes('partdefinition')) return SysMLElementKind.PartDef;
-        if (lower.includes('attributedefinition')) return SysMLElementKind.AttributeDef;
-        if (lower.includes('portdefinition')) return SysMLElementKind.PortDef;
-        if (lower.includes('connectiondefinition')) return SysMLElementKind.ConnectionDef;
-        if (lower.includes('interfacedefinition')) return SysMLElementKind.InterfaceDef;
-        if (lower.includes('actiondefinition')) return SysMLElementKind.ActionDef;
-        if (lower.includes('statedefinition')) return SysMLElementKind.StateDef;
-        if (lower.includes('requirementdefinition')) return SysMLElementKind.RequirementDef;
-        if (lower.includes('constraintdefinition')) return SysMLElementKind.ConstraintDef;
-        if (lower.includes('itemdefinition')) return SysMLElementKind.ItemDef;
-        if (lower.includes('allocationdefinition')) return SysMLElementKind.AllocationDef;
-        if (lower.includes('usecasedefinition')) return SysMLElementKind.UseCaseDef;
-        if (lower.includes('enumerationdefinition')) return SysMLElementKind.EnumDef;
-        if (lower.includes('calculationdefinition') || lower.includes('calcdefinition')) return SysMLElementKind.CalcDef;
-        if (lower.includes('viewdefinition')) return SysMLElementKind.ViewDef;
-        if (lower.includes('viewpointdefinition')) return SysMLElementKind.ViewpointDef;
-        if (lower.includes('metadatadefinition')) return SysMLElementKind.MetadataDef;
-        if (lower.includes('renderingdefinition')) return SysMLElementKind.RenderingDef;
-        if (lower.includes('analysiscasedefinition')) return SysMLElementKind.AnalysisCaseDef;
-        if (lower.includes('verificationcasedefinition')) return SysMLElementKind.VerificationCaseDef;
+        // Package - match at the Package level (not PackageDeclaration) so that
+        // the sibling PackageBody inherits the package's qualified name.
+        if (lower === 'package' || lower === 'librarypackage') {
+            return SysMLElementKind.Package;
+        }
 
-        // Usages (specific compound names first)
-        if (lower.includes('performactionusage')) return SysMLElementKind.ActionUsage;
-        if (lower.includes('partusage')) return SysMLElementKind.PartUsage;
-        if (lower.includes('attributeusage')) return SysMLElementKind.AttributeUsage;
-        if (lower.includes('portusage')) return SysMLElementKind.PortUsage;
-        if (lower.includes('connectionusage')) return SysMLElementKind.ConnectionUsage;
-        if (lower.includes('interfaceusage')) return SysMLElementKind.InterfaceUsage;
-        if (lower.includes('actionusage')) return SysMLElementKind.ActionUsage;
-        if (lower.includes('stateusage')) return SysMLElementKind.StateUsage;
-        if (lower.includes('requirementusage')) return SysMLElementKind.RequirementUsage;
-        if (lower.includes('constraintusage')) return SysMLElementKind.ConstraintUsage;
-        if (lower.includes('itemusage')) return SysMLElementKind.ItemUsage;
-        if (lower.includes('allocationusage')) return SysMLElementKind.AllocationUsage;
-        if (lower.includes('includeusecaseusage')) return SysMLElementKind.IncludeUseCaseUsage;
-        if (lower.includes('usecaseusage')) return SysMLElementKind.UseCaseUsage;
-        if (lower.includes('viewusage')) return SysMLElementKind.ViewUsage;
-        if (lower.includes('viewpointusage')) return SysMLElementKind.ViewpointUsage;
-        if (lower.includes('concernusage')) return SysMLElementKind.ConcernUsage;
-        if (lower.includes('concerndefinition')) return SysMLElementKind.ConcernDef;
-        if (lower.includes('subjectusage')) return SysMLElementKind.SubjectUsage;
-        if (lower.includes('actorusage')) return SysMLElementKind.ActorUsage;
-        if (lower.includes('stakeholderusage')) return SysMLElementKind.StakeholderUsage;
-        if (lower.includes('objectiverequirementusage')) return SysMLElementKind.ObjectiveUsage;
-        if (lower.includes('portionusage')) return SysMLElementKind.PartUsage; // timeslice/snapshot
-        if (lower.includes('satisfyrequirementusage')) return SysMLElementKind.RequirementUsage;
-        if (lower.includes('assertconstraintusage')) return SysMLElementKind.ConstraintUsage;
+        // Definitions - use exact match or prefix match to avoid false positives
+        if (lower === 'partdefinition') return SysMLElementKind.PartDef;
+        if (lower === 'attributedefinition') return SysMLElementKind.AttributeDef;
+        if (lower === 'portdefinition') return SysMLElementKind.PortDef;
+        if (lower === 'connectiondefinition') return SysMLElementKind.ConnectionDef;
+        if (lower === 'interfacedefinition') return SysMLElementKind.InterfaceDef;
+        if (lower === 'actiondefinition') return SysMLElementKind.ActionDef;
+        if (lower === 'statedefinition') return SysMLElementKind.StateDef;
+        if (lower === 'requirementdefinition') return SysMLElementKind.RequirementDef;
+        if (lower === 'constraintdefinition') return SysMLElementKind.ConstraintDef;
+        if (lower === 'itemdefinition') return SysMLElementKind.ItemDef;
+        if (lower === 'allocationdefinition') return SysMLElementKind.AllocationDef;
+        if (lower === 'usecasedefinition') return SysMLElementKind.UseCaseDef;
+        if (lower === 'enumerationdefinition') return SysMLElementKind.EnumDef;
+        if (lower === 'calculationdefinition' || lower === 'calcdefinition') return SysMLElementKind.CalcDef;
+        if (lower === 'viewdefinition') return SysMLElementKind.ViewDef;
+        if (lower === 'viewpointdefinition') return SysMLElementKind.ViewpointDef;
+        if (lower === 'metadatadefinition') return SysMLElementKind.MetadataDef;
+
+        // Usages - use exact match
+        if (lower === 'partusage') return SysMLElementKind.PartUsage;
+        if (lower === 'attributeusage') return SysMLElementKind.AttributeUsage;
+        if (lower === 'portusage') return SysMLElementKind.PortUsage;
+        if (lower === 'connectionusage') return SysMLElementKind.ConnectionUsage;
+        if (lower === 'actionusage') return SysMLElementKind.ActionUsage;
+        if (lower === 'stateusage') return SysMLElementKind.StateUsage;
+        if (lower === 'requirementusage') return SysMLElementKind.RequirementUsage;
+        if (lower === 'constraintusage') return SysMLElementKind.ConstraintUsage;
+        if (lower === 'itemusage') return SysMLElementKind.ItemUsage;
+        if (lower === 'allocationusage') return SysMLElementKind.AllocationUsage;
+        if (lower === 'usecaseusage') return SysMLElementKind.UseCaseUsage;
+        if (lower === 'includeusecaseusage') return SysMLElementKind.IncludeUseCaseUsage;
+        if (lower === 'actorusage') return SysMLElementKind.ActorUsage;
+        if (lower === 'subjectusage') return SysMLElementKind.SubjectUsage;
+        if (lower === 'referenceusage') return SysMLElementKind.RefUsage;
+        if (lower === 'interfaceusage') return SysMLElementKind.InterfaceUsage;
+        if (lower === 'performactionusage') return SysMLElementKind.PerformActionUsage;
+        if (lower === 'exhibitstateusage') return SysMLElementKind.ExhibitStateUsage;
+        if (lower === 'transitionusage') return SysMLElementKind.TransitionUsage;
+        if (lower === 'occurrencedefinition') return SysMLElementKind.OccurrenceDef;
+        if (lower === 'occurrenceusage') return SysMLElementKind.OccurrenceUsage;
+        if (lower === 'renderingdefinition') return SysMLElementKind.RenderingDef;
+        if (lower === 'viewusage') return SysMLElementKind.ViewUsage;
+        if (lower === 'viewpointusage') return SysMLElementKind.ViewpointUsage;
+
+        // Alias member
+        if (lower === 'aliasmember') return SysMLElementKind.Alias;
 
         return undefined;
     }
-
-    /** Exact rule name → kind map for fast lookup on common rules. */
-    private static readonly RULE_KIND_MAP = new Map<string, SysMLElementKind>([
-        // Package (Package wraps PackageDeclaration + PackageBody — only
-        // top-level Package / LibraryPackage rules should create symbols)
-        ['Package', SysMLElementKind.Package],
-        ['LibraryPackage', SysMLElementKind.Package],
-        // Definitions
-        ['PartDefinition', SysMLElementKind.PartDef],
-        ['AttributeDefinition', SysMLElementKind.AttributeDef],
-        ['PortDefinition', SysMLElementKind.PortDef],
-        ['ConnectionDefinition', SysMLElementKind.ConnectionDef],
-        ['InterfaceDefinition', SysMLElementKind.InterfaceDef],
-        ['ActionDefinition', SysMLElementKind.ActionDef],
-        ['StateDefinition', SysMLElementKind.StateDef],
-        ['RequirementDefinition', SysMLElementKind.RequirementDef],
-        ['ConstraintDefinition', SysMLElementKind.ConstraintDef],
-        ['ItemDefinition', SysMLElementKind.ItemDef],
-        ['AllocationDefinition', SysMLElementKind.AllocationDef],
-        ['UseCaseDefinition', SysMLElementKind.UseCaseDef],
-        ['EnumerationDefinition', SysMLElementKind.EnumDef],
-        ['CalculationDefinition', SysMLElementKind.CalcDef],
-        ['ViewDefinition', SysMLElementKind.ViewDef],
-        ['ViewpointDefinition', SysMLElementKind.ViewpointDef],
-        ['MetadataDefinition', SysMLElementKind.MetadataDef],
-        ['RenderingDefinition', SysMLElementKind.RenderingDef],
-        ['AnalysisCaseDefinition', SysMLElementKind.AnalysisCaseDef],
-        ['VerificationCaseDefinition', SysMLElementKind.VerificationCaseDef],
-        // Usages
-        ['PartUsage', SysMLElementKind.PartUsage],
-        ['AttributeUsage', SysMLElementKind.AttributeUsage],
-        ['PortUsage', SysMLElementKind.PortUsage],
-        ['ConnectionUsage', SysMLElementKind.ConnectionUsage],
-        ['InterfaceUsage', SysMLElementKind.InterfaceUsage],
-        ['ActionUsage', SysMLElementKind.ActionUsage],
-        ['StateUsage', SysMLElementKind.StateUsage],
-        ['RequirementUsage', SysMLElementKind.RequirementUsage],
-        ['ConstraintUsage', SysMLElementKind.ConstraintUsage],
-        ['ItemUsage', SysMLElementKind.ItemUsage],
-        ['AllocationUsage', SysMLElementKind.AllocationUsage],
-        ['UseCaseUsage', SysMLElementKind.UseCaseUsage],
-        ['EnumerationUsage', SysMLElementKind.EnumUsage],
-        ['CalcUsage', SysMLElementKind.CalcUsage],
-        ['ViewUsage', SysMLElementKind.ViewUsage],
-        ['ViewpointUsage', SysMLElementKind.ViewpointUsage],
-        // Additional behavioral/structural usage rules
-        ['PerformActionUsage', SysMLElementKind.ActionUsage],
-        ['SatisfyRequirementUsage', SysMLElementKind.RequirementUsage],
-        ['AssertConstraintUsage', SysMLElementKind.ConstraintUsage],
-        ['ConcernDefinition', SysMLElementKind.ConcernDef],
-        ['ConcernUsage', SysMLElementKind.ConcernUsage],
-        ['PortionUsage', SysMLElementKind.PartUsage], // timeslice/snapshot
-        // Use-case / requirement body member usages
-        ['SubjectUsage', SysMLElementKind.SubjectUsage],
-        ['ActorUsage', SysMLElementKind.ActorUsage],
-        ['StakeholderUsage', SysMLElementKind.StakeholderUsage],
-        ['ObjectiveRequirementUsage', SysMLElementKind.ObjectiveUsage],
-        ['IncludeUseCaseUsage', SysMLElementKind.IncludeUseCaseUsage],
-    ]);
 
     /**
      * Extract the declared name from a parse tree context.
@@ -562,11 +325,12 @@ export class SymbolTable {
         for (let i = 0; i < ctx.getChildCount(); i++) {
             const child = ctx.getChild(i);
 
-            // Direct terminal (identifier token or unrestricted name)
+            // Direct terminal (identifier token)
             if (child instanceof TerminalNode) {
                 const token = child.symbol;
+                // Skip keywords — we want identifier tokens only
                 if (this.isIdentifierToken(token)) {
-                    return this.getTokenName(token);
+                    return token.text ?? undefined;
                 }
             }
 
@@ -579,7 +343,7 @@ export class SymbolTable {
                     childRule.toLowerCase().includes('qualifiedname') ||
                     childRule.toLowerCase() === 'name'
                 ) {
-                    const name = this.extractNameFromSubtree(child);
+                    const name = this.extractTextFromSubtree(child);
                     if (name) return name;
                 }
             }
@@ -604,17 +368,7 @@ export class SymbolTable {
         for (let i = 0; i < ctx.getChildCount(); i++) {
             const child = ctx.getChild(i);
             if (child instanceof TerminalNode && this.isIdentifierToken(child.symbol)) {
-                const range = tokenToRange(child.symbol);
-                // For quoted names like 'Drive Batmobile', shrink the range
-                // to exclude the quotes (for better rename/hover experience)
-                const text = child.symbol.text;
-                if (text && text.startsWith("'") && text.endsWith("'")) {
-                    return {
-                        start: { line: range.start.line, character: range.start.character + 1 },
-                        end: { line: range.end.line, character: range.end.character - 1 },
-                    };
-                }
-                return range;
+                return tokenToRange(child.symbol);
             }
             if (child instanceof ParserRuleContext) {
                 const result = this.extractNameRange(child);
@@ -626,75 +380,89 @@ export class SymbolTable {
 
     /**
      * Extract a type name from specialization syntax (": TypeName" or ":> TypeName").
+     */
+    /**
+     * Extract all type names from a context.
+     * Handles both usage typing (`:` / `defined by`) and definition
+     * specialization (`specializes` / `:>`).
      *
-     * Walks only the **direct** children of the declaration context,
-     * looking for typing / specialization sub-rules. This avoids the
-     * previous bug where `ctx.getText()` concatenated the entire element
-     * body, causing a child's type (e.g. `ISQ::MassValue`) to be
-     * incorrectly attributed to the parent element.
+     * Examples:
+     *   part x : A, B          → ['A', 'B']
+     *   part x defined by A, B → ['A', 'B']
+     *   part def X specializes A, B → ['A', 'B']
+     *   part def X :> A, B     → ['A', 'B']
      */
-    private extractTypeName(ctx: ParserRuleContext): string | undefined {
-        return this.extractTypeNameRecursive(ctx);
-    }
+    private extractTypeNames(ctx: ParserRuleContext): string[] {
+        const names: string[] = [];
 
-    /**
-     * Recursively search the parse tree for typing/specialization rules,
-     * stopping at body rules to avoid capturing children's types.
-     */
-    private extractTypeNameRecursive(ctx: ParserRuleContext): string | undefined {
-        for (let i = 0; i < ctx.getChildCount(); i++) {
-            const child = ctx.getChild(i);
-            if (!(child instanceof ParserRuleContext)) continue;
-
-            const childRule = this.getRuleName(child).toLowerCase();
-
-            // Stop at the body rule — anything inside belongs to children
-            if (childRule.endsWith('body')) break;
-
-            // Typing & specialization rules that carry the type name
-            if (
-                childRule.includes('featurespecialization') ||
-                childRule.includes('specializationpart') ||
-                childRule.includes('typing') ||
-                childRule.includes('typedby') ||
-                childRule.includes('ownedfeaturetyping') ||
-                childRule.includes('ownedspecialization') ||
-                childRule.includes('ownedsubclassification') ||
-                childRule.includes('subclassificationpart')
-            ) {
-                const name = this.extractQualifiedNameFromSubtree(child);
-                if (name) return name;
-            }
-
-            // Recurse into intermediate wrapper rules (e.g. usage,
-            // usageDeclaration) to find deeply nested typing info
-            const result = this.extractTypeNameRecursive(child);
-            if (result) return result;
-        }
-        return undefined;
-    }
-
-    /**
-     * Extract a qualified name (e.g. "ISQ::MassValue") from a subtree by
-     * collecting identifier tokens and joining with "::".  Skips keywords
-     * and punctuation so only the actual type name is returned.
-     */
-    private extractQualifiedNameFromSubtree(ctx: ParserRuleContext): string | undefined {
-        // If this rule *is* a qualified-name wrapper, grab its text directly
-        const ruleName = this.getRuleName(ctx).toLowerCase();
-        if (ruleName === 'qualifiedname' || ruleName === 'ownedfeaturetyping' || ruleName === 'ownedspecialization' || ruleName === 'ownedsubclassification') {
-            return this.extractNameFromSubtree(ctx);
-        }
-
-        // Otherwise recurse into children looking for the first qualifying rule
+        // Try structured extraction from the parse tree first.
+        // Walk immediate children looking for specialization / typing rules
+        // whose names typically contain "specialization", "typing",
+        // "conjugation", "subclassification", etc.
         for (let i = 0; i < ctx.getChildCount(); i++) {
             const child = ctx.getChild(i);
             if (child instanceof ParserRuleContext) {
-                const name = this.extractQualifiedNameFromSubtree(child);
-                if (name) return name;
+                const rn = this.getRuleName(child).toLowerCase();
+                if (
+                    rn.includes('specialization') ||
+                    rn.includes('subclassification') ||
+                    rn.includes('typing') ||
+                    rn.includes('conjugation') ||
+                    rn.includes('disjoining')
+                ) {
+                    // These rules contain qualified-name children;
+                    // extract all identifier-like tokens.
+                    const childText = child.getText();
+                    // Strip leading keywords / operators
+                    const stripped = childText
+                        .replace(/^(specializes|:>|:>>|:\s|definedby|subsets|redefines|references|conjugates|disjoints)/i, '');
+                    for (const part of stripped.split(',')) {
+                        const m = part.match(/([A-Za-z_][\w:]*)/);
+                        if (m) names.push(m[1]);
+                    }
+                }
             }
         }
-        return undefined;
+
+        if (names.length > 0) return names;
+
+        // Fallback: regex on the declaration portion only (before '{').
+        // This avoids matching types from nested body content.
+        const fullText = ctx.getText();
+        const braceIdx = fullText.indexOf('{');
+        const text = braceIdx >= 0 ? fullText.substring(0, braceIdx) : fullText;
+
+        // 1. "specializes A, B" or ":> A, B"
+        const specMatch = text.match(/(?:specializes|:>|:>>)\s*([A-Za-z_][\w:]*(?:\s*,\s*[A-Za-z_][\w:]*)*)/);
+        if (specMatch) {
+            for (const part of specMatch[1].split(',')) {
+                const m = part.trim().match(/^([A-Za-z_][\w:]*)/);
+                if (m) names.push(m[1]);
+            }
+            return names;
+        }
+
+        // 2. "definedby A, B" — note getText() strips spaces
+        const defByMatch = text.match(/definedby\s*([A-Za-z_][\w:]*(?:\s*,\s*[A-Za-z_][\w:]*)*)/);
+        if (defByMatch) {
+            for (const part of defByMatch[1].split(',')) {
+                const m = part.trim().match(/^([A-Za-z_][\w:]*)/);
+                if (m) names.push(m[1]);
+            }
+            return names;
+        }
+
+        // 3. ": A, B" (typing shorthand)
+        const typingMatch = text.match(/:(?![:>])\s*([A-Za-z_][\w:]*(?:\s*,\s*[A-Za-z_][\w:]*)*)/);
+        if (typingMatch) {
+            for (const part of typingMatch[1].split(',')) {
+                const m = part.trim().match(/^([A-Za-z_][\w:]*)/);
+                if (m) names.push(m[1]);
+            }
+            return names;
+        }
+
+        return names;
     }
 
     /**
@@ -706,7 +474,115 @@ export class SymbolTable {
             if (child instanceof ParserRuleContext) {
                 const ruleName = this.getRuleName(child).toLowerCase();
                 if (ruleName.includes('comment') || ruleName.includes('doc') || ruleName.includes('documentation')) {
-                    return this.extractTextFromSubtree(child);
+                    // Get the raw text and strip the comment delimiters
+                    const raw = child.getText();
+                    if (raw) {
+                        // Remove leading 'doc' keyword, then strip /* */ or //
+                        let text = raw;
+                        if (text.startsWith('doc')) text = text.slice(3);
+                        if (text.startsWith('comment')) text = text.slice(7);
+                        text = text.replace(/^\/\*\s*/, '').replace(/\s*\*\/$/, '');
+                        text = text.replace(/^\/\/\s*/, '');
+                        return text.trim() || raw;
+                    }
+                    return raw ?? undefined;
+                }
+                // Recurse into body/members to find nested doc
+                const nested = this.extractDocumentation(child);
+                if (nested) return nested;
+            }
+        }
+        return undefined;
+    }
+
+    /**
+     * Extract multiplicity from a context.
+     * Looks for MultiplicityBoundsContext in the subtree.
+     * Returns { multiplicity: "1..5", multiplicityRange: { lower: 1, upper: 5 } }
+     */
+    private extractMultiplicity(ctx: ParserRuleContext): { multiplicity?: string; multiplicityRange?: { lower: number; upper: number | '*' } } {
+        const multCtx = this.findMultiplicityBounds(ctx);
+        if (!multCtx) {
+            return {};
+        }
+
+        const members = multCtx.multiplicityExpressionMember();
+        if (!members || members.length === 0) {
+            return {};
+        }
+
+        // Extract values from the expression members
+        // Note: We use getText() directly since multiplicity values are numeric literals,
+        // not identifiers, so extractTextFromSubtree won't work here.
+        const values: string[] = [];
+        for (const member of members) {
+            // Get raw text and clean it (remove whitespace)
+            const rawText = member.getText()?.trim();
+            if (rawText) {
+                values.push(rawText);
+            }
+        }
+
+        if (values.length === 0) {
+            return {};
+        }
+
+        let lower: number;
+        let upper: number | '*';
+        let multiplicity: string;
+
+        if (values.length === 1) {
+            // Single value like [1] or [*]
+            multiplicity = values[0];
+            if (values[0] === '*') {
+                lower = 0;
+                upper = '*';
+            } else {
+                const num = parseInt(values[0], 10);
+                if (isNaN(num)) {
+                    return { multiplicity };
+                }
+                lower = num;
+                upper = num;
+            }
+        } else {
+            // Range like [1..*] or [2..5]
+            multiplicity = `${values[0]}..${values[1]}`;
+            lower = parseInt(values[0], 10);
+            if (isNaN(lower)) {
+                return { multiplicity };
+            }
+            if (values[1] === '*') {
+                upper = '*';
+            } else {
+                upper = parseInt(values[1], 10);
+                if (isNaN(upper)) {
+                    return { multiplicity };
+                }
+            }
+        }
+
+        return {
+            multiplicity,
+            multiplicityRange: { lower, upper },
+        };
+    }
+
+    /**
+     * Recursively search for a MultiplicityBoundsContext in the subtree.
+     */
+    private findMultiplicityBounds(ctx: ParserRuleContext): MultiplicityBoundsContext | undefined {
+        const ctxName = ctx.constructor.name;
+        // Check using constructor name to avoid instanceof issues with module loading
+        if (ctxName === 'MultiplicityBoundsContext') {
+            return ctx as MultiplicityBoundsContext;
+        }
+        for (let i = 0; i < ctx.getChildCount(); i++) {
+            const child = ctx.getChild(i);
+            if (child instanceof ParserRuleContext) {
+                const result = this.findMultiplicityBounds(child);
+                if (result) {
+                    return result;
                 }
             }
         }
@@ -714,31 +590,13 @@ export class SymbolTable {
     }
 
     /**
-     * Check if a token is an identifier or unrestricted name (quoted name).
-     * SysML v2 allows names like 'Drive Batmobile' enclosed in single quotes.
+     * Check if a token is an identifier (not a keyword or punctuation).
      */
     private isIdentifierToken(token: Token): boolean {
         const text = token.text;
         if (!text) return false;
-        // Unrestricted names are enclosed in single quotes
-        if (text.startsWith("'") && text.endsWith("'") && text.length > 2) {
-            return true;
-        }
-        // Regular identifiers start with a letter or underscore
+        // Identifiers start with a letter or underscore
         return /^[a-zA-Z_]/.test(text) && !this.isKeyword(text);
-    }
-
-    /**
-     * Get the display name from a token (strips quotes from unrestricted names).
-     */
-    private getTokenName(token: Token): string | undefined {
-        const text = token.text;
-        if (!text) return undefined;
-        // Strip quotes from unrestricted names
-        if (text.startsWith("'") && text.endsWith("'") && text.length > 2) {
-            return text.slice(1, -1);
-        }
-        return text;
     }
 
     /**
@@ -770,27 +628,6 @@ export class SymbolTable {
     }
 
     /**
-     * Extract a name from a subtree, handling unrestricted (quoted) names.
-     * Used specifically for Identification/Name rules.
-     */
-    private extractNameFromSubtree(ctx: ParserRuleContext): string | undefined {
-        const parts: string[] = [];
-        for (let i = 0; i < ctx.getChildCount(); i++) {
-            const child = ctx.getChild(i);
-            if (child instanceof TerminalNode) {
-                if (this.isIdentifierToken(child.symbol)) {
-                    const name = this.getTokenName(child.symbol);
-                    if (name) parts.push(name);
-                }
-            } else if (child instanceof ParserRuleContext) {
-                const sub = this.extractNameFromSubtree(child);
-                if (sub) parts.push(sub);
-            }
-        }
-        return parts.length > 0 ? parts.join('::') : undefined;
-    }
-
-    /**
      * Extract all text content from a subtree (concatenate terminal nodes).
      */
     private extractTextFromSubtree(ctx: ParserRuleContext): string | undefined {
@@ -800,8 +637,7 @@ export class SymbolTable {
             if (child instanceof TerminalNode) {
                 const text = child.symbol.text;
                 if (text && this.isIdentifierToken(child.symbol)) {
-                    const name = this.getTokenName(child.symbol);
-                    if (name) parts.push(name);
+                    parts.push(text);
                 }
             } else if (child instanceof ParserRuleContext) {
                 const sub = this.extractTextFromSubtree(child);

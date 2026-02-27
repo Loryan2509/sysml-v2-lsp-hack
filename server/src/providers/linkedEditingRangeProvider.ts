@@ -26,11 +26,10 @@ export class LinkedEditingRangeProvider {
         this.symbolTable.build(uri, result);
 
         // Find symbol at cursor (declaration or reference)
-        const symbol = this.symbolTable.resolveAt(
+        const symbol = this.symbolTable.findSymbolAtPosition(
             uri,
             params.position.line,
             params.position.character,
-            text,
         );
         if (!symbol) return null;
 

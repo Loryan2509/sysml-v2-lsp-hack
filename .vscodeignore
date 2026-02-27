@@ -37,5 +37,5 @@ ARCHITECTURE.md
 .gitignore
 
 # MCP server not needed in VSIX (install via npm for MCP)
-dist/server/mcpServer.mjs
-dist/server/mcpServer.mjs.map
+dist/server/mcpServer.js
+dist/server/mcpServer.js.map

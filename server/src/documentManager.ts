@@ -1,28 +1,12 @@
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { TextDocuments } from 'vscode-languageserver/node.js';
 import { parseDocument, ParseResult } from './parser/parseDocument.js';
 
 /**
  * Manages parsed documents — caches parse results by URI and content hash.
  * Re-parses only when the document content has changed.
- *
- * The DocumentManager can be wired to the LSP `TextDocuments` collection so
- * that providers which call `get(uri)` or `getText(uri)` trigger a lazy
- * main-thread parse if no cached result is available yet.  This avoids
- * a second cold parse because the ANTLR DFA will already be warm from
- * the worker-thread parse that ran during validation.
  */
 export class DocumentManager {
     private cache = new Map<string, CachedDocument>();
-    private documents?: TextDocuments<TextDocument>;
-
-    /**
-     * Wire the manager to the LSP TextDocuments collection so it can
-     * lazily parse open documents when providers request them.
-     */
-    setDocuments(documents: TextDocuments<TextDocument>): void {
-        this.documents = documents;
-    }
 
     /**
      * Parse a document and cache the result.
@@ -38,76 +22,62 @@ export class DocumentManager {
         }
 
         const text = document.getText();
-        const t0 = Date.now();
         const result = parseDocument(text);
-        const parseTimeMs = Date.now() - t0;
 
         this.cache.set(uri, {
             version,
             text,
             result,
-            parseTimeMs,
         });
 
         return result;
     }
 
     /**
-     * Get the cached parse result for a URI.
-     * If the cached version is stale (document has been edited) or no result
-     * is cached, performs a lazy main-thread parse (fast when the DFA is
-     * already warm from the worker).
+     * Get the cached parse result for a URI, or undefined if not cached.
      */
     get(uri: string): ParseResult | undefined {
-        // Always prefer a fresh parse from the live document when available.
-        // `parse()` short-circuits with a cache hit when the version matches,
-        // so this is cheap when the content hasn't changed.
-        if (this.documents) {
-            const doc = this.documents.get(uri);
-            if (doc) {
-                return this.parse(doc);
-            }
-        }
-
-        // Fall back to whatever is cached (e.g. document was closed but
-        // we still have its last parse result).
         return this.cache.get(uri)?.result;
     }
 
     /**
-     * Get the current text for a URI.
-     * Prefers the live TextDocument content (which reflects unsaved edits)
-     * and falls back to the cached text.
+     * Get the cached text for a URI.
      */
     getText(uri: string): string | undefined {
-        if (this.documents) {
-            const doc = this.documents.get(uri);
-            if (doc) return doc.getText();
-        }
-
         return this.cache.get(uri)?.text;
     }
 
     /**
-     * Store the parse time reported by the worker thread.
-     * Called after a worker parse completes so that `getParseTimeMs()`
-     * returns the real ANTLR parse cost rather than 0 (cache hit).
+     * Get the cached document version for a URI.
      */
-    setParseTimeMs(uri: string, ms: number): void {
-        const cached = this.cache.get(uri);
-        if (cached) {
-            cached.parseTimeMs = ms;
-        }
+    getVersion(uri: string): number {
+        return this.cache.get(uri)?.version ?? -1;
     }
 
     /**
-     * Return the actual ANTLR parse time for a URI (milliseconds).
-     * This is either the worker-thread parse time (stored via
-     * `setParseTimeMs`) or the lazy main-thread parse time measured
-     * in `parse()`.
+     * Get the parse time in milliseconds for a URI.
      */
     getParseTimeMs(uri: string): number {
-        return this.cache.get(uri)?.parseTimeMs ?? 0;
+        const cached = this.cache.get(uri);
+        if (!cached) return 0;
+        const t = cached.result.timing;
+        return t.lexMs + t.parseMs;
+    }
+
+    /**
+     * Get detailed timing breakdown for a URI.
+     */
+    getTimingBreakdown(uri: string): { lexMs: number; parseMs: number } {
+        const cached = this.cache.get(uri);
+        if (!cached) return { lexMs: 0, parseMs: 0 };
+        return { lexMs: cached.result.timing.lexMs, parseMs: cached.result.timing.parseMs };
+    }
+
+    /**
+     * Whether the last parse was served from cache.
+     */
+    wasCached(): boolean {
+        return false;
     }
 
     /**
@@ -118,20 +88,10 @@ export class DocumentManager {
     }
 
     /**
-     * Get all known URIs — both cached and currently open documents.
+     * Get all cached URIs.
      */
     getUris(): string[] {
-        const uris = new Set(this.cache.keys());
-
-        // Include all open documents from the LSP TextDocuments collection,
-        // even if they haven't been lazily parsed on the main thread yet.
-        if (this.documents) {
-            for (const doc of this.documents.all()) {
-                uris.add(doc.uri);
-            }
-        }
-
-        return Array.from(uris);
+        return Array.from(this.cache.keys());
     }
 }
 
@@ -139,6 +99,4 @@ interface CachedDocument {
     version: number;
     text: string;
     result: ParseResult;
-    /** Actual ANTLR parse time in milliseconds (worker or lazy main-thread). */
-    parseTimeMs: number;
 }

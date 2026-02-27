@@ -1,5 +1,43 @@
 # Changelog
 
+## [0.3.0]
+
+### Added
+
+- Mermaid diagram preview: SysML → Mermaid diagram generation with 6 diagram types (class, activity, state, sequence, interconnection, use-case) and auto-detection
+- Mermaid focus mode: filter diagram to a specific element, its children, parent, and related types
+- Mermaid diff mode: compare original vs. modified SysML and report structural changes
+- Complexity analyzer: structural complexity metrics (nesting depth, coupling, fan-out, documentation coverage) with composite 0–100 index and per-definition hotspots
+- Semantic validator: unresolved type references, invalid multiplicity bounds, empty enumerations, duplicate definitions — with standard-library type allow-list
+- MCP tool `preview`: generates Mermaid diagrams from SysML with focus/diff support
+- MCP tool `getDiagnostics`: returns semantic diagnostics for parsed documents
+- MCP tool `getComplexity`: exposes complexity analysis as an MCP tool
+- Code action quick-fixes: naming convention (PascalCase/camelCase), missing documentation stub, empty enumeration placeholder, unused definition suppression
+- Library type-level indexing: Go-to-Definition into standard library types at exact declaration lines
+- Multiplicity extraction from parse tree (`0..*`, `1`, etc.) on symbols
+- Documentation extraction from doc/comment nodes on symbols
+- Symbol table caching per URI keyed by document version
+- Multi-specialization support: comma-separated specialization targets with `:>` and `specializes`
+- New tests: codeActions, complexity, libraryIndex, semantic validation, MCP preview/diagnostics
+
+### Changed
+
+- MCP `validate` response shape: now returns `syntaxErrors`, `semanticIssues`, and `totalIssues` (was `errors` + `errorCount`)
+- Symbol `typeName` → `typeNames` (array) across MCP core and model provider
+- Definition provider simplified: word-at-position logic moved inline
+- References provider: uses symbol-table–based `findReferences()` instead of cross-file text scanning
+- Diagnostics computed synchronously on document change (removed background parse worker thread)
+- Symbol table kind inference: direct string comparison replaces regex-based rule matching for minification safety
+- Document manager simplified: removed `TextDocuments` integration and parse timing tracking
+- esbuild: simplified to single server bundle (removed worker and separate MCP server entries)
+
+### Removed
+
+- Background parse worker thread (`parseWorker.mjs`) and DFA warm-up
+- `resolveAt()` and `getWordAtPosition()` from symbol table (moved to providers)
+- `findTextReferences()` text-scanning reference finder
+- Keyword typo validation from diagnostics provider (replaced by semantic validator)
+
 ## [0.2.0]
 
 ### Added

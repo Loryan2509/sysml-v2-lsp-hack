@@ -1,11 +1,11 @@
+import { TextDocument } from 'vscode-languageserver-textdocument';
 import {
+    ParameterInformation,
     SignatureHelp,
     SignatureHelpParams,
     SignatureInformation,
-    ParameterInformation,
+    TextDocuments,
 } from 'vscode-languageserver/node.js';
-import { TextDocument } from 'vscode-languageserver-textdocument';
-import { TextDocuments } from 'vscode-languageserver/node.js';
 import { DocumentManager } from '../documentManager.js';
 import { SymbolTable } from '../symbols/symbolTable.js';
 import { SysMLElementKind } from '../symbols/sysmlElements.js';
@@ -80,7 +80,7 @@ export class SignatureHelpProvider {
         if (params_list.length === 0) return null;
 
         const paramInfos: ParameterInformation[] = params_list.map(p => ({
-            label: p.typeName ? `${p.name} : ${p.typeName}` : p.name,
+            label: p.typeNames.length > 0 ? `${p.name} : ${p.typeNames.join(', ')}` : p.name,
             documentation: p.documentation ?? `${p.kind} parameter`,
         }));
 

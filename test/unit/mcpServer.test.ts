@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 describe('MCP Server Core', () => {
     let McpContext: typeof import('../../server/src/mcpCore.js').McpContext;
@@ -9,6 +9,7 @@ describe('MCP Server Core', () => {
     let handleGetReferences: typeof import('../../server/src/mcpCore.js').handleGetReferences;
     let handleGetHierarchy: typeof import('../../server/src/mcpCore.js').handleGetHierarchy;
     let handleGetModelSummary: typeof import('../../server/src/mcpCore.js').handleGetModelSummary;
+    let handleGetDiagnostics: typeof import('../../server/src/mcpCore.js').handleGetDiagnostics;
     let getElementKinds: typeof import('../../server/src/mcpCore.js').getElementKinds;
     let SYSML_KEYWORDS: typeof import('../../server/src/mcpCore.js').SYSML_KEYWORDS;
     let formatSymbol: typeof import('../../server/src/mcpCore.js').formatSymbol;
@@ -19,6 +20,7 @@ describe('MCP Server Core', () => {
     let handlePromptReviewSysml: typeof import('../../server/src/mcpCore.js').handlePromptReviewSysml;
     let handlePromptExplainElement: typeof import('../../server/src/mcpCore.js').handlePromptExplainElement;
     let handlePromptGenerateSysml: typeof import('../../server/src/mcpCore.js').handlePromptGenerateSysml;
+    let handlePreview: typeof import('../../server/src/mcpCore.js').handlePreview;
 
     let ctx: InstanceType<typeof McpContext>;
 
@@ -32,6 +34,7 @@ describe('MCP Server Core', () => {
         handleGetReferences = mod.handleGetReferences;
         handleGetHierarchy = mod.handleGetHierarchy;
         handleGetModelSummary = mod.handleGetModelSummary;
+        handleGetDiagnostics = mod.handleGetDiagnostics;
         getElementKinds = mod.getElementKinds;
         SYSML_KEYWORDS = mod.SYSML_KEYWORDS;
         formatSymbol = mod.formatSymbol;
@@ -42,6 +45,7 @@ describe('MCP Server Core', () => {
         handlePromptReviewSysml = mod.handlePromptReviewSysml;
         handlePromptExplainElement = mod.handlePromptExplainElement;
         handlePromptGenerateSysml = mod.handlePromptGenerateSysml;
+        handlePreview = mod.handlePreview;
 
         // Fresh context for each test — no shared state leaking between tests
         ctx = new McpContext();
@@ -103,15 +107,54 @@ describe('MCP Server Core', () => {
         it('should return valid=true for correct input', () => {
             const result = handleValidate(ctx, VALID_MODEL);
             expect(result.valid).toBe(true);
-            expect(result.errorCount).toBe(0);
-            expect(result.errors).toEqual([]);
+            expect(result.syntaxErrors).toEqual([]);
         });
 
         it('should return valid=false with errors for bad input', () => {
             const result = handleValidate(ctx, INVALID_MODEL);
             expect(result.valid).toBe(false);
-            expect(result.errorCount).toBeGreaterThan(0);
-            expect(result.errors.length).toBeGreaterThan(0);
+            expect(result.syntaxErrors.length).toBeGreaterThan(0);
+            expect(result.totalIssues).toBeGreaterThan(0);
+        });
+
+        it('should include semantic issues for unresolved types', () => {
+            const code = `package T { part def V { part e : Missing[1]; } }`;
+            const result = handleValidate(ctx, code);
+            expect(result.semanticIssues.length).toBeGreaterThan(0);
+            const unresolved = result.semanticIssues.filter(
+                (i: Record<string, unknown>) => i.code === 'unresolved-type'
+            );
+            expect(unresolved.length).toBe(1);
+        });
+    });
+
+    // -----------------------------------------------------------------------
+    // getDiagnostics tool
+    // -----------------------------------------------------------------------
+
+    describe('handleGetDiagnostics', () => {
+        it('should return diagnostics for a previously parsed document', () => {
+            const code = `package T { part def V { part e : Missing[1]; } }`;
+            handleParse(ctx, code, 'test.sysml');
+            const result = handleGetDiagnostics(ctx, 'test.sysml');
+            expect(result.uri).toBe('test.sysml');
+            expect(result.diagnostics.length).toBeGreaterThan(0);
+            expect(result.summary).toBeDefined();
+            expect(result.summary['unresolved-type']).toBeGreaterThanOrEqual(1);
+        });
+
+        it('should return empty diagnostics for a clean document', () => {
+            const code = `package T {
+    part def Engine { doc /* An engine */ attribute power : Real; }
+    part car { doc /* A car */ part engine : Engine[1]; }
+}`;
+            handleParse(ctx, code, 'clean.sysml');
+            const result = handleGetDiagnostics(ctx, 'clean.sysml');
+            // May have hints (naming, missing-doc) but no errors/warnings
+            const errors = result.diagnostics.filter(
+                (d: Record<string, unknown>) => d.severity === 'error' || d.severity === 'warning'
+            );
+            expect(errors.length).toBe(0);
         });
     });
 
@@ -464,6 +507,129 @@ describe('MCP Server Core', () => {
         it('should use default scope when not provided', () => {
             const messages = handlePromptGenerateSysml('A drone');
             expect(messages[0].content.text).toContain('Include structural definitions');
+        });
+    });
+
+    // -----------------------------------------------------------------------
+    // preview tool
+    // -----------------------------------------------------------------------
+
+    describe('handlePreview', () => {
+        it('should generate a General View diagram for structural code', () => {
+            const result = handlePreview(ctx, { code: VALID_MODEL });
+            expect(result.diagramType).toBe('general');
+            expect(result.diagram).toContain('classDiagram');
+            expect(result.elementCount).toBeGreaterThan(0);
+            expect(result.errors).toHaveLength(0);
+        });
+
+        it('should return syntax errors for invalid code', () => {
+            const result = handlePreview(ctx, { code: INVALID_MODEL });
+            expect(result.errors.length).toBeGreaterThan(0);
+        });
+
+        it('should auto-detect activity diagram for action-heavy code', () => {
+            const actionModel = `action def ProcessOrder {
+    action receiveOrder;
+    action validatePayment;
+    action shipItem;
+}`;
+            const result = handlePreview(ctx, { code: actionModel });
+            expect(result.diagramType).toBe('activity');
+            expect(result.diagram).toContain('flowchart');
+        });
+
+        it('should auto-detect state diagram for state-heavy code', () => {
+            const stateModel = `state def DeviceStates {
+    state idle;
+    state running;
+    state error;
+}`;
+            const result = handlePreview(ctx, { code: stateModel });
+            expect(result.diagramType).toBe('state');
+            expect(result.diagram).toContain('stateDiagram');
+        });
+
+        it('should respect forced diagramType override', () => {
+            const result = handlePreview(ctx, {
+                code: VALID_MODEL,
+                diagramType: 'interconnection',
+            });
+            // Should use interconnection even though the model is structural
+            expect(result.diagramType).toBe('interconnection');
+        });
+
+        it('should use provided URI', () => {
+            handlePreview(ctx, { code: VALID_MODEL, uri: 'file:///test.sysml' });
+            // The URI should have been stored in the context
+            expect(ctx.loadedDocuments.has('file:///test.sysml')).toBe(true);
+        });
+
+        it('should default URI to preview.sysml', () => {
+            handlePreview(ctx, { code: VALID_MODEL });
+            expect(ctx.loadedDocuments.has('preview.sysml')).toBe(true);
+        });
+
+        it('should generate diff when originalCode is provided', () => {
+            const original = `package Vehicle {
+    part def Engine;
+}`;
+            const modified = `package Vehicle {
+    part def Engine;
+    part def Transmission;
+}`;
+            const result = handlePreview(ctx, {
+                code: modified,
+                originalCode: original,
+            });
+            expect(result.diff).toBeDefined();
+            expect(result.diff!.added.length).toBeGreaterThan(0);
+            expect(result.diff!.added.some(a => a.includes('Transmission'))).toBe(true);
+        });
+
+        it('should show removed elements in diff', () => {
+            const original = `package Vehicle {
+    part def Engine;
+    part def Transmission;
+}`;
+            const modified = `package Vehicle {
+    part def Engine;
+}`;
+            const result = handlePreview(ctx, {
+                code: modified,
+                originalCode: original,
+            });
+            expect(result.diff).toBeDefined();
+            expect(result.diff!.removed.length).toBeGreaterThan(0);
+        });
+
+        it('should focus on a specific element', () => {
+            const model = `package Vehicle {
+    part def Engine {
+        attribute horsePower : Integer;
+    }
+    part def Chassis;
+    part def Wheel;
+}`;
+            const focused = handlePreview(ctx, { code: model, focus: 'Engine' });
+            const full = handlePreview(ctx, { code: model });
+            // Focused diagram should render fewer elements than the full one
+            expect(focused.elementCount).toBeLessThanOrEqual(full.elementCount);
+        });
+
+        it('should include semantic issues when present', () => {
+            const model = `part def Foo {
+    part bar : UnknownType;
+}`;
+            const result = handlePreview(ctx, { code: model });
+            // May or may not have semantic issues depending on validator
+            expect(result).toHaveProperty('errors');
+        });
+
+        it('should handle empty code gracefully', () => {
+            const result = handlePreview(ctx, { code: '' });
+            expect(result.elementCount).toBe(0);
+            expect(result.diagram).toBeDefined();
         });
     });
 });

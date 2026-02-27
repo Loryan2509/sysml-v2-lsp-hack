@@ -18020,7 +18020,7 @@ var outputChannel = import_vscode.window.createOutputChannel("SysML v2 LSP");
 function activate(context) {
   outputChannel.appendLine("SysML v2 extension activating...");
   const serverModule = context.asAbsolutePath(
-    path.join("dist", "server", "server.mjs")
+    path.join("dist", "server", "server.js")
   );
   outputChannel.appendLine(`Server module path: ${serverModule}`);
   const debugOptions = { execArgv: ["--nolazy", "--inspect=6009"] };

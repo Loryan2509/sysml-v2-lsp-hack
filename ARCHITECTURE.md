@@ -10,20 +10,20 @@ A Language Server Protocol implementation for SysML v2, structured as a client/s
  .sysml file
       │
       ▼
-┌─────────────────┐    ┌──────────────────┐    ┌──────────────────┐
-│  TextDocument    │───▶│ ANTLR4 Lexer +   │───▶│  Parse Tree      │
-│  (LSP protocol)  │    │ Parser (antlr4ng) │    │  (AST)           │
-└─────────────────┘    └──────────────────┘    └────────┬─────────┘
+┌─────────────────┐     ┌──────────────────┐    ┌──────────────────┐
+│  TextDocument   │───▶ │ ANTLR4 Lexer +  │───▶│  Parse Tree      │
+│  (LSP protocol) │     │ Parser (antlr4ng)│    │  (AST)           │
+└─────────────────┘     └──────────────────┘    └────────┬─────────┘
                                                          │
-                              ┌───────────────────────────┤
-                              ▼                           ▼
+                              ┌──────────────────────────┤
+                              ▼                          ▼
                     ┌──────────────────┐       ┌──────────────────┐
                     │  Error Listener  │       │  Symbol Table    │
                     │  → Diagnostics   │       │  → Scope Tree    │
-                    └──────────────────┘       └────────┬─────────┘
+                    └──────────────────┘       └─────────┬────────┘
                                                          │
-                    ┌────────────────────┬────────────────┼────────────────┐
-                    ▼                    ▼                ▼                ▼
+                    ┌───────────────────┬────────────────┼────────────────┐
+                    ▼                   ▼                ▼                ▼
           ┌────────────────┐  ┌────────────────┐  ┌──────────────┐  ┌──────────┐
           │  Completion    │  │   Hover        │  │  Definition  │  │ Symbols  │
           │  (keywords +   │  │   (type info)  │  │  (resolve)   │  │ (outline)│
@@ -49,17 +49,17 @@ A Language Server Protocol implementation for SysML v2, structured as a client/s
 
 Each LSP feature is implemented as a standalone provider class:
 
-| Provider | LSP Method | Purpose |
-|----------|-----------|---------|
-| DiagnosticsProvider | `textDocument/publishDiagnostics` | Syntax errors → red squiggles |
-| CompletionProvider | `textDocument/completion` | Keywords + snippets |
-| HoverProvider | `textDocument/hover` | Element info on hover |
-| DefinitionProvider | `textDocument/definition` | Go-to-definition |
-| ReferencesProvider | `textDocument/references` | Find all references |
-| DocumentSymbolProvider | `textDocument/documentSymbol` | Outline panel |
-| SemanticTokensProvider | `textDocument/semanticTokens` | Rich highlighting |
-| FoldingRangeProvider | `textDocument/foldingRange` | Collapsible regions |
-| RenameProvider | `textDocument/rename` | Symbol rename |
+| Provider               | LSP Method                        | Purpose                       |
+| ---------------------- | --------------------------------- | ----------------------------- |
+| DiagnosticsProvider    | `textDocument/publishDiagnostics` | Syntax errors → red squiggles |
+| CompletionProvider     | `textDocument/completion`         | Keywords + snippets           |
+| HoverProvider          | `textDocument/hover`              | Element info on hover         |
+| DefinitionProvider     | `textDocument/definition`         | Go-to-definition              |
+| ReferencesProvider     | `textDocument/references`         | Find all references           |
+| DocumentSymbolProvider | `textDocument/documentSymbol`     | Outline panel                 |
+| SemanticTokensProvider | `textDocument/semanticTokens`     | Rich highlighting             |
+| FoldingRangeProvider   | `textDocument/foldingRange`       | Collapsible regions           |
+| RenameProvider         | `textDocument/rename`             | Symbol rename                 |
 
 ### Document Manager (`server/src/documentManager.ts`)
 
