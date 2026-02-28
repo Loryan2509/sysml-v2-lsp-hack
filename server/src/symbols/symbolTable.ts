@@ -396,33 +396,10 @@ export class SymbolTable {
         const names: string[] = [];
 
         // Try structured extraction from the parse tree first.
-        // Walk immediate children looking for specialization / typing rules
-        // whose names typically contain "specialization", "typing",
-        // "conjugation", "subclassification", etc.
-        for (let i = 0; i < ctx.getChildCount(); i++) {
-            const child = ctx.getChild(i);
-            if (child instanceof ParserRuleContext) {
-                const rn = this.getRuleName(child).toLowerCase();
-                if (
-                    rn.includes('specialization') ||
-                    rn.includes('subclassification') ||
-                    rn.includes('typing') ||
-                    rn.includes('conjugation') ||
-                    rn.includes('disjoining')
-                ) {
-                    // These rules contain qualified-name children;
-                    // extract all identifier-like tokens.
-                    const childText = child.getText();
-                    // Strip leading keywords / operators
-                    const stripped = childText
-                        .replace(/^(specializes|:>|:>>|:\s|definedby|subsets|redefines|references|conjugates|disjoints)/i, '');
-                    for (const part of stripped.split(',')) {
-                        const m = part.match(/([A-Za-z_][\w:]*)/);
-                        if (m) names.push(m[1]);
-                    }
-                }
-            }
-        }
+        // Walk children (recursing into declaration wrappers) looking for
+        // specialization / typing rules whose names typically contain
+        // "specialization", "typing", "conjugation", "subclassification", etc.
+        this.collectTypeNamesFromTree(ctx, names, 0);
 
         if (names.length > 0) return names;
 
@@ -430,7 +407,16 @@ export class SymbolTable {
         // This avoids matching types from nested body content.
         const fullText = ctx.getText();
         const braceIdx = fullText.indexOf('{');
-        const text = braceIdx >= 0 ? fullText.substring(0, braceIdx) : fullText;
+        let text = braceIdx >= 0 ? fullText.substring(0, braceIdx) : fullText;
+
+        // Truncate at SysML keywords that follow a usage declaration but appear
+        // concatenated (getText() strips whitespace).  This prevents the regex
+        // from greedily matching into connect/bind/first/then/flow/… clauses.
+        // e.g. ":BrakeCableconnectfrontLever…" should stop at "connect".
+        text = text.replace(
+            /(connect|bind|first|then|flow|allocate|assign|accept|send|decide|merge|join|fork)\b.*/i,
+            '',
+        );
 
         // 1. "specializes A, B" or ":> A, B"
         const specMatch = text.match(/(?:specializes|:>|:>>)\s*([A-Za-z_][\w:]*(?:\s*,\s*[A-Za-z_][\w:]*)*)/);
@@ -463,6 +449,57 @@ export class SymbolTable {
         }
 
         return names;
+    }
+
+    /**
+     * Recursively walk the parse tree to find typing / specialization rules.
+     * Recurses into declaration wrappers (up to maxDepth) so that
+     * `interfaceUsage → interfaceUsageDeclaration → usageDeclaration →
+     *  featureSpecializationPart → featureSpecialization → typings` is found.
+     */
+    private collectTypeNamesFromTree(
+        ctx: ParserRuleContext,
+        names: string[],
+        depth: number,
+    ): void {
+        if (depth > 6) return; // don't go too deep
+        for (let i = 0; i < ctx.getChildCount(); i++) {
+            const child = ctx.getChild(i);
+            if (!(child instanceof ParserRuleContext)) continue;
+            const rn = this.getRuleName(child).toLowerCase();
+            if (
+                rn.includes('specialization') ||
+                rn.includes('subclassification') ||
+                rn.includes('typing') ||
+                rn.includes('conjugation') ||
+                rn.includes('disjoining')
+            ) {
+                // These rules contain qualified-name children;
+                // extract all identifier-like tokens.
+                const childText = child.getText();
+                // Strip leading keywords / operators
+                const stripped = childText
+                    .replace(/^(specializes|:>|:>>|:\s|definedby|subsets|redefines|references|conjugates|disjoints)/i, '');
+                for (const part of stripped.split(',')) {
+                    const m = part.match(/([A-Za-z_][\w:]*)/);
+                    if (m) names.push(m[1]);
+                }
+            } else if (
+                // Recurse into declaration / part / body wrappers that may
+                // contain nested typing rules (but NOT into body rules that
+                // contain children — to avoid collecting types from members).
+                rn.includes('declaration') ||
+                rn.includes('featurespecialization') ||
+                rn.includes('typings') ||
+                rn.includes('subsettings') ||
+                rn.includes('redefinitions') ||
+                rn.includes('usagecompletion') ||
+                rn === 'usage' ||
+                rn === 'definition'
+            ) {
+                this.collectTypeNamesFromTree(child, names, depth + 1);
+            }
+        }
     }
 
     /**

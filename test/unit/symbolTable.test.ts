@@ -43,4 +43,48 @@ package Test {
         const matches = symbolTable.findByName('MyPart');
         expect(matches.length).toBeGreaterThanOrEqual(1);
     });
+
+    it('should extract correct type for interface usage with connect clause', async () => {
+        const { parseDocument } = await import('../../server/src/parser/parseDocument.js');
+        const { SymbolTable } = await import('../../server/src/symbols/symbolTable.js');
+
+        const text = `
+package ConnTest {
+    port def MechanicalPort {
+        attribute torque : Real;
+    }
+
+    interface def BrakeCable {
+        end leverEnd : MechanicalPort;
+        end caliperEnd : MechanicalPort;
+    }
+
+    part def BrakeLever {
+        port mechPort : MechanicalPort;
+    }
+
+    part def BrakeCaliper {
+        port mechPort : MechanicalPort;
+    }
+
+    part def BrakeSystem {
+        part frontLever : BrakeLever;
+        part frontCaliper : BrakeCaliper;
+
+        interface frontBrakeCable : BrakeCable connect
+            frontLever.mechPort to frontCaliper.mechPort;
+    }
+}
+`;
+        const result = parseDocument(text);
+        expect(result.errors.length).toBe(0);
+
+        const symbolTable = new SymbolTable();
+        symbolTable.build('test://conn.sysml', result);
+
+        const iface = symbolTable.findByName('frontBrakeCable');
+        expect(iface.length).toBeGreaterThanOrEqual(1);
+        // The type should be 'BrakeCable', not 'BrakeCableconnectfrontLever'
+        expect(iface[0].typeName).toBe('BrakeCable');
+    });
 });

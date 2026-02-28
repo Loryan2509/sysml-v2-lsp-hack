@@ -33,80 +33,100 @@ Install via the VS Code extension from the [VS Code Marketplace](https://marketp
 
 ### Dev Container (recommended)
 
-Open in GitHub Codespaces or VS Code Dev Containers — everything is pre-installed.
+Open in GitHub Codespaces or VS Code Dev Containers — everything is pre-installed, including Python 3.13, Jupyter, and Node.js 22.
 
 ### Manual Setup
 
 ```bash
-# Install dependencies
-npm install
-
-# Build
-npm run build
-
-# Run tests
-npm test
+npm install && npm run build && npm test
 ```
 
 ### Development
 
 ```bash
-# Watch mode — recompiles on file changes
-npm run watch
-
+npm run watch        # recompiles on file changes
 # Then press F5 in VS Code to launch the extension + server
 ```
 
 Use the **"Client + Server"** compound debug configuration to debug both sides simultaneously.
 
+## Client Examples
+
+The LSP server is language-agnostic. Three client implementations are included to demonstrate different integration patterns:
+
+### VS Code Extension (`clients/vscode/`)
+
+The primary client — a full VS Code extension using `vscode-languageclient`, communicating over IPC. Provides diagnostics, completions, hover, go-to-definition, semantic tokens, and all other LSP features directly in the editor.
+
+### Web Client (`clients/web/`)
+
+A browser-based SysML explorer with a Node.js HTTP bridge to the LSP server. Features a live editor with auto-analyse, diagnostics panel, symbol outline, and Mermaid diagram generation with zoom/pan.
+
+```bash
+make web             # build + start on http://localhost:3000
+```
+
+### Python Client (`clients/python/`)
+
+A zero-dependency Python script and Jupyter notebook that drives the LSP over stdio — the same JSON-RPC protocol VS Code uses, with no framework overhead.
+
+```bash
+python3 clients/python/sysml_lsp_client.py                    # analyse all examples
+python3 clients/python/sysml_lsp_client.py examples/bike.sysml # analyse a specific file
+```
+
+The Jupyter notebook (`sysml_lsp_demo.ipynb`) provides an interactive walkthrough of every LSP feature.
+
 ## Architecture
 
 ```
-┌──────────────────────┐     IPC     ┌──────────────────────────┐
-│   VS Code Extension  │ ◄─────────► │    Language Server       │
-│   (Language Client)  │             │    (Separate Process)    │
-├──────────────────────┤             ├──────────────────────────┤
-│ • Starts server      │             │ • Parser                 │
-│ • Registers language │             │ • Diagnostics            │
-│                      │             │ • Completion (keywords)  │
-│                      │             │ • Symbols / hover        │
-│                      │             │ • Go-to-def / references │
-│                      │             │ • Semantic tokens        │
-│                      │             │ • Rename / folding       │
-└──────────────────────┘             └──────────────────────────┘
+                         ┌───────────────────────────┐
+                         │    Language Server        │
+                         │    (Node.js process)      │
+                         ├───────────────────────────┤
+                         │ • ANTLR4 parser           │
+                         │ • Diagnostics             │
+                         │ • Symbols / hover         │
+                         │ • Completions / rename    │
+                         │ • Semantic tokens         │
+                         │ • Go-to-def / references  │
+                         └────────┬──────────────────┘
+                                  │  LSP (JSON-RPC)
+              ┌───────────────────┼────────────────────┐
+              │                   │                    │
+     ┌────────┴───────┐  ┌────────┴───────┐  ┌─────────┴──────┐
+     │  VS Code (IPC) │  │  Web (HTTP)    │  │  Python (stdio)│
+     │  Extension     │  │  Browser SPA   │  │  Script/Jupyter│
+     └────────────────┘  └────────────────┘  └────────────────┘
 ```
 
 ### Project Structure
 
 ```
 sysml-v2-lsp/
-├── client/                 # VS Code Language Client extension
-│   └── src/extension.ts    # Starts LanguageClient, connects to server
-├── server/                 # Language Server (runs in separate process)
-│   └── src/
-│       ├── server.ts       # LSP connection, capability registration
-│       ├── documentManager.ts  # Parse cache, document lifecycle
-│       ├── parser/         # Parse pipeline
-│       ├── symbols/        # Symbol table, scopes, element types
-│       ├── providers/      # LSP feature implementations
-│       ├── analysis/       # Complexity analyzer
-│       └── mcp/            # Mermaid diagram generator
-├── grammar/                # Grammar files (.g4)
-├── test/                   # Unit tests (vitest) + E2E tests
+├── clients/
+│   ├── vscode/             # VS Code extension (TypeScript)
+│   ├── web/                # Browser SPA + Node.js HTTP bridge
+│   └── python/             # Zero-dep Python client + Jupyter notebook
+├── server/src/             # Language Server
+│   ├── server.ts           # LSP connection, capability registration
+│   ├── documentManager.ts  # Parse cache, document lifecycle
+│   ├── parser/             # Parse pipeline
+│   ├── symbols/            # Symbol table, scopes, element types
+│   ├── providers/          # LSP feature implementations
+│   ├── analysis/           # Complexity analyzer
+│   └── mcp/                # Mermaid diagram generator
+├── grammar/                # ANTLR4 grammar files (.g4)
+├── sysml.library/          # SysML v2 standard library
+├── examples/               # Example .sysml models
+├── test/                   # Unit tests (vitest)
 └── package.json            # Extension manifest + monorepo scripts
-```
-
-## Grammar Updates
-
-The grammar files in `grammar/` are sourced from [daltskin/sysml-v2-grammar](https://github.com/daltskin/sysml-v2-grammar). To pull the latest version:
-
-```bash
-npm run update-grammar
 ```
 
 ## Available Commands
 
 ```bash
+make help             # Show all targets
 make install          # Install all dependencies
 make generate         # Generate TypeScript parser from grammar
 make build            # Compile + bundle
@@ -114,8 +134,19 @@ make watch            # Watch mode
 make test             # Run unit tests
 make lint             # ESLint
 make package          # Build .vsix
+make package-server   # Build server tarball for npm
+make web              # Launch web client (http://localhost:3000)
 make update-grammar   # Pull latest grammar from upstream
-make ci               # Full CI pipeline
+make update-library   # Pull latest SysML v2 standard library
+make ci               # Full CI pipeline (lint + build + test)
+```
+
+## Grammar Updates
+
+The grammar files in `grammar/` are sourced from [daltskin/sysml-v2-grammar](https://github.com/daltskin/sysml-v2-grammar). To pull the latest version:
+
+```bash
+make update-grammar
 ```
 
 ## Technology Stack

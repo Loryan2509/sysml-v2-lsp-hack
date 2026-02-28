@@ -9,8 +9,8 @@ This demonstrates that the LSP is truly language-agnostic: any tool (Python, Rus
 ```
 ┌─────────────────────┐       stdio (JSON-RPC)       ┌─────────────────────┐
 │  sysml_lsp_client.py│ ◄──────────────────────────► │  server.js (Node)   │
-│  (Python 3.10+)     │   Content-Length framing      │  ANTLR4 parser      │
-└─────────────────────┘                               └─────────────────────┘
+│  (Python 3.10+)     │   Content-Length framing     │  ANTLR4 parser      │
+└─────────────────────┘                              └─────────────────────┘
         │                                                     │
         │  reads .sysml files                                 │  full LSP:
         │  from examples/                                     │  diagnostics,

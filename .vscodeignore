@@ -1,6 +1,5 @@
 # Source files (bundled by esbuild into dist/)
 server/**
-client
 client/**
 clients/**
 grammar/**
@@ -36,11 +35,6 @@ ARCHITECTURE.md
 .github/**
 .vscode/**
 .gitignore
-
-# Eclipse project files in bundled library
-sysml.library/.gitignore
-sysml.library/.project
-sysml.library/.settings/**
 
 # MCP server not needed in VSIX (install via npm for MCP)
 dist/server/mcpServer.js

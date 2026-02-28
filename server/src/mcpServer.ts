@@ -286,12 +286,12 @@ server.registerTool(
                 {
                     type: 'text' as const,
                     text: 'ACTION REQUIRED: You MUST now call the "renderMermaidDiagram" tool to display this diagram.\n' +
-                          'Pass the "mermaidMarkup" field from the data below as the "markup" parameter and the "title" field as the "title" parameter.\n\n' +
-                          'AFTER the diagram renders, respond with ONLY a single brief sentence such as ' +
-                          '"Here is your <diagramType> diagram." and nothing else.\n' +
-                          'Do NOT show or describe: mermaid markup, JSON data, element counts, participant counts, ' +
-                          'interaction counts, semantic notes, or any raw tool output.\n' +
-                          'If there are syntaxErrors in the data, mention them briefly. Otherwise output NOTHING extra.',
+                        'Pass the "mermaidMarkup" field from the data below as the "markup" parameter and the "title" field as the "title" parameter.\n\n' +
+                        'AFTER the diagram renders, respond with ONLY a single brief sentence such as ' +
+                        '"Here is your <diagramType> diagram." and nothing else.\n' +
+                        'Do NOT show or describe: mermaid markup, JSON data, element counts, participant counts, ' +
+                        'interaction counts, semantic notes, or any raw tool output.\n' +
+                        'If there are syntaxErrors in the data, mention them briefly. Otherwise output NOTHING extra.',
                 },
                 {
                     type: 'text' as const,

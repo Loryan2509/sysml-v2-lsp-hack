@@ -1,4 +1,4 @@
-.PHONY: help install generate build watch test test-e2e lint package package-server test-package clean update-grammar update-library ci
+.PHONY: help install generate build watch test test-e2e lint package package-server test-package clean update-grammar update-library ci web
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -103,3 +103,7 @@ update-library: ## Pull latest SysML v2 standard library from OMG release repo
 	@echo "✅ SysML v2 standard library updated from $(LIBRARY_REPO)"
 
 ci: lint build test ## Full CI pipeline
+
+web: build ## Launch the web client (http://localhost:3000)
+	@echo "🌐 Starting SysML v2 web client on http://localhost:3000 ..."
+	node clients/web/server.mjs

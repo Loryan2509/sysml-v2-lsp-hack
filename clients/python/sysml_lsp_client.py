@@ -36,6 +36,7 @@ class JsonRpcClient:
     def __init__(self, process: subprocess.Popen):
         self._proc = process
         self._id = 0
+        self._open_docs: dict[str, int] = {}  # uri -> version
 
     # -- Sending ---------------------------------------------------------------
 
@@ -193,18 +194,49 @@ def initialize(client: JsonRpcClient, root_path: Path) -> dict[str, Any]:
 
 
 def open_document(client: JsonRpcClient, path: Path) -> str:
-    """Send textDocument/didOpen for a .sysml file. Returns the file URI."""
+    """Send textDocument/didOpen for a .sysml file. Returns the file URI.
+
+    If the document was already opened, it is closed and re-opened so that
+    the server picks up the latest content from disk.
+    """
     uri = file_uri(path)
+    # If already open, close first so the server drops its cached copy
+    if uri in client._open_docs:
+        close_document(client, uri)
     text = path.read_text(encoding="utf-8")
+    version = client._open_docs.get(uri, 0) + 1
     client.notify("textDocument/didOpen", {
         "textDocument": {
             "uri": uri,
             "languageId": "sysml",
-            "version": 1,
+            "version": version,
             "text": text,
         },
     })
+    client._open_docs[uri] = version
     return uri
+
+
+def close_document(client: JsonRpcClient, uri: str) -> None:
+    """Send textDocument/didClose so the server releases the document."""
+    client.notify("textDocument/didClose", {
+        "textDocument": {"uri": uri},
+    })
+    client._open_docs.pop(uri, None)
+    client._diagnostics.pop(uri, None)
+    # Drain the empty diagnostics the server publishes in response to didClose,
+    # so a subsequent drain_until_diagnostics won't match on the stale message.
+    client.drain_notifications(timeout=1.0)
+
+
+def reload_document(client: JsonRpcClient, path: Path) -> str:
+    """Close and re-open a document to force the server to re-read from disk.
+
+    This is the correct way to pick up on-disk edits, because the LSP spec
+    says the server must use the client-provided text once didOpen is sent.
+    Returns the file URI.
+    """
+    return open_document(client, path)  # open_document already handles close-if-open
 
 
 def get_document_symbols(client: JsonRpcClient, uri: str) -> list[dict[str, Any]]:

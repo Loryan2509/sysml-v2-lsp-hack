@@ -35,22 +35,8 @@ const PACKAGE_DECL_RE = /^(?:standard\s+)?(?:library\s+)?package\s+(?:<\w+>\s+)?
  *   metaclass Element { ... }
  *   metadata def ActionUsage { ... }
  *   alias Box for RectangularCuboid;
- *
- * MEMBER_DECL_RE also matches plain usages (without 'def') so that
- * library members like `attribute mass` inside ISQ are indexed.
- * These are stored with a qualified key (e.g. "ISQ::mass") so that
- * Go-to-Definition resolves `ISQ::mass` correctly.
  */
 const TYPE_DECL_RE = /^\s*(?:abstract\s+)?(?:datatype|struct|metaclass|alias|(?:(?:part|attribute|port|action|state|item|connection|interface|requirement|constraint|allocation|usecase|use\s+case|enum|calc|view|viewpoint|metadata|analysis|case|concern|rendering|verification|flow|occurrence|ref)\s+def))\s+(?:all\s+)?'?(\w+)'?/;
-
-/**
- * Matches plain usage declarations (without `def`) — e.g.
- *   attribute mass: MassValue;
- *   part engine : Engine;
- * Used to index members within standard library packages so that
- * qualified references like `ISQ::mass` can be resolved.
- */
-const MEMBER_DECL_RE = /^\s*(?:abstract\s+)?(?:attribute|part|port|action|state|item|connection|interface|requirement|constraint|allocation|calc|ref|occurrence|flow)\s+(?!def\b)'?(\w+)'?/;
 
 /** Library type location: file URI and 0-based line number. */
 export interface LibraryTypeLocation {
@@ -101,7 +87,6 @@ function buildIndex(libRoot: string): { packages: Map<string, string>; types: Ma
                     // Full-file scan for type declarations with line numbers
                     const content = readFileSync(full, 'utf8');
                     const lines = content.split('\n');
-                    const pkgName = m ? m[1] : undefined;
                     for (let i = 0; i < lines.length; i++) {
                         const tm = TYPE_DECL_RE.exec(lines[i]);
                         if (tm) {
@@ -110,30 +95,6 @@ function buildIndex(libRoot: string): { packages: Map<string, string>; types: Ma
                             // shadowing by reflective re-declarations)
                             if (!types.has(typeName)) {
                                 types.set(typeName, { uri: fileUri, line: i });
-                            }
-                            // Also store qualified key (e.g. "ISQ::TorqueValue")
-                            if (pkgName) {
-                                const qn = `${pkgName}::${typeName}`;
-                                if (!types.has(qn)) {
-                                    types.set(qn, { uri: fileUri, line: i });
-                                }
-                            }
-                        }
-                        // Also match plain usages (attribute mass, part engine)
-                        // and store them with a qualified key so that
-                        // references like ISQ::mass resolve correctly.
-                        if (pkgName) {
-                            const um = MEMBER_DECL_RE.exec(lines[i]);
-                            if (um) {
-                                const memberName = um[1];
-                                const qn = `${pkgName}::${memberName}`;
-                                if (!types.has(qn)) {
-                                    types.set(qn, { uri: fileUri, line: i });
-                                }
-                                // Also store unqualified if not already present
-                                if (!types.has(memberName)) {
-                                    types.set(memberName, { uri: fileUri, line: i });
-                                }
                             }
                         }
                     }
@@ -210,16 +171,7 @@ export function resolveLibraryPackage(name: string): string | undefined {
  */
 export function resolveLibraryType(name: string): LibraryTypeLocation | undefined {
     if (!typeIndex) return undefined;
-    // Try exact match first (handles both simple and qualified names)
-    const exact = typeIndex.get(name);
-    if (exact) return exact;
-    // For qualified names like "ISQ::mass", also try the member part
-    // in case it was indexed without qualification
-    if (name.includes('::')) {
-        const member = name.split('::').pop()!;
-        return typeIndex.get(member);
-    }
-    return undefined;
+    return typeIndex.get(name);
 }
 
 /**

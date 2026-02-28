@@ -1,0 +1,1104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SysML v2 — Model Explorer</title>
+
+<!-- Mermaid for diagram rendering -->
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+
+<!-- JetBrains Mono for the editor, DM Sans for UI -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+  /* ────────────────── Design tokens ────────────────── */
+  :root {
+    --bg-deep:     #0a0e17;
+    --bg-panel:    #111827;
+    --bg-surface:  #1a2236;
+    --bg-hover:    #243049;
+    --border:      #1e2d4a;
+    --border-glow: #3b82f6;
+
+    --text-primary:   #e2e8f0;
+    --text-secondary: #8896b3;
+    --text-muted:     #4b5c7c;
+
+    --accent:      #3b82f6;
+    --accent-soft: #1e3a5f;
+    --green:       #22c55e;
+    --amber:       #f59e0b;
+    --red:         #ef4444;
+    --cyan:        #06b6d4;
+    --purple:      #a78bfa;
+
+    --radius:      10px;
+    --radius-sm:   6px;
+    --transition:  0.2s cubic-bezier(0.4, 0, 0.2, 1);
+
+    --font-ui:   'DM Sans', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  }
+
+  /* ────────────────── Reset & base ────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    font-family: var(--font-ui);
+    background: var(--bg-deep);
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+  /* ────────────────── Layout ────────────────── */
+  .app {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 20px;
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+    gap: 16px;
+    z-index: 10;
+  }
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 700;
+    font-size: 16px;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+  }
+
+  .logo-mark {
+    width: 28px; height: 28px;
+    background: linear-gradient(135deg, var(--accent), var(--cyan));
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 700;
+    color: white;
+    font-family: var(--font-mono);
+  }
+
+  .logo span { color: var(--text-secondary); font-weight: 400; }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* ────────────────── Buttons ────────────────── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    font-family: var(--font-ui);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition);
+    white-space: nowrap;
+  }
+
+  .btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+    border-color: var(--text-muted);
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
+  }
+
+  .btn-primary:hover {
+    background: #2563eb;
+    border-color: #2563eb;
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+  }
+
+  .btn-primary:active { transform: scale(0.97); }
+
+  .btn kbd {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    padding: 1px 5px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 3px;
+    opacity: 0.7;
+  }
+
+  select.example-select {
+    appearance: none;
+    padding: 7px 28px 7px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%238896b3'%3E%3Cpath d='M2 4l4 4 4-4'/%3E%3C/svg%3E") no-repeat right 10px center;
+    color: var(--text-secondary);
+    font-family: var(--font-ui);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all var(--transition);
+  }
+
+  select.example-select:hover {
+    border-color: var(--text-muted);
+    color: var(--text-primary);
+  }
+
+  select.example-select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  /* ────────────────── Main workspace ────────────────── */
+  .workspace {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    overflow: hidden;
+  }
+
+  .panel {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border-right: 1px solid var(--border);
+  }
+
+  .panel:last-child { border-right: none; }
+
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 16px;
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+
+  .panel-header .badge {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-family: var(--font-mono);
+  }
+
+  .badge-ok    { background: rgba(34,197,94,0.15); color: var(--green); }
+  .badge-warn  { background: rgba(245,158,11,0.15); color: var(--amber); }
+  .badge-error { background: rgba(239,68,68,0.15); color: var(--red); }
+
+  .panel-body {
+    flex: 1;
+    overflow: auto;
+    position: relative;
+  }
+
+  /* ────────────────── Editor ────────────────── */
+  .editor-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+
+  .editor-area {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+  }
+
+  #editor {
+    width: 100%;
+    height: 100%;
+    padding: 16px;
+    padding-left: 56px;
+    background: var(--bg-deep);
+    color: var(--text-primary);
+    border: none;
+    outline: none;
+    font-family: var(--font-mono);
+    font-size: 13.5px;
+    line-height: 1.7;
+    resize: none;
+    tab-size: 4;
+    white-space: pre;
+    overflow: auto;
+  }
+
+  .line-numbers {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 44px;
+    padding: 16px 8px 16px 0;
+    text-align: right;
+    font-family: var(--font-mono);
+    font-size: 13.5px;
+    line-height: 1.7;
+    color: var(--text-muted);
+    user-select: none;
+    pointer-events: none;
+    overflow: hidden;
+    background: var(--bg-deep);
+    border-right: 1px solid var(--border);
+  }
+
+  /* ────────────────── Diagnostics strip ────────────────── */
+  .diagnostics-strip {
+    flex-shrink: 0;
+    max-height: 35%;
+    overflow-y: auto;
+    background: var(--bg-panel);
+    border-top: 1px solid var(--border);
+  }
+
+  .diag-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 8px 16px;
+    font-size: 12.5px;
+    border-bottom: 1px solid rgba(30,45,74,0.5);
+    transition: background var(--transition);
+    cursor: default;
+  }
+
+  .diag-item:hover { background: var(--bg-surface); }
+
+  .diag-icon {
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+    margin-top: 1px;
+  }
+
+  .diag-error .diag-icon   { background: rgba(239,68,68,0.2); color: var(--red); }
+  .diag-warning .diag-icon { background: rgba(245,158,11,0.2); color: var(--amber); }
+  .diag-info .diag-icon    { background: rgba(59,130,246,0.2); color: var(--accent); }
+  .diag-hint .diag-icon    { background: rgba(167,139,250,0.2); color: var(--purple); }
+
+  .diag-location {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    min-width: 48px;
+  }
+
+  .diag-message { color: var(--text-secondary); flex: 1; }
+
+  .diag-empty {
+    padding: 20px 16px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 13px;
+  }
+
+  .diag-empty .check {
+    display: inline-block;
+    width: 32px; height: 32px;
+    background: rgba(34,197,94,0.12);
+    border-radius: 50%;
+    line-height: 32px;
+    font-size: 16px;
+    margin-bottom: 6px;
+  }
+
+  /* ────────────────── Right panel — tabs ────────────────── */
+  .tabs {
+    display: flex;
+    gap: 0;
+  }
+
+  .tab {
+    padding: 8px 16px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all var(--transition);
+  }
+
+  .tab:hover { color: var(--text-secondary); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .tab-content { display: none; height: 100%; overflow: auto; }
+  .tab-content.active { display: block; }
+
+  /* ────────────────── Diagram view ────────────────── */
+  .diagram-container {
+    position: relative;
+    height: 100%;
+    overflow: hidden;
+    background: var(--bg-deep);
+  }
+
+  .diagram-view {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100%;
+    padding: 24px;
+    transform-origin: 0 0;
+    transition: transform 0.15s ease-out;
+    cursor: grab;
+  }
+
+  .diagram-view.panning { cursor: grabbing; transition: none; }
+
+  .diagram-view svg {
+    max-width: none;
+    height: auto;
+  }
+
+  .diagram-placeholder {
+    text-align: center;
+    color: var(--text-muted);
+    padding: 40px;
+  }
+
+  .diagram-placeholder .icon {
+    font-size: 48px;
+    margin-bottom: 12px;
+    opacity: 0.4;
+  }
+
+  /* ── Zoom toolbar ── */
+  .zoom-toolbar {
+    position: absolute;
+    bottom: 12px;
+    right: 12px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    z-index: 10;
+    user-select: none;
+  }
+
+  .zoom-btn {
+    width: 28px; height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 15px;
+    font-family: var(--font-mono);
+    cursor: pointer;
+    transition: all var(--transition);
+  }
+
+  .zoom-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+  .zoom-level {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-muted);
+    min-width: 38px;
+    text-align: center;
+  }
+
+  /* ────────────────── Symbol tree ────────────────── */
+  .symbol-tree {
+    padding: 8px 0;
+  }
+
+  .sym-node {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 16px;
+    font-size: 13px;
+    cursor: default;
+    transition: background var(--transition);
+  }
+
+  .sym-node:hover { background: var(--bg-hover); }
+
+  .sym-indent { flex-shrink: 0; }
+
+  .sym-kind {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    flex-shrink: 0;
+  }
+
+  .kind-package   { background: rgba(59,130,246,0.15); color: var(--accent); }
+  .kind-part      { background: rgba(6,182,212,0.15); color: var(--cyan); }
+  .kind-attribute  { background: rgba(167,139,250,0.15); color: var(--purple); }
+  .kind-port      { background: rgba(245,158,11,0.15); color: var(--amber); }
+  .kind-enum      { background: rgba(34,197,94,0.15); color: var(--green); }
+  .kind-interface { background: rgba(244,114,182,0.15); color: #f472b6; }
+  .kind-action    { background: rgba(251,146,60,0.15); color: #fb923c; }
+  .kind-req       { background: rgba(239,68,68,0.15); color: var(--red); }
+  .kind-default   { background: rgba(139,152,180,0.1); color: var(--text-secondary); }
+
+  .sym-name { color: var(--text-primary); }
+  .sym-type { color: var(--text-muted); font-size: 12px; }
+
+  /* ────────────────── Status bar ────────────────── */
+  .status-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 16px;
+    background: var(--accent);
+    color: white;
+    font-size: 11.5px;
+    font-weight: 500;
+  }
+
+  .status-bar.error { background: var(--red); }
+  .status-bar.idle { background: var(--bg-panel); color: var(--text-muted); border-top: 1px solid var(--border); }
+
+  .pulse {
+    display: inline-block;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+    margin-right: 6px;
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  /* ────────────────── Loading overlay ────────────────── */
+  .loading-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(10,14,23,0.85);
+    z-index: 100;
+    transition: opacity 0.3s;
+  }
+
+  .loading-overlay.hidden { opacity: 0; pointer-events: none; }
+
+  .spinner {
+    width: 28px; height: 28px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ────────────────── Responsive ────────────────── */
+  @media (max-width: 900px) {
+    .workspace { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+    .panel { border-right: none; border-bottom: 1px solid var(--border); }
+  }
+</style>
+</head>
+
+<body>
+<div class="app">
+
+  <!-- ═══ Header ═══ -->
+  <header class="header">
+    <div class="header-left">
+      <div class="logo">
+        <div class="logo-mark">S2</div>
+        SysML v2 <span>Explorer</span>
+      </div>
+      <select class="example-select" id="exampleSelect">
+        <option value="">Load example…</option>
+      </select>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-primary" id="analyseBtn" onclick="analyse()">
+        ▶ Analyse <kbd>⌘↵</kbd>
+      </button>
+    </div>
+  </header>
+
+  <!-- ═══ Workspace ═══ -->
+  <div class="workspace">
+
+    <!-- Left: Editor + Diagnostics -->
+    <div class="panel">
+      <div class="panel-header">
+        <span>Editor</span>
+        <span class="badge" id="diagBadge"></span>
+      </div>
+      <div class="panel-body editor-container">
+        <div class="editor-area">
+          <div class="line-numbers" id="lineNumbers"></div>
+          <textarea id="editor" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
+        </div>
+        <div class="diagnostics-strip" id="diagnosticsPanel">
+          <div class="diag-empty">
+            <div class="check">✓</div>
+            <div>Press <strong>Analyse</strong> to check your model</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Diagram / Symbols -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="tabs">
+          <div class="tab active" data-tab="diagram" onclick="switchTab('diagram')">Diagram</div>
+          <div class="tab" data-tab="symbols" onclick="switchTab('symbols')">Symbols</div>
+        </div>
+      </div>
+      <div class="panel-body" style="position: relative;">
+        <div class="loading-overlay hidden" id="loadingOverlay">
+          <div class="spinner"></div>
+        </div>
+
+        <div class="tab-content active" id="tab-diagram">
+          <div class="diagram-container" id="diagramContainer">
+            <div class="diagram-view" id="diagramView">
+              <div class="diagram-placeholder">
+                <div class="icon">◇</div>
+                <div>Your diagram will appear here</div>
+                <div style="margin-top:4px; font-size:12px;">Write SysML and click Analyse</div>
+              </div>
+            </div>
+            <div class="zoom-toolbar">
+              <button class="zoom-btn" onclick="zoomDiagram(-1)" title="Zoom out">−</button>
+              <span class="zoom-level" id="zoomLevel">100%</span>
+              <button class="zoom-btn" onclick="zoomDiagram(1)" title="Zoom in">+</button>
+              <button class="zoom-btn" onclick="zoomDiagram(0)" title="Reset zoom" style="font-size:12px;">⊙</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="tab-content" id="tab-symbols">
+          <div class="symbol-tree" id="symbolTree">
+            <div class="diagram-placeholder">
+              <div class="icon">⊞</div>
+              <div>Symbol outline will appear here</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ═══ Status bar ═══ -->
+  <div class="status-bar idle" id="statusBar">
+    <span>Ready</span>
+    <span class="status-right" id="statusRight">SysML v2 LSP</span>
+  </div>
+
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// SysML v2 Web Client — Frontend Logic
+// ═══════════════════════════════════════════════════════════════
+
+const editor = document.getElementById('editor');
+const lineNumbers = document.getElementById('lineNumbers');
+const diagnosticsPanel = document.getElementById('diagnosticsPanel');
+const diagBadge = document.getElementById('diagBadge');
+const diagramView = document.getElementById('diagramView');
+const symbolTree = document.getElementById('symbolTree');
+const statusBar = document.getElementById('statusBar');
+const statusRight = document.getElementById('statusRight');
+const loadingOverlay = document.getElementById('loadingOverlay');
+const exampleSelect = document.getElementById('exampleSelect');
+
+// ─── Mermaid init ───
+mermaid.initialize({
+    startOnLoad: false,
+    theme: 'dark',
+    themeVariables: {
+        darkMode: true,
+        primaryColor: '#1e3a5f',
+        primaryTextColor: '#e2e8f0',
+        primaryBorderColor: '#3b82f6',
+        lineColor: '#4b5c7c',
+        secondaryColor: '#1a2236',
+        tertiaryColor: '#111827',
+        fontFamily: 'DM Sans, sans-serif',
+        fontSize: '13px',
+    },
+    flowchart: { curve: 'basis', padding: 16 },
+    sequence: { mirrorActors: false },
+});
+
+// ─── Default SysML ───
+const DEFAULT_SYSML = `package SmartHome {
+
+    // ─── Attribute Definitions ───
+    attribute def Temperature;
+    attribute def Percentage;
+    attribute def DeviceName;
+
+    enum def DeviceState {
+        off;
+        on;
+        standby;
+    }
+
+    // ─── Part Definitions ───
+    part def Sensor {
+        attribute name : DeviceName;
+        attribute deviceState : DeviceState;
+    }
+
+    part def Thermostat :> Sensor {
+        attribute targetTemp : Temperature;
+        attribute currentTemp : Temperature;
+    }
+
+    part def LightController {
+        attribute brightness : Percentage;
+        attribute deviceState : DeviceState;
+    }
+
+    part def SecurityCamera :> Sensor {
+        attribute resolution : DeviceName;
+        attribute recording : DeviceState;
+    }
+
+    // ─── System Assembly ───
+    part def SmartHomeSystem {
+        part thermostat : Thermostat;
+        part lights : LightController[1..*];
+        part cameras : SecurityCamera[2..4];
+    }
+
+    // ─── Behavior ───
+    action def MonitorHome {
+        in item system : SmartHomeSystem;
+
+        action checkTemperature;
+        action adjustLights;
+        action recordVideo;
+
+        first checkTemperature;
+        then adjustLights;
+        then recordVideo;
+    }
+}
+`;
+
+editor.value = DEFAULT_SYSML;
+updateLineNumbers();
+
+// ─── Line numbers ───
+function updateLineNumbers() {
+    const lines = editor.value.split('\n').length;
+    lineNumbers.innerHTML = Array.from({ length: lines }, (_, i) =>
+        `<div>${i + 1}</div>`
+    ).join('');
+}
+
+// ─── Auto-analyse on edit (debounced) ───
+let _analyseTimer = null;
+function scheduleAnalyse(delay = 800) {
+    clearTimeout(_analyseTimer);
+    _analyseTimer = setTimeout(analyse, delay);
+}
+
+editor.addEventListener('input', () => {
+    updateLineNumbers();
+    scheduleAnalyse();
+});
+editor.addEventListener('scroll', () => {
+    lineNumbers.style.transform = `translateY(-${editor.scrollTop}px)`;
+});
+
+// ─── Tab handling ───
+editor.addEventListener('keydown', (e) => {
+    if (e.key === 'Tab') {
+        e.preventDefault();
+        const start = editor.selectionStart;
+        editor.value = editor.value.substring(0, start) + '    ' + editor.value.substring(editor.selectionEnd);
+        editor.selectionStart = editor.selectionEnd = start + 4;
+        updateLineNumbers();
+        scheduleAnalyse();
+    }
+    // Cmd/Ctrl + Enter to analyse
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        analyse();
+    }
+});
+
+// ─── Load examples ───
+async function loadExamples() {
+    try {
+        const res = await fetch('/api/examples');
+        const examples = await res.json();
+        examples.forEach(ex => {
+            const opt = document.createElement('option');
+            opt.value = ex.code;
+            opt.textContent = ex.name;
+            exampleSelect.appendChild(opt);
+        });
+    } catch { /* silently handle if API not ready */ }
+}
+
+exampleSelect.addEventListener('change', () => {
+    if (exampleSelect.value) {
+        editor.value = exampleSelect.value;
+        updateLineNumbers();
+        analyse();
+    }
+});
+
+// ─── Tab switching ───
+function switchTab(name) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+    document.querySelectorAll('.tab-content').forEach(t =>
+        t.classList.toggle('active', t.id === `tab-${name}`)
+    );
+}
+
+// ─── Analyse ───
+let analyseTimeout;
+
+async function analyse() {
+    const code = editor.value;
+    if (!code.trim()) return;
+
+    // Show loading
+    loadingOverlay.classList.remove('hidden');
+    statusBar.className = 'status-bar';
+    statusBar.querySelector('span').innerHTML = '<span class="pulse"></span>Analysing…';
+    diagBadge.textContent = '';
+    diagBadge.className = 'badge';
+
+    try {
+        const res = await fetch('/api/analyse', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code }),
+        });
+
+        if (!res.ok) throw new Error(`Server error: ${res.status}`);
+        const data = await res.json();
+
+        renderDiagnostics(data.diagnostics ?? []);
+        renderSymbols(data.symbols ?? []);
+        await renderDiagram(data.symbols ?? [], data.model);
+
+        const errCount = (data.diagnostics ?? []).filter(d => d.severity === 1).length;
+        const warnCount = (data.diagnostics ?? []).filter(d => d.severity === 2).length;
+        const total = (data.diagnostics ?? []).length;
+
+        statusBar.className = 'status-bar idle';
+        statusBar.querySelector('span').textContent =
+            total === 0 ? '✓ No issues' :
+            `${errCount} error${errCount !== 1 ? 's' : ''}, ${warnCount} warning${warnCount !== 1 ? 's' : ''}, ${total - errCount - warnCount} info/hint`;
+        statusRight.textContent = `${(data.symbols ?? []).length} symbols`;
+
+    } catch (err) {
+        statusBar.className = 'status-bar error';
+        statusBar.querySelector('span').textContent = `✗ ${err.message}`;
+    } finally {
+        loadingOverlay.classList.add('hidden');
+    }
+}
+
+// ─── Render diagnostics ───
+const SEV_MAP = { 1: 'error', 2: 'warning', 3: 'info', 4: 'hint' };
+const SEV_ICON = { error: '✕', warning: '!', info: 'i', hint: '?' };
+
+function renderDiagnostics(diags) {
+    if (!diags.length) {
+        diagnosticsPanel.innerHTML = `
+            <div class="diag-empty">
+                <div class="check">✓</div>
+                <div>No issues found — model is clean</div>
+            </div>`;
+        diagBadge.textContent = '0 issues';
+        diagBadge.className = 'badge badge-ok';
+        return;
+    }
+
+    const errors = diags.filter(d => d.severity === 1).length;
+    const warns = diags.filter(d => d.severity === 2).length;
+
+    if (errors > 0) {
+        diagBadge.textContent = `${errors} error${errors > 1 ? 's' : ''}`;
+        diagBadge.className = 'badge badge-error';
+    } else if (warns > 0) {
+        diagBadge.textContent = `${warns} warning${warns > 1 ? 's' : ''}`;
+        diagBadge.className = 'badge badge-warn';
+    } else {
+        diagBadge.textContent = `${diags.length} hint${diags.length > 1 ? 's' : ''}`;
+        diagBadge.className = 'badge badge-ok';
+    }
+
+    diagnosticsPanel.innerHTML = diags.map(d => {
+        const sev = SEV_MAP[d.severity] ?? 'info';
+        const line = (d.range?.start?.line ?? 0) + 1;
+        const col = (d.range?.start?.character ?? 0) + 1;
+        return `<div class="diag-item diag-${sev}">
+            <div class="diag-icon">${SEV_ICON[sev]}</div>
+            <div class="diag-location">L${line}:${col}</div>
+            <div class="diag-message">${escHtml(d.message)}${d.code ? ` <span style="color:var(--text-muted)">[${escHtml(String(d.code))}]</span>` : ''}</div>
+        </div>`;
+    }).join('');
+}
+
+// ─── Render symbols ───
+const KIND_MAP = {
+    4: 'package', 5: 'part', 7: 'attribute', 8: 'port',
+    10: 'enum', 11: 'interface', 6: 'action', 12: 'req',
+};
+
+const KIND_LABEL = {
+    4: 'PKG', 5: 'PART', 7: 'ATTR', 8: 'PORT',
+    10: 'ENUM', 11: 'INTF', 6: 'ACT', 12: 'REQ',
+};
+
+function renderSymbols(symbols, depth = 0) {
+    if (!symbols.length && depth === 0) {
+        symbolTree.innerHTML = `
+            <div class="diagram-placeholder">
+                <div class="icon">⊞</div>
+                <div>No symbols found</div>
+            </div>`;
+        return;
+    }
+
+    if (depth === 0) symbolTree.innerHTML = '';
+
+    symbols.forEach(sym => {
+        const kind = KIND_MAP[sym.kind] ?? 'default';
+        const label = KIND_LABEL[sym.kind] ?? 'SYM';
+        const node = document.createElement('div');
+        node.className = 'sym-node';
+        node.innerHTML = `
+            <span class="sym-indent" style="width:${depth * 16}px"></span>
+            <span class="sym-kind kind-${kind}">${label}</span>
+            <span class="sym-name">${escHtml(sym.name)}</span>
+        `;
+        symbolTree.appendChild(node);
+
+        if (sym.children?.length) {
+            renderSymbols(sym.children, depth + 1);
+        }
+    });
+}
+
+// ─── Render mermaid diagram ───
+async function renderDiagram(symbols, model) {
+    // Reset zoom/pan for the fresh diagram
+    _zoom = 1; _panX = 0; _panY = 0;
+    applyDiagramTransform();
+
+    // Build a class diagram from the symbols
+    const diagram = buildMermaidFromSymbols(symbols);
+
+    if (!diagram) {
+        diagramView.innerHTML = `
+            <div class="diagram-placeholder">
+                <div class="icon">◇</div>
+                <div>No structural elements to diagram</div>
+            </div>`;
+        return;
+    }
+
+    try {
+        const { svg } = await mermaid.render('mermaid-output', diagram);
+        diagramView.innerHTML = svg;
+    } catch (err) {
+        diagramView.innerHTML = `
+            <div class="diagram-placeholder">
+                <div class="icon" style="color:var(--amber)">⚠</div>
+                <div>Diagram rendering failed</div>
+                <div style="font-size:11px; margin-top:4px; color:var(--text-muted)">${escHtml(err.message)}</div>
+            </div>`;
+    }
+}
+
+function buildMermaidFromSymbols(symbols) {
+    const lines = ['classDiagram'];
+    let hasContent = false;
+
+    function walk(syms, parent) {
+        for (const sym of syms) {
+            const name = safeMermaidId(sym.name);
+            const kind = sym.kind;
+
+            // Definitions: class-like (kind 5=Class used for part def, 10=Enum, etc.)
+            if ([4, 5, 10, 11].includes(kind) || sym.children?.length > 0) {
+                lines.push(`    class ${name} {`);
+
+                if (sym.children) {
+                    for (const child of sym.children) {
+                        const childKind = KIND_LABEL[child.kind] ?? '';
+                        const childName = child.name || '?';
+                        if (child.children?.length > 0) continue; // skip nested defs here
+                        lines.push(`        +${childKind.toLowerCase()} ${childName}`);
+                    }
+                }
+
+                lines.push('    }');
+
+                // Stereotype annotation
+                if (kind === 4) lines.push(`    <<Package>> ${name}`);
+                else if (kind === 10) lines.push(`    <<Enumeration>> ${name}`);
+                else if (kind === 11) lines.push(`    <<Interface>> ${name}`);
+
+                hasContent = true;
+
+                // Add composition relationships for child definitions
+                if (sym.children) {
+                    for (const child of sym.children) {
+                        if (child.children?.length > 0) {
+                            const childId = safeMermaidId(child.name);
+                            lines.push(`    ${name} *-- ${childId}`);
+                            walk([child], name);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    walk(symbols, null);
+
+    return hasContent ? lines.join('\n') : null;
+}
+
+function safeMermaidId(name) {
+    return (name || 'unknown').replace(/[^a-zA-Z0-9_]/g, '_');
+}
+
+function escHtml(str) {
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// ─── Diagram zoom / pan ───
+let _zoom = 1;
+let _panX = 0, _panY = 0;
+const ZOOM_MIN = 0.25, ZOOM_MAX = 4, ZOOM_STEP = 0.15;
+
+function applyDiagramTransform(smooth = true) {
+    if (!smooth) diagramView.classList.add('panning');
+    else diagramView.classList.remove('panning');
+    diagramView.style.transform = `translate(${_panX}px, ${_panY}px) scale(${_zoom})`;
+    document.getElementById('zoomLevel').textContent = `${Math.round(_zoom * 100)}%`;
+}
+
+function zoomDiagram(dir) {
+    if (dir === 0) { _zoom = 1; _panX = 0; _panY = 0; }
+    else { _zoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, _zoom + dir * ZOOM_STEP)); }
+    applyDiagramTransform();
+}
+
+// Scroll-wheel zoom
+document.getElementById('diagramContainer')?.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -1 : 1;
+    const oldZoom = _zoom;
+    _zoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, _zoom + delta * ZOOM_STEP));
+    // Zoom toward cursor
+    const rect = diagramView.parentElement.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const scale = _zoom / oldZoom;
+    _panX = mx - scale * (mx - _panX);
+    _panY = my - scale * (my - _panY);
+    applyDiagramTransform(false);
+}, { passive: false });
+
+// Mouse drag to pan
+(function initPan() {
+    const container = document.getElementById('diagramContainer');
+    if (!container) return;
+    let dragging = false, startX, startY, origPanX, origPanY;
+    container.addEventListener('mousedown', (e) => {
+        if (e.button !== 0) return;
+        dragging = true;
+        startX = e.clientX; startY = e.clientY;
+        origPanX = _panX; origPanY = _panY;
+        diagramView.classList.add('panning');
+    });
+    window.addEventListener('mousemove', (e) => {
+        if (!dragging) return;
+        _panX = origPanX + (e.clientX - startX);
+        _panY = origPanY + (e.clientY - startY);
+        applyDiagramTransform(false);
+    });
+    window.addEventListener('mouseup', () => {
+        if (dragging) { dragging = false; diagramView.classList.remove('panning'); }
+    });
+})();
+
+// ─── Init ───
+loadExamples();
+// Analyse the default content on first load
+window.addEventListener('DOMContentLoaded', () => setTimeout(analyse, 300));
+</script>
+
+</body>
+</html>

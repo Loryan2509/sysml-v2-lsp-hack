@@ -37,6 +37,8 @@ import { HoverProvider } from './providers/hoverProvider.js';
 import { ReferencesProvider } from './providers/referencesProvider.js';
 import { RenameProvider } from './providers/renameProvider.js';
 import { SemanticTokensProvider, tokenModifiers, tokenTypes } from './providers/semanticTokensProvider.js';
+import { SemanticValidator } from './providers/semanticValidator.js';
+import { validateKeywords } from './providers/keywordValidator.js';
 
 // Create a connection using all proposed LSP features
 const connection = createConnection(ProposedFeatures.all);
@@ -178,8 +180,19 @@ async function validateDocument(document: TextDocument): Promise<void> {
     // Parse and cache the document
     documentManager.parse(document);
 
-    // Send diagnostics
+    // Collect diagnostics from all sources
     const diagnostics = diagnosticsProvider.getDiagnostics(document.uri);
+
+    // Semantic validation (unused definitions, unresolved types, etc.)
+    const semanticValidator = new SemanticValidator(documentManager);
+    diagnostics.push(...semanticValidator.validate(document.uri));
+
+    // Keyword validation (misspelled keywords)
+    const parseResult = documentManager.get(document.uri);
+    if (parseResult) {
+        diagnostics.push(...validateKeywords(parseResult));
+    }
+
     connection.sendDiagnostics({ uri: document.uri, diagnostics });
 
     // Notify the client that parsing is complete
