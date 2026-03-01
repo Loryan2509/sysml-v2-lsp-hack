@@ -1,6 +1,6 @@
 import { Diagnostic, DiagnosticSeverity } from 'vscode-languageserver/node.js';
 import { DocumentManager } from '../documentManager.js';
-import { getLibraryPackageNames } from '../library/libraryIndex.js';
+import { getLibraryPackageNames, resolveLibraryType } from '../library/libraryIndex.js';
 import { SymbolTable } from '../symbols/symbolTable.js';
 import { SysMLElementKind, SysMLSymbol, isDefinition } from '../symbols/sysmlElements.js';
 
@@ -113,7 +113,15 @@ export class SemanticValidator {
             STANDARD_LIBRARY_TYPES.has(rootSegment) ||
             libraryNames.has(rootSegment) ||
             // Pattern match for ISQ quantity value types (e.g., LengthValue, TorqueValue)
-            ISQ_VALUE_PATTERN.test(symbol.typeName)
+            ISQ_VALUE_PATTERN.test(symbol.typeName) ||
+            // Check the scanned library type index (covers all ISQ/SI types including
+            // those with digits like CartesianSpatial3dCoordinateFrame)
+            resolveLibraryType(symbol.typeName) !== undefined ||
+            resolveLibraryType(rootSegment) !== undefined ||
+            // Names starting with lowercase are feature references (subsettings
+            // via :>), not type references — don't flag them as unresolved types.
+            // e.g. "attribute x :> distancePerVolume" references a feature, not a type.
+            /^[a-z]/.test(symbol.typeName)
         ) {
             return [];
         }

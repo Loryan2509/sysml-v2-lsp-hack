@@ -416,12 +416,25 @@ export class SymbolTable {
         // concatenated (getText() strips whitespace).  This prevents the regex
         // from greedily matching into connect/bind/first/then/flow/… clauses.
         // e.g. ":BrakeCableconnectfrontLever…" should stop at "connect".
+        // Also truncate at redefines/subsets/nonunique/via which appear in feature
+        // declarations after the typing.
         text = text.replace(
-            /(connect|bind|first|then|flow|allocate|assign|accept|send|decide|merge|join|fork)\b.*/i,
+            /(connect|bind|first|then|flow|allocate|assign|accept|send|decide|merge|join|fork|redefines|subsets|nonunique|via).*/i,
             '',
         );
 
-        // 1. "specializes A, B" or ":> A, B"
+        // 1. ":>> featureName : Type" (redefinition with explicit retyping)
+        //    Extract the Type, not the redefined feature name.
+        const redefMatch = text.match(/:>>\s*[A-Za-z_][\w:]*\s*:\s*([A-Za-z_][\w:]*(?:\s*,\s*[A-Za-z_][\w:]*)*)/);
+        if (redefMatch) {
+            for (const part of redefMatch[1].split(',')) {
+                const m = part.trim().match(/^([A-Za-z_][\w:]*)/);
+                if (m && !this.isKeyword(m[1])) names.push(m[1]);
+            }
+            return names;
+        }
+
+        // 2. "specializes A, B" or ":> A, B" or ":>> A"
         const specMatch = text.match(/(?:specializes|:>|:>>)\s*([A-Za-z_][\w:]*(?:\s*,\s*[A-Za-z_][\w:]*)*)/);
         if (specMatch) {
             for (const part of specMatch[1].split(',')) {
@@ -480,12 +493,15 @@ export class SymbolTable {
                 // These rules contain qualified-name children;
                 // extract all identifier-like tokens.
                 const childText = child.getText();
-                // Strip leading keywords / operators
+                // Strip ALL occurrences of SysML keywords/operators that
+                // appear concatenated (getText() strips whitespace), not
+                // just at the start.  e.g. "FuelCmdredefinespwrCmd" →
+                // split on "redefines" to get ["FuelCmd", "pwrCmd"].
                 const stripped = childText
-                    .replace(/^(specializes|:>|:>>|:\s|definedby|subsets|redefines|references|conjugates|disjoints)/i, '');
+                    .replace(/(specializes|:>>|:>|:\s|definedby|subsets|redefines|references|conjugates|disjoints|via)/gi, ',');
                 for (const part of stripped.split(',')) {
                     const m = part.match(/([A-Za-z_][\w:]*)/);
-                    if (m) names.push(m[1]);
+                    if (m && !this.isKeyword(m[1])) names.push(m[1]);
                 }
             } else if (
                 // Recurse into declaration / part / body wrappers that may
@@ -661,7 +677,7 @@ export class SymbolTable {
             'satisfy', 'send', 'snapshot', 'specializes', 'stakeholder', 'state',
             'subject', 'subsets', 'succession', 'then', 'timeslice', 'to', 'transition',
             'true', 'type', 'use', 'variant', 'variation', 'verification', 'verify',
-            'view', 'viewpoint', 'when', 'while', 'xor',
+            'via', 'view', 'viewpoint', 'when', 'while', 'xor',
         ]);
         return keywords.has(text);
     }
