@@ -6,6 +6,12 @@ import {
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { TextDocuments } from 'vscode-languageserver/node.js';
 
+/** Check if a char code is whitespace (space, tab, CR, LF, etc.) without regex. */
+function isWhitespace(c: number): boolean {
+    return c === 32 || c === 9 || c === 10 || c === 13 || // space, tab, LF, CR
+        c === 12 || c === 11;                          // form feed, vertical tab
+}
+
 /**
  * Provides smart selection ranges for SysML documents.
  *
@@ -113,8 +119,8 @@ export class SelectionRangeProvider {
         }
 
         // Trim whitespace
-        while (stmtStart < offset && /\s/.test(text[stmtStart])) stmtStart++;
-        while (stmtEnd > offset && stmtEnd > stmtStart && /\s/.test(text[stmtEnd - 1])) stmtEnd--;
+        while (stmtStart < offset && isWhitespace(text.charCodeAt(stmtStart))) stmtStart++;
+        while (stmtEnd > offset && stmtEnd > stmtStart && isWhitespace(text.charCodeAt(stmtEnd - 1))) stmtEnd--;
 
         if (stmtEnd <= stmtStart) return undefined;
 
@@ -161,7 +167,7 @@ export class SelectionRangeProvider {
                 text[declStart - 1] !== '{' && text[declStart - 1] !== '}') {
                 declStart--;
             }
-            while (declStart < start && /\s/.test(text[declStart])) declStart++;
+            while (declStart < start && isWhitespace(text.charCodeAt(declStart))) declStart++;
             if (declStart < start) {
                 ranges.push(
                     Range.create(doc.positionAt(declStart), doc.positionAt(end)),

@@ -17,6 +17,8 @@ import { SemanticValidator } from './providers/semanticValidator.js';
 import { SymbolTable } from './symbols/symbolTable.js';
 import type { SysMLSymbol } from './symbols/sysmlElements.js';
 import { SysMLElementKind, isDefinition, isUsage } from './symbols/sysmlElements.js';
+import { SYSML_KEYWORDS_ARRAY as SYSML_KEYWORDS } from './utils/sysmlKeywords.js';
+export { SYSML_KEYWORDS_ARRAY as SYSML_KEYWORDS } from './utils/sysmlKeywords.js';
 
 // ---------------------------------------------------------------------------
 // State container — one per MCP session
@@ -25,6 +27,32 @@ import { SysMLElementKind, isDefinition, isUsage } from './symbols/sysmlElements
 export class McpContext {
     readonly symbolTable = new SymbolTable();
     readonly loadedDocuments = new Map<string, string>();
+}
+
+/**
+ * Ensure a document is parsed and its symbols are available.
+ *
+ * If `code` is provided, parse it immediately (storing the result in ctx).
+ * If `code` is omitted, check whether the symbol table already has symbols
+ * for the given URI.  If not — but the source was previously loaded —
+ * re-parse from the cached source.
+ *
+ * This makes every query tool self-contained: callers can pass `code`
+ * directly instead of having to call `parse` first.
+ */
+export function ensureParsed(ctx: McpContext, uri: string, code?: string): void {
+    if (code !== undefined) {
+        parseAndBuild(ctx, code, uri);
+        return;
+    }
+    // No code supplied — re-parse from cache if the symbol table is empty for this URI
+    const symbols = ctx.symbolTable.getSymbolsForUri(uri);
+    if (symbols.length === 0) {
+        const cached = ctx.loadedDocuments.get(uri);
+        if (cached) {
+            parseAndBuild(ctx, cached, uri);
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -288,8 +316,10 @@ export function handleValidate(
 export function handleGetDiagnostics(
     ctx: McpContext,
     uri?: string,
+    code?: string,
 ): { uri: string; diagnostics: Record<string, unknown>[]; summary: Record<string, number> } {
     const docUri = uri ?? 'untitled.sysml';
+    ensureParsed(ctx, docUri, code);
     const symbols = ctx.symbolTable.getSymbolsForUri(docUri);
     const allNames = new Set(ctx.symbolTable.getAllSymbols().map(s => s.name));
     const diags = SemanticValidator.validateSymbols(symbols, allNames);
@@ -315,8 +345,12 @@ export function handleGetDiagnostics(
 
 export function handleGetSymbols(
     ctx: McpContext,
-    opts: { kind?: string; uri?: string; definitionsOnly?: boolean; usagesOnly?: boolean },
+    opts: { kind?: string; uri?: string; definitionsOnly?: boolean; usagesOnly?: boolean; code?: string },
 ): { count: number; symbols: Record<string, unknown>[] } {
+    if (opts.code) {
+        const docUri = opts.uri ?? 'untitled.sysml';
+        ensureParsed(ctx, docUri, opts.code);
+    }
     let symbols = opts.uri
         ? ctx.symbolTable.getSymbolsForUri(opts.uri)
         : ctx.symbolTable.getAllSymbols();
@@ -337,7 +371,12 @@ export function handleGetSymbols(
 export function handleGetDefinition(
     ctx: McpContext,
     name: string,
+    code?: string,
+    uri?: string,
 ): Record<string, unknown> {
+    if (code) {
+        ensureParsed(ctx, uri ?? 'untitled.sysml', code);
+    }
     const exact = ctx.symbolTable.getSymbol(name);
     if (exact) {
         return formatSymbol(exact);
@@ -353,7 +392,12 @@ export function handleGetDefinition(
 export function handleGetReferences(
     ctx: McpContext,
     name: string,
+    code?: string,
+    uri?: string,
 ): { name: string; referenceCount: number; references: Record<string, unknown>[] } {
+    if (code) {
+        ensureParsed(ctx, uri ?? 'untitled.sysml', code);
+    }
     const refs = ctx.symbolTable.findReferences(name);
     return { name, referenceCount: refs.length, references: refs.map(formatSymbol) };
 }
@@ -361,7 +405,12 @@ export function handleGetReferences(
 export function handleGetHierarchy(
     ctx: McpContext,
     name: string,
+    code?: string,
+    uri?: string,
 ): Record<string, unknown> {
+    if (code) {
+        ensureParsed(ctx, uri ?? 'untitled.sysml', code);
+    }
     const exact = ctx.symbolTable.getSymbol(name);
     const target = exact ?? ctx.symbolTable.findByName(name)[0];
 
@@ -402,7 +451,12 @@ export function handleGetHierarchy(
 
 export function handleGetModelSummary(
     ctx: McpContext,
+    code?: string,
+    uri?: string,
 ): Record<string, unknown> {
+    if (code) {
+        ensureParsed(ctx, uri ?? 'untitled.sysml', code);
+    }
     const allSymbols = ctx.symbolTable.getAllSymbols();
     const kindCounts: Record<string, number> = {};
     for (const sym of allSymbols) {
@@ -425,7 +479,11 @@ export function handleGetModelSummary(
 export function handleGetComplexity(
     ctx: McpContext,
     uri?: string,
+    code?: string,
 ): ComplexityReport {
+    if (code) {
+        ensureParsed(ctx, uri ?? 'untitled.sysml', code);
+    }
     const symbols = uri
         ? ctx.symbolTable.getSymbolsForUri(uri)
         : ctx.symbolTable.getAllSymbols();
@@ -445,32 +503,6 @@ export function getElementKinds(): { definitions: string[]; usages: string[]; ot
         total: kinds.length,
     };
 }
-
-export const SYSML_KEYWORDS = [
-    'about', 'abstract', 'accept', 'action', 'actor', 'after', 'alias',
-    'all', 'allocate', 'allocation', 'analysis', 'and', 'as', 'assert',
-    'assign', 'assume', 'attribute', 'bind', 'binding', 'bool', 'by',
-    'calc', 'case', 'comment', 'concern', 'connect', 'connection',
-    'constraint', 'decide', 'def', 'default', 'defined', 'dependency',
-    'derived', 'do', 'doc', 'else', 'end', 'entry', 'enum', 'event',
-    'exhibit', 'exit', 'expose', 'false', 'feature', 'filter', 'first',
-    'flow', 'for', 'fork', 'frame', 'from', 'hastype', 'if', 'implies',
-    'import', 'in', 'include', 'individual', 'inout', 'interface',
-    'istype', 'item', 'join', 'language', 'library', 'locale', 'merge',
-    'message', 'meta', 'metadata', 'multiplicity', 'namespace', 'nonunique',
-    'not', 'null', 'objective', 'occurrence', 'of', 'or', 'ordered', 'out',
-    'package', 'parallel', 'part', 'perform', 'port', 'private',
-    'protected', 'public', 'readonly', 'redefines', 'ref', 'references',
-    'render', 'rendering', 'rep', 'require', 'requirement', 'return',
-    'satisfy', 'send', 'snapshot', 'specializes', 'stakeholder', 'state',
-    'subject', 'subsets', 'succession', 'then', 'timeslice', 'to', 'transition',
-    'true', 'type', 'use', 'variant', 'variation', 'verification', 'verify',
-    'view', 'viewpoint', 'when', 'while', 'xor',
-] as const;
-
-// ---------------------------------------------------------------------------
-// Resource handlers
-// ---------------------------------------------------------------------------
 
 export function handleResourceElementKinds(): Record<string, unknown> {
     return getElementKinds();

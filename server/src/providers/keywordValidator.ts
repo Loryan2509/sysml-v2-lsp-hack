@@ -31,26 +31,31 @@ const DEFINITION_KEYWORDS: ReadonlySet<string> = new Set([
 
 /**
  * Compute Levenshtein distance between two strings.
+ * Uses two-row optimisation for O(min(m,n)) space.
  */
 function levenshtein(a: string, b: string): number {
+    // Ensure b is the shorter string to minimise memory
+    if (a.length < b.length) { const t = a; a = b; b = t; }
     const m = a.length;
     const n = b.length;
-    const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
 
-    for (let i = 0; i <= m; i++) dp[i][0] = i;
-    for (let j = 0; j <= n; j++) dp[0][j] = j;
+    let prev = new Uint16Array(n + 1);
+    let curr = new Uint16Array(n + 1);
+    for (let j = 0; j <= n; j++) prev[j] = j;
 
     for (let i = 1; i <= m; i++) {
+        curr[0] = i;
         for (let j = 1; j <= n; j++) {
-            const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-            dp[i][j] = Math.min(
-                dp[i - 1][j] + 1,      // deletion
-                dp[i][j - 1] + 1,      // insertion
-                dp[i - 1][j - 1] + cost // substitution
+            const cost = a.charCodeAt(i - 1) === b.charCodeAt(j - 1) ? 0 : 1;
+            curr[j] = Math.min(
+                prev[j] + 1,        // deletion
+                curr[j - 1] + 1,    // insertion
+                prev[j - 1] + cost, // substitution
             );
         }
+        [prev, curr] = [curr, prev];
     }
-    return dp[m][n];
+    return prev[n];
 }
 
 /**
@@ -285,6 +290,7 @@ export function validateKeywords(result: ParseResult): Diagnostic[] {
             },
             message,
             source: 'sysml',
+            data: { typo: text, suggestion },
         });
     }
 

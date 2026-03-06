@@ -104,16 +104,17 @@ server.registerTool(
     {
         title: 'Get Model Diagnostics',
         description:
-            'Return semantic diagnostics for a previously parsed document: unresolved types, ' +
+            'Return semantic diagnostics for a SysML document: unresolved types, ' +
             'invalid multiplicity, empty enums, duplicate definitions, unused definitions, ' +
             'naming convention violations, and missing documentation. ' +
-            'Parse the document first with the "parse" or "validate" tool.',
+            'Optionally provide `code` to parse inline without a separate parse call.',
         inputSchema: {
             uri: z.string().optional().describe('The URI of the document to diagnose (defaults to "untitled.sysml")'),
+            code: z.string().optional().describe('SysML source code to parse before running diagnostics'),
         },
     },
-    async ({ uri }) => ({
-        content: [{ type: 'text' as const, text: JSON.stringify(handleGetDiagnostics(ctx, uri), null, 2) }],
+    async ({ uri, code }) => ({
+        content: [{ type: 'text' as const, text: JSON.stringify(handleGetDiagnostics(ctx, uri, code), null, 2) }],
     }),
 );
 
@@ -122,13 +123,15 @@ server.registerTool(
     {
         title: 'Get SysML Symbols',
         description:
-            'List all symbols from the most recently parsed document(s). ' +
-            'Optionally filter by element kind (e.g., "part def", "action") or document URI.',
+            'List all symbols from the loaded SysML document(s). ' +
+            'Optionally filter by element kind (e.g., "part def", "action") or document URI. ' +
+            'Provide `code` to parse inline without a separate parse call.',
         inputSchema: {
             kind: z.string().optional().describe('Filter by SysML element kind (e.g., "part def", "port", "action def")'),
             uri: z.string().optional().describe('Filter by document URI. If omitted, returns symbols from all loaded documents.'),
             definitionsOnly: z.boolean().optional().describe('If true, return only definition elements (types)'),
             usagesOnly: z.boolean().optional().describe('If true, return only usage elements (instances)'),
+            code: z.string().optional().describe('SysML source code to parse before listing symbols'),
         },
     },
     async (args) => ({
@@ -142,13 +145,16 @@ server.registerTool(
         title: 'Get Symbol Definition',
         description:
             'Find the definition of a SysML element by name or qualified name. ' +
-            'Returns matching symbols with their location and type information.',
+            'Returns matching symbols with their location and type information. ' +
+            'Provide `code` to parse inline without a separate parse call.',
         inputSchema: {
             name: z.string().describe('The symbol name to look up (simple name or qualified name like "Package::Element")'),
+            code: z.string().optional().describe('SysML source code to parse before looking up the symbol'),
+            uri: z.string().optional().describe('Document URI for the provided code (defaults to "untitled.sysml")'),
         },
     },
-    async ({ name }) => ({
-        content: [{ type: 'text' as const, text: JSON.stringify(handleGetDefinition(ctx, name), null, 2) }],
+    async ({ name, code, uri }) => ({
+        content: [{ type: 'text' as const, text: JSON.stringify(handleGetDefinition(ctx, name, code, uri), null, 2) }],
     }),
 );
 
@@ -156,13 +162,17 @@ server.registerTool(
     'getReferences',
     {
         title: 'Find References',
-        description: 'Find all references to a symbol by name across all loaded documents.',
+        description:
+            'Find all references to a symbol by name across all loaded documents. ' +
+            'Provide `code` to parse inline without a separate parse call.',
         inputSchema: {
             name: z.string().describe('The symbol name to find references for'),
+            code: z.string().optional().describe('SysML source code to parse before finding references'),
+            uri: z.string().optional().describe('Document URI for the provided code (defaults to "untitled.sysml")'),
         },
     },
-    async ({ name }) => ({
-        content: [{ type: 'text' as const, text: JSON.stringify(handleGetReferences(ctx, name), null, 2) }],
+    async ({ name, code, uri }) => ({
+        content: [{ type: 'text' as const, text: JSON.stringify(handleGetReferences(ctx, name, code, uri), null, 2) }],
     }),
 );
 
@@ -172,13 +182,16 @@ server.registerTool(
         title: 'Get Element Hierarchy',
         description:
             'Get the parent–child hierarchy of a SysML element, showing its ' +
-            'containment structure (package → definition → usage).',
+            'containment structure (package → definition → usage). ' +
+            'Provide `code` to parse inline without a separate parse call.',
         inputSchema: {
             name: z.string().describe('The qualified name or simple name of the element to inspect'),
+            code: z.string().optional().describe('SysML source code to parse before inspecting hierarchy'),
+            uri: z.string().optional().describe('Document URI for the provided code (defaults to "untitled.sysml")'),
         },
     },
-    async ({ name }) => ({
-        content: [{ type: 'text' as const, text: JSON.stringify(handleGetHierarchy(ctx, name), null, 2) }],
+    async ({ name, code, uri }) => ({
+        content: [{ type: 'text' as const, text: JSON.stringify(handleGetHierarchy(ctx, name, code, uri), null, 2) }],
     }),
 );
 
@@ -187,12 +200,16 @@ server.registerTool(
     {
         title: 'Get Model Summary',
         description:
-            'Return a high-level summary of the currently loaded SysML model(s), ' +
-            'including element counts by kind and a list of loaded documents.',
-        inputSchema: {},
+            'Return a high-level summary of the loaded SysML model(s), ' +
+            'including element counts by kind and a list of loaded documents. ' +
+            'Provide `code` to parse inline without a separate parse call.',
+        inputSchema: {
+            code: z.string().optional().describe('SysML source code to parse before summarising'),
+            uri: z.string().optional().describe('Document URI for the provided code (defaults to "untitled.sysml")'),
+        },
     },
-    async () => ({
-        content: [{ type: 'text' as const, text: JSON.stringify(handleGetModelSummary(ctx), null, 2) }],
+    async ({ code, uri }) => ({
+        content: [{ type: 'text' as const, text: JSON.stringify(handleGetModelSummary(ctx, code, uri), null, 2) }],
     }),
 );
 
@@ -206,7 +223,8 @@ server.registerTool(
             'Analyse the structural complexity of the loaded SysML model(s). ' +
             'Returns a Model Complexity Index (0–100), per-definition hotspots, ' +
             'coupling count, documentation coverage, and other metrics. ' +
-            'Optionally scope the analysis to a single document URI.',
+            'Optionally scope the analysis to a single document URI. ' +
+            'Provide `code` to parse inline without a separate parse call.',
         annotations: {
             title: 'Get Model Complexity',
             readOnlyHint: true,
@@ -214,10 +232,11 @@ server.registerTool(
         },
         inputSchema: {
             uri: z.string().optional().describe('Optional document URI to scope the analysis to a single file'),
+            code: z.string().optional().describe('SysML source code to parse before analysing complexity'),
         },
     },
-    async ({ uri }) => ({
-        content: [{ type: 'text' as const, text: JSON.stringify(handleGetComplexity(ctx, uri), null, 2) }],
+    async ({ uri, code }) => ({
+        content: [{ type: 'text' as const, text: JSON.stringify(handleGetComplexity(ctx, uri, code), null, 2) }],
     }),
 );
 

@@ -3,13 +3,11 @@ import {
     Location,
 } from 'vscode-languageserver/node.js';
 import { DocumentManager } from '../documentManager.js';
-import { SymbolTable } from '../symbols/symbolTable.js';
 
 /**
  * Provides find-all-references for SysML elements.
  */
 export class ReferencesProvider {
-    private symbolTable = new SymbolTable();
 
     constructor(private documentManager: DocumentManager) { }
 
@@ -19,11 +17,11 @@ export class ReferencesProvider {
             return [];
         }
 
-        // Build symbol table for the current file
-        this.symbolTable.build(params.textDocument.uri, result);
+        // Use shared workspace symbol table (includes all documents)
+        const symbolTable = this.documentManager.getWorkspaceSymbolTable();
 
         // Find symbol at position
-        const symbol = this.symbolTable.findSymbolAtPosition(
+        const symbol = symbolTable.findSymbolAtPosition(
             params.textDocument.uri,
             params.position.line,
             params.position.character,
@@ -33,18 +31,8 @@ export class ReferencesProvider {
             return [];
         }
 
-        // Build symbol tables for all other known documents to find cross-file references
-        const allUris = this.documentManager.getUris();
-        for (const uri of allUris) {
-            if (uri === params.textDocument.uri) continue;
-            const otherResult = this.documentManager.get(uri);
-            if (otherResult) {
-                this.symbolTable.build(uri, otherResult);
-            }
-        }
-
         // Find all references across all files
-        const references = this.symbolTable.findReferences(symbol.name);
+        const references = symbolTable.findReferences(symbol.name);
         const locations: Location[] = [];
 
         for (const ref of references) {

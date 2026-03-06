@@ -7,21 +7,86 @@ import {
 } from 'vscode-languageserver/node.js';
 import { DocumentManager } from '../documentManager.js';
 import { resolveLibraryPackage } from '../library/libraryIndex.js';
-import { SymbolTable } from '../symbols/symbolTable.js';
+import { isIdentPart as isIdentChar } from '../utils/identUtils.js';
 
 /**
- * Regex to match SysML import statements.
+ * Find all SysML `import` statements in `text` without regex.
  *
- * Captures:
- *  - group 1: the qualified name path (e.g., "Camera::Optics" or "Lib::*")
- *
- * Handles:
- *  - `import Camera::Optics;`
- *  - `import Camera::Optics::*;`
- *  - `import Camera::*;`
- *  - multi-line is unlikely for imports but the `m` flag handles it
+ * Returns an array of { pathStart, pathEnd, importPath } objects
+ * for each `import <path>;` found.
  */
-const IMPORT_REGEX = /\bimport\s+([\w]+(?:::[\w*]+)*)\s*;/gm;
+function findImportStatements(text: string): Array<{ pathStart: number; pathEnd: number; importPath: string }> {
+    const results: Array<{ pathStart: number; pathEnd: number; importPath: string }> = [];
+    const len = text.length;
+    let i = 0;
+
+    while (i < len) {
+        const idx = text.indexOf('import', i);
+        if (idx === -1) break;
+
+        // Ensure word boundary before 'import'
+        if (idx > 0 && isIdentChar(text.charCodeAt(idx - 1))) {
+            i = idx + 6;
+            continue;
+        }
+        const afterImport = idx + 6;
+        if (afterImport >= len) break;
+
+        // Must be followed by whitespace
+        const ch = text.charCodeAt(afterImport);
+        if (ch !== 32 && ch !== 9 && ch !== 10 && ch !== 13) { // space, tab, LF, CR
+            i = afterImport;
+            continue;
+        }
+
+        // Skip whitespace after 'import'
+        let j = afterImport;
+        while (j < len) {
+            const wc = text.charCodeAt(j);
+            if (wc !== 32 && wc !== 9 && wc !== 10 && wc !== 13) break;
+            j++;
+        }
+        if (j >= len) break;
+
+        // Read the qualified path: identifier segments separated by '::',
+        // optionally ending with '*'
+        const pathStart = j;
+        while (j < len) {
+            if (text.charCodeAt(j) === 42) { // '*'
+                j++;
+                break;
+            }
+            if (!isIdentChar(text.charCodeAt(j))) break;
+            while (j < len && isIdentChar(text.charCodeAt(j))) j++;
+            // Check for '::' separator
+            if (j + 1 < len && text[j] === ':' && text[j + 1] === ':') {
+                j += 2;
+            } else {
+                break;
+            }
+        }
+        const pathEnd = j;
+        if (pathEnd <= pathStart) { i = j; continue; }
+
+        // Skip whitespace, then expect ';'
+        while (j < len && (text.charCodeAt(j) === 32 || text.charCodeAt(j) === 9)) j++;
+        if (j >= len || text[j] !== ';') { i = j; continue; }
+
+        results.push({ pathStart, pathEnd, importPath: text.substring(pathStart, pathEnd) });
+        i = j + 1;
+    }
+
+    return results;
+}
+
+/**
+ * Strip trailing `::*` or `:*` from an import path for lookup.
+ */
+function stripTrailingWildcard(path: string): string {
+    if (path.endsWith('::*')) return path.slice(0, -3);
+    if (path.endsWith(':*')) return path.slice(0, -2);
+    return path;
+}
 
 /**
  * Provides clickable document links for `import` statements.
@@ -30,7 +95,6 @@ const IMPORT_REGEX = /\bimport\s+([\w]+(?:::[\w*]+)*)\s*;/gm;
  * jumps to the definition of `Camera` or `Camera::Optics`.
  */
 export class DocumentLinkProvider {
-    private symbolTable = new SymbolTable();
 
     constructor(
         private documentManager: DocumentManager,
@@ -45,33 +109,19 @@ export class DocumentLinkProvider {
         const text = doc.getText();
         const links: DocumentLink[] = [];
 
-        // Build symbol tables for all known documents so we can resolve cross-file
-        for (const knownUri of this.documentManager.getUris()) {
-            const result = this.documentManager.get(knownUri);
-            if (result) {
-                this.symbolTable.build(knownUri, result);
-            }
-        }
+        // Use shared workspace symbol table for cross-file resolution
+        const symbolTable = this.documentManager.getWorkspaceSymbolTable();
 
-        // Find all import statements in the text
-        let match: RegExpExecArray | null;
-        IMPORT_REGEX.lastIndex = 0;
+        // Find all import statements in the text (no regex)
+        const imports = findImportStatements(text);
 
-        while ((match = IMPORT_REGEX.exec(text)) !== null) {
-            const importPath = match[1];
+        for (const imp of imports) {
+            const startPos = doc.positionAt(imp.pathStart);
+            const endPos = doc.positionAt(imp.pathEnd);
 
-            // Calculate position of just the namespace path (not the `import` keyword)
-            const importKeywordLen = 'import '.length;
-            const pathStart = match.index + importKeywordLen;
-            const pathEnd = pathStart + importPath.length;
-
-            const startPos = doc.positionAt(pathStart);
-            const endPos = doc.positionAt(pathEnd);
-
-            // Try to resolve the import to a symbol
             // Strip trailing ::* for lookup
-            const lookupName = importPath.replace(/::?\*$/, '');
-            const target = this.resolveImportTarget(lookupName);
+            const lookupName = stripTrailingWildcard(imp.importPath);
+            const target = this.resolveImportTarget(lookupName, symbolTable);
 
             if (target) {
                 links.push({
@@ -91,14 +141,14 @@ export class DocumentLinkProvider {
         return links;
     }
 
-    private resolveImportTarget(qualifiedName: string): { uri: string } | undefined {
+    private resolveImportTarget(qualifiedName: string, symbolTable: ReturnType<DocumentManager['getWorkspaceSymbolTable']>): { uri: string } | undefined {
         // Try exact qualified name first
-        const exact = this.symbolTable.getSymbol(qualifiedName);
+        const exact = symbolTable.getSymbol(qualifiedName);
         if (exact) return { uri: exact.uri };
 
         // Try the first segment as a simple name
         const firstSegment = qualifiedName.split('::')[0];
-        const matches = this.symbolTable.findByName(firstSegment);
+        const matches = symbolTable.findByName(firstSegment);
         if (matches.length > 0) return { uri: matches[0].uri };
 
         // Fall back to the standard library index

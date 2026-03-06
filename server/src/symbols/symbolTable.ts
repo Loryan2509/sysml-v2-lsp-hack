@@ -127,6 +127,14 @@ export class SymbolTable {
     // Private tree-walking
     // --------------------------------------------------------------------------
 
+    /**
+     * Remove all symbols for a given URI (public API for document close/eviction).
+     */
+    removeUri(uri: string): void {
+        this.clearUri(uri);
+        this.symbolsByUri.delete(uri);
+    }
+
     private clearUri(uri: string): void {
         const existing = this.symbolsByUri.get(uri);
         if (existing) {
@@ -416,25 +424,12 @@ export class SymbolTable {
         // concatenated (getText() strips whitespace).  This prevents the regex
         // from greedily matching into connect/bind/first/then/flow/… clauses.
         // e.g. ":BrakeCableconnectfrontLever…" should stop at "connect".
-        // Also truncate at redefines/subsets/nonunique/via which appear in feature
-        // declarations after the typing.
         text = text.replace(
-            /(connect|bind|first|then|flow|allocate|assign|accept|send|decide|merge|join|fork|redefines|subsets|nonunique|via).*/i,
+            /(connect|bind|first|then|flow|allocate|assign|accept|send|decide|merge|join|fork)\b.*/i,
             '',
         );
 
-        // 1. ":>> featureName : Type" (redefinition with explicit retyping)
-        //    Extract the Type, not the redefined feature name.
-        const redefMatch = text.match(/:>>\s*[A-Za-z_][\w:]*\s*:\s*([A-Za-z_][\w:]*(?:\s*,\s*[A-Za-z_][\w:]*)*)/);
-        if (redefMatch) {
-            for (const part of redefMatch[1].split(',')) {
-                const m = part.trim().match(/^([A-Za-z_][\w:]*)/);
-                if (m && !this.isKeyword(m[1])) names.push(m[1]);
-            }
-            return names;
-        }
-
-        // 2. "specializes A, B" or ":> A, B" or ":>> A"
+        // 1. "specializes A, B" or ":> A, B"
         const specMatch = text.match(/(?:specializes|:>|:>>)\s*([A-Za-z_][\w:]*(?:\s*,\s*[A-Za-z_][\w:]*)*)/);
         if (specMatch) {
             for (const part of specMatch[1].split(',')) {
@@ -493,15 +488,12 @@ export class SymbolTable {
                 // These rules contain qualified-name children;
                 // extract all identifier-like tokens.
                 const childText = child.getText();
-                // Strip ALL occurrences of SysML keywords/operators that
-                // appear concatenated (getText() strips whitespace), not
-                // just at the start.  e.g. "FuelCmdredefinespwrCmd" →
-                // split on "redefines" to get ["FuelCmd", "pwrCmd"].
+                // Strip leading keywords / operators
                 const stripped = childText
-                    .replace(/(specializes|:>>|:>|:\s|definedby|subsets|redefines|references|conjugates|disjoints|via)/gi, ',');
+                    .replace(/^(specializes|:>|:>>|:\s|definedby|subsets|redefines|references|conjugates|disjoints)/i, '');
                 for (const part of stripped.split(',')) {
                     const m = part.match(/([A-Za-z_][\w:]*)/);
-                    if (m && !this.isKeyword(m[1])) names.push(m[1]);
+                    if (m) names.push(m[1]);
                 }
             } else if (
                 // Recurse into declaration / part / body wrappers that may
@@ -677,7 +669,7 @@ export class SymbolTable {
             'satisfy', 'send', 'snapshot', 'specializes', 'stakeholder', 'state',
             'subject', 'subsets', 'succession', 'then', 'timeslice', 'to', 'transition',
             'true', 'type', 'use', 'variant', 'variation', 'verification', 'verify',
-            'via', 'view', 'viewpoint', 'when', 'while', 'xor',
+            'view', 'viewpoint', 'when', 'while', 'xor',
         ]);
         return keywords.has(text);
     }

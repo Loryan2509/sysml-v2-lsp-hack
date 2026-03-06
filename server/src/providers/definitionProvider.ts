@@ -4,7 +4,7 @@ import {
 } from 'vscode-languageserver/node.js';
 import { DocumentManager } from '../documentManager.js';
 import { resolveLibraryType } from '../library/libraryIndex.js';
-import { SymbolTable } from '../symbols/symbolTable.js';
+import { extractQualifiedNameAt } from '../utils/identUtils.js';
 
 /**
  * Provides go-to-definition for SysML elements.
@@ -13,21 +13,17 @@ import { SymbolTable } from '../symbols/symbolTable.js';
  * local definition is found.
  */
 export class DefinitionProvider {
-    private symbolTable = new SymbolTable();
 
-    constructor(private documentManager: DocumentManager) {}
+    constructor(private documentManager: DocumentManager) { }
 
     provideDefinition(params: DefinitionParams): Location | null {
-        const result = this.documentManager.get(params.textDocument.uri);
-        if (!result) {
+        const symbolTable = this.documentManager.getSymbolTable(params.textDocument.uri);
+        if (!symbolTable) {
             return null;
         }
 
-        // Build symbol table
-        this.symbolTable.build(params.textDocument.uri, result);
-
         // Find what's at the cursor
-        const symbol = this.symbolTable.findSymbolAtPosition(
+        const symbol = symbolTable.findSymbolAtPosition(
             params.textDocument.uri,
             params.position.line,
             params.position.character,
@@ -41,8 +37,28 @@ export class DefinitionProvider {
             const word = this.getWordAtPosition(text, params.position.line, params.position.character);
             if (!word) return null;
 
-            // Search for a matching symbol by name in the document
-            const matches = this.symbolTable.findByName(word);
+            // For qualified names (e.g. ISQ::mass), prefer the
+            // standard library — the qualifier is a strong signal
+            // that the user means a library package, not a local symbol.
+            if (word.includes('::')) {
+                const libLoc = this.resolveFromLibrary(word);
+                if (libLoc) return libLoc;
+
+                // Fall back to local member lookup only if library
+                // resolution fails
+                const member = word.split('::').pop()!;
+                const memberMatches = symbolTable.findByName(member);
+                if (memberMatches.length > 0) {
+                    return {
+                        uri: memberMatches[0].uri,
+                        range: memberMatches[0].selectionRange,
+                    };
+                }
+                return null;
+            }
+
+            // Unqualified name — search local symbols first
+            const matches = symbolTable.findByName(word);
             if (matches.length > 0) {
                 return {
                     uri: matches[0].uri,
@@ -50,27 +66,13 @@ export class DefinitionProvider {
                 };
             }
 
-            // For qualified names (e.g. ISQ::mass), also try the
-            // member part against the local symbol table
-            if (word.includes('::')) {
-                const member = word.split('::').pop()!;
-                const memberMatches = this.symbolTable.findByName(member);
-                if (memberMatches.length > 0) {
-                    return {
-                        uri: memberMatches[0].uri,
-                        range: memberMatches[0].selectionRange,
-                    };
-                }
-            }
-
-            // Fall back to the standard library (tries both qualified
-            // and unqualified forms)
+            // Fall back to the standard library
             return this.resolveFromLibrary(word);
         }
 
         // If the symbol has a type, try to navigate to the type definition
         if (symbol.typeName) {
-            const typeMatches = this.symbolTable.findByName(symbol.typeName);
+            const typeMatches = symbolTable.findByName(symbol.typeName);
             if (typeMatches.length > 0) {
                 return {
                     uri: typeMatches[0].uri,
@@ -113,17 +115,9 @@ export class DefinitionProvider {
         const lineText = lines[line];
         if (character >= lineText.length) return undefined;
 
-        // First try to match qualified names (e.g. ISQ::mass, Pkg::Type)
-        const qualifiedPattern = /[a-zA-Z_]\w*(?:::[a-zA-Z_]\w*)*/g;
-        let match: RegExpExecArray | null;
-        while ((match = qualifiedPattern.exec(lineText)) !== null) {
-            const start = match.index;
-            const end = start + match[0].length;
-            if (character >= start && character <= end) {
-                return match[0];
-            }
-        }
-
-        return undefined;
+        // Scan for qualified names (e.g. ISQ::mass, Pkg::Type) without regex
+        return extractQualifiedNameAt(lineText, character);
     }
 }
+
+

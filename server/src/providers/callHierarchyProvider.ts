@@ -10,8 +10,8 @@ import {
     Position,
 } from 'vscode-languageserver/node.js';
 import { DocumentManager } from '../documentManager.js';
-import { SymbolTable } from '../symbols/symbolTable.js';
 import { SysMLElementKind, SysMLSymbol } from '../symbols/sysmlElements.js';
+import { isIdentPart as isWordChar } from '../utils/identUtils.js';
 
 /**
  * Action-related keywords that create "call" relationships in SysML.
@@ -24,7 +24,119 @@ const CALL_KEYWORDS = new Set([
  * Keywords whose typed usages (`action x : TypeDef`) represent calls.
  */
 const USAGE_KEYWORDS = ['action', 'state', 'calc'];
-const USAGE_PATTERN = `(?:${USAGE_KEYWORDS.join('|')})`;
+
+// ---- String scanning helpers ----
+
+function skipWS(text: string, pos: number): number {
+    while (pos < text.length && (text[pos] === ' ' || text[pos] === '\t' || text[pos] === '\n' || text[pos] === '\r')) pos++;
+    return pos;
+}
+
+function readIdent(text: string, pos: number): [string, number] | undefined {
+    pos = skipWS(text, pos);
+    const start = pos;
+    while (pos < text.length && isWordChar(text.charCodeAt(pos))) pos++;
+    return pos > start ? [text.slice(start, pos), pos] : undefined;
+}
+
+/** Check word boundary before position. */
+function wordBoundaryBefore(text: string, pos: number): boolean {
+    return pos === 0 || !isWordChar(text.charCodeAt(pos - 1));
+}
+
+/** Check word boundary after position. */
+function wordBoundaryAfter(text: string, pos: number): boolean {
+    return pos >= text.length || !isWordChar(text.charCodeAt(pos));
+}
+
+/** Find all `keyword <whitespace> targetName` at word boundaries. */
+function findKeywordTarget(text: string, keyword: string, target: string): { index: number; length: number }[] {
+    const results: { index: number; length: number }[] = [];
+    let from = 0;
+    while (from < text.length) {
+        const idx = text.indexOf(keyword, from);
+        if (idx < 0) break;
+        if (!wordBoundaryBefore(text, idx) || !wordBoundaryAfter(text, idx + keyword.length)) {
+            from = idx + 1; continue;
+        }
+        const nameStart = skipWS(text, idx + keyword.length);
+        if (text.startsWith(target, nameStart) && wordBoundaryAfter(text, nameStart + target.length)) {
+            results.push({ index: idx, length: nameStart + target.length - idx });
+        }
+        from = idx + 1;
+    }
+    return results;
+}
+
+/** Find all typed usages `(action|state|calc) <name> : <targetName>` at word boundaries. */
+function findTypedUsageOfTarget(text: string, keywords: string[], target: string): { index: number; length: number }[] {
+    const results: { index: number; length: number }[] = [];
+    for (const kw of keywords) {
+        let from = 0;
+        while (from < text.length) {
+            const idx = text.indexOf(kw, from);
+            if (idx < 0) break;
+            if (!wordBoundaryBefore(text, idx) || !wordBoundaryAfter(text, idx + kw.length)) {
+                from = idx + 1; continue;
+            }
+            const nameResult = readIdent(text, idx + kw.length);
+            if (!nameResult) { from = idx + 1; continue; }
+            let pos = skipWS(text, nameResult[1]);
+            if (pos >= text.length || text[pos] !== ':') { from = idx + 1; continue; }
+            pos = skipWS(text, pos + 1);
+            if (text.startsWith(target, pos) && wordBoundaryAfter(text, pos + target.length)) {
+                results.push({ index: idx, length: pos + target.length - idx });
+            }
+            from = idx + 1;
+        }
+    }
+    return results;
+}
+
+/** Find all `keyword <name>` and capture the name. */
+function findKeywordCallees(text: string, keyword: string): { index: number; length: number; calledName: string }[] {
+    const results: { index: number; length: number; calledName: string }[] = [];
+    let from = 0;
+    while (from < text.length) {
+        const idx = text.indexOf(keyword, from);
+        if (idx < 0) break;
+        if (!wordBoundaryBefore(text, idx) || !wordBoundaryAfter(text, idx + keyword.length)) {
+            from = idx + 1; continue;
+        }
+        const nameResult = readIdent(text, idx + keyword.length);
+        if (nameResult) {
+            results.push({ index: idx, length: nameResult[1] - idx, calledName: nameResult[0] });
+        }
+        from = idx + 1;
+    }
+    return results;
+}
+
+/** Find all typed usages `(action|state|calc) <name> : <typeName>` and capture the type name. */
+function findTypedUsageCallees(text: string, keywords: string[]): { index: number; length: number; calledName: string }[] {
+    const results: { index: number; length: number; calledName: string }[] = [];
+    for (const kw of keywords) {
+        let from = 0;
+        while (from < text.length) {
+            const idx = text.indexOf(kw, from);
+            if (idx < 0) break;
+            if (!wordBoundaryBefore(text, idx) || !wordBoundaryAfter(text, idx + kw.length)) {
+                from = idx + 1; continue;
+            }
+            const nameResult = readIdent(text, idx + kw.length);
+            if (!nameResult) { from = idx + 1; continue; }
+            let pos = skipWS(text, nameResult[1]);
+            if (pos >= text.length || text[pos] !== ':') { from = idx + 1; continue; }
+            pos = skipWS(text, pos + 1);
+            const typeResult = readIdent(text, pos);
+            if (typeResult) {
+                results.push({ index: idx, length: typeResult[1] - idx, calledName: typeResult[0] });
+            }
+            from = idx + 1;
+        }
+    }
+    return results;
+}
 
 /** Convert a text offset to a Position. */
 function offsetToPosition(text: string, offset: number): Position {
@@ -64,7 +176,6 @@ function positionToOffset(text: string, pos: Position): number {
  *  - "Called by" = which actions perform/include/compose this one
  */
 export class CallHierarchyProvider {
-    private symbolTable = new SymbolTable();
 
     constructor(private documentManager: DocumentManager) { }
 
@@ -73,9 +184,9 @@ export class CallHierarchyProvider {
         const result = this.documentManager.get(uri);
         if (!result) return null;
 
-        this.symbolTable.build(uri, result);
+        const symbolTable = this.documentManager.getWorkspaceSymbolTable();
 
-        const symbol = this.symbolTable.findSymbolAtPosition(uri, params.position.line, params.position.character);
+        const symbol = symbolTable.findSymbolAtPosition(uri, params.position.line, params.position.character);
         if (!symbol) return null;
 
         // Call hierarchy makes sense for actions, states, and similar behavioral elements
@@ -92,7 +203,7 @@ export class CallHierarchyProvider {
     }
 
     provideIncomingCalls(params: CallHierarchyIncomingCallsParams): CallHierarchyIncomingCall[] {
-        this.buildAllSymbols();
+        const symbolTable = this.documentManager.getWorkspaceSymbolTable();
         const item = params.item;
         const targetName = item.name;
         const incoming: CallHierarchyIncomingCall[] = [];
@@ -101,15 +212,12 @@ export class CallHierarchyProvider {
             const text = this.documentManager.getText(uri);
             if (!text) continue;
 
-            const symbols = this.symbolTable.getSymbolsForUri(uri);
+            const symbols = symbolTable.getSymbolsForUri(uri);
 
             // 1. Explicit call keywords: `perform Brake`, `accept Accelerate`, etc.
             for (const keyword of CALL_KEYWORDS) {
-                const regex = new RegExp(`\\b${keyword}\\s+${this.escapeRegex(targetName)}\\b`, 'g');
-                let match: RegExpExecArray | null;
-
-                while ((match = regex.exec(text)) !== null) {
-                    const pos = offsetToPosition(text, match.index);
+                for (const m of findKeywordTarget(text, keyword, targetName)) {
+                    const pos = offsetToPosition(text, m.index);
                     const enclosing = this.findEnclosingBehavioral(symbols, pos.line);
 
                     if (enclosing) {
@@ -117,7 +225,7 @@ export class CallHierarchyProvider {
                             from: this.toCallHierarchyItem(enclosing),
                             fromRanges: [Range.create(
                                 pos,
-                                offsetToPosition(text, match.index + match[0].length),
+                                offsetToPosition(text, m.index + m.length),
                             )],
                         });
                     }
@@ -127,19 +235,15 @@ export class CallHierarchyProvider {
             // 2. Typed usages: `action foo : TargetName` — composition is a call.
             //    skip=1 because the narrowest enclosing behavioral is the usage
             //    itself; the actual *caller* is the parent action/state.
-            const usageRegex = new RegExp(
-                `\\b${USAGE_PATTERN}\\s+\\w+\\s*:\\s*${this.escapeRegex(targetName)}\\b`, 'g',
-            );
-            let match: RegExpExecArray | null;
-            while ((match = usageRegex.exec(text)) !== null) {
-                const pos = offsetToPosition(text, match.index);
+            for (const m of findTypedUsageOfTarget(text, USAGE_KEYWORDS, targetName)) {
+                const pos = offsetToPosition(text, m.index);
                 const enclosing = this.findEnclosingBehavioral(symbols, pos.line, 1);
                 if (enclosing) {
                     incoming.push({
                         from: this.toCallHierarchyItem(enclosing),
                         fromRanges: [Range.create(
                             pos,
-                            offsetToPosition(text, match.index + match[0].length),
+                            offsetToPosition(text, m.index + m.length),
                         )],
                     });
                 }
@@ -151,7 +255,7 @@ export class CallHierarchyProvider {
 
     provideOutgoingCalls(params: CallHierarchyOutgoingCallsParams): CallHierarchyOutgoingCall[] {
         const item = params.item;
-        this.buildAllSymbols();
+        const symbolTable = this.documentManager.getWorkspaceSymbolTable();
 
         const fullText = this.documentManager.getText(item.uri);
         if (!fullText) return [];
@@ -159,7 +263,7 @@ export class CallHierarchyProvider {
         const outgoing: CallHierarchyOutgoingCall[] = [];
 
         // Find the symbol body range
-        const symbols = this.symbolTable.getSymbolsForUri(item.uri);
+        const symbols = symbolTable.getSymbolsForUri(item.uri);
         const sym = symbols.find(s =>
             s.name === item.name &&
             s.selectionRange.start.line === item.selectionRange.start.line
@@ -172,20 +276,16 @@ export class CallHierarchyProvider {
 
         // 1. Explicit call keywords: `perform Brake`, `accept Accelerate`, etc.
         for (const keyword of CALL_KEYWORDS) {
-            const regex = new RegExp(`\\b${keyword}\\s+(\\w+)`, 'g');
-            let match: RegExpExecArray | null;
-
-            while ((match = regex.exec(bodyText)) !== null) {
-                const calledName = match[1];
-                const targets = this.symbolTable.findByName(calledName);
+            for (const m of findKeywordCallees(bodyText, keyword)) {
+                const targets = symbolTable.findByName(m.calledName);
 
                 if (targets.length > 0) {
-                    const absOffset = startOffset + match.index;
+                    const absOffset = startOffset + m.index;
                     outgoing.push({
                         to: this.toCallHierarchyItem(targets[0]),
                         fromRanges: [Range.create(
                             offsetToPosition(fullText, absOffset),
-                            offsetToPosition(fullText, absOffset + match[0].length),
+                            offsetToPosition(fullText, absOffset + m.length),
                         )],
                     });
                 }
@@ -193,35 +293,21 @@ export class CallHierarchyProvider {
         }
 
         // 2. Typed usages: `action foo : TypeDef` — composition is a call
-        const usageRegex = new RegExp(
-            `\\b${USAGE_PATTERN}\\s+\\w+\\s*:\\s*(\\w+)`, 'g',
-        );
-        let match: RegExpExecArray | null;
-        while ((match = usageRegex.exec(bodyText)) !== null) {
-            const calledName = match[1];
-            const targets = this.symbolTable.findByName(calledName);
+        for (const m of findTypedUsageCallees(bodyText, USAGE_KEYWORDS)) {
+            const targets = symbolTable.findByName(m.calledName);
             if (targets.length > 0) {
-                const absOffset = startOffset + match.index;
+                const absOffset = startOffset + m.index;
                 outgoing.push({
                     to: this.toCallHierarchyItem(targets[0]),
                     fromRanges: [Range.create(
                         offsetToPosition(fullText, absOffset),
-                        offsetToPosition(fullText, absOffset + match[0].length),
+                        offsetToPosition(fullText, absOffset + m.length),
                     )],
                 });
             }
         }
 
         return outgoing;
-    }
-
-    private buildAllSymbols(): void {
-        for (const uri of this.documentManager.getUris()) {
-            const result = this.documentManager.get(uri);
-            if (result) {
-                this.symbolTable.build(uri, result);
-            }
-        }
     }
 
     private findEnclosingBehavioral(symbols: SysMLSymbol[], line: number, skip = 0): SysMLSymbol | undefined {
@@ -250,9 +336,5 @@ export class CallHierarchyProvider {
             selectionRange: sym.selectionRange,
             detail: sym.kind,
         };
-    }
-
-    private escapeRegex(str: string): string {
-        return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     }
 }

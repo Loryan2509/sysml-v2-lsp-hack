@@ -21,6 +21,8 @@ describe('MCP Server Core', () => {
     let handlePromptExplainElement: typeof import('../../server/src/mcpCore.js').handlePromptExplainElement;
     let handlePromptGenerateSysml: typeof import('../../server/src/mcpCore.js').handlePromptGenerateSysml;
     let handlePreview: typeof import('../../server/src/mcpCore.js').handlePreview;
+    let handleGetComplexity: typeof import('../../server/src/mcpCore.js').handleGetComplexity;
+    let ensureParsed: typeof import('../../server/src/mcpCore.js').ensureParsed;
 
     let ctx: InstanceType<typeof McpContext>;
 
@@ -46,6 +48,8 @@ describe('MCP Server Core', () => {
         handlePromptExplainElement = mod.handlePromptExplainElement;
         handlePromptGenerateSysml = mod.handlePromptGenerateSysml;
         handlePreview = mod.handlePreview;
+        handleGetComplexity = mod.handleGetComplexity;
+        ensureParsed = mod.ensureParsed;
 
         // Fresh context for each test — no shared state leaking between tests
         ctx = new McpContext();
@@ -507,6 +511,115 @@ describe('MCP Server Core', () => {
         it('should use default scope when not provided', () => {
             const messages = handlePromptGenerateSysml('A drone');
             expect(messages[0].content.text).toContain('Include structural definitions');
+        });
+    });
+
+    // -----------------------------------------------------------------------
+    // getComplexity tool
+    // -----------------------------------------------------------------------
+
+    describe('handleGetComplexity', () => {
+        it('should return all-zero report without prior parse', () => {
+            const result = handleGetComplexity(ctx);
+            expect(result.complexityIndex).toBe(0);
+            expect(result.definitions).toBe(0);
+        });
+
+        it('should return non-zero report after parsing', () => {
+            handleParse(ctx, VALID_MODEL, 'test.sysml');
+            const result = handleGetComplexity(ctx);
+            expect(result.complexityIndex).toBeGreaterThan(0);
+            expect(result.definitions).toBeGreaterThan(0);
+        });
+
+        it('should auto-parse when code is provided', () => {
+            // No prior parse — pass code directly
+            const result = handleGetComplexity(ctx, undefined, VALID_MODEL);
+            expect(result.complexityIndex).toBeGreaterThan(0);
+            expect(result.definitions).toBeGreaterThan(0);
+        });
+    });
+
+    // -----------------------------------------------------------------------
+    // Auto-parse (ensureParsed) — query tools work without prior parse call
+    // -----------------------------------------------------------------------
+
+    describe('auto-parse via code parameter', () => {
+        it('handleGetDiagnostics should auto-parse from code', () => {
+            const code = `package T { part def V { part e : Missing[1]; } }`;
+            const result = handleGetDiagnostics(ctx, undefined, code);
+            expect(result.diagnostics.length).toBeGreaterThan(0);
+            expect(result.summary['unresolved-type']).toBeGreaterThanOrEqual(1);
+        });
+
+        it('handleGetSymbols should auto-parse from code', () => {
+            const result = handleGetSymbols(ctx, { code: VALID_MODEL });
+            expect(result.count).toBeGreaterThan(0);
+            expect(result.symbols.some(s => s.name === 'CameraSystem')).toBe(true);
+        });
+
+        it('handleGetDefinition should auto-parse from code', () => {
+            const result = handleGetDefinition(ctx, 'CameraSystem', VALID_MODEL);
+            expect(result.found).toBe(true);
+        });
+
+        it('handleGetReferences should auto-parse from code', () => {
+            const result = handleGetReferences(ctx, 'CameraSystem', VALID_MODEL);
+            expect(result.referenceCount).toBeGreaterThanOrEqual(1);
+        });
+
+        it('handleGetHierarchy should auto-parse from code', () => {
+            const result = handleGetHierarchy(ctx, 'CameraSystem', VALID_MODEL) as {
+                element: { name: string };
+                ancestors: Array<{ name: string }>;
+            };
+            expect(result.element).toBeDefined();
+            expect(result.element.name).toBe('CameraSystem');
+            expect(result.ancestors.length).toBeGreaterThan(0);
+        });
+
+        it('handleGetModelSummary should auto-parse from code', () => {
+            const result = handleGetModelSummary(ctx, VALID_MODEL);
+            expect(result.totalSymbols).toBeGreaterThan(0);
+            expect((result.definitions as number)).toBeGreaterThan(0);
+        });
+
+        it('handleGetComplexity should auto-parse from code', () => {
+            const result = handleGetComplexity(ctx, undefined, VALID_MODEL);
+            expect(result.complexityIndex).toBeGreaterThan(0);
+        });
+    });
+
+    // -----------------------------------------------------------------------
+    // ensureParsed re-parse from cache
+    // -----------------------------------------------------------------------
+
+    describe('ensureParsed cache behaviour', () => {
+        it('should re-parse from loadedDocuments when symbol table is empty for URI', () => {
+            // Parse once to populate the cache
+            handleParse(ctx, VALID_MODEL, 'cached.sysml');
+            // Clear the symbol table manually to simulate empty state
+            ctx.symbolTable.build('cached.sysml', {
+                tree: null as unknown as import('../../server/src/parser/parseDocument.js').ParseResult['tree'],
+                errors: [],
+                tokens: null as unknown as import('../../server/src/parser/parseDocument.js').ParseResult['tokens'],
+                timing: { lexMs: 0, parseMs: 0, totalMs: 0 },
+            });
+            expect(ctx.symbolTable.getSymbolsForUri('cached.sysml').length).toBe(0);
+
+            // ensureParsed should re-parse from cache
+            ensureParsed(ctx, 'cached.sysml');
+            expect(ctx.symbolTable.getSymbolsForUri('cached.sysml').length).toBeGreaterThan(0);
+        });
+
+        it('should not re-parse when symbols already exist', () => {
+            handleParse(ctx, VALID_MODEL, 'existing.sysml');
+            const countBefore = ctx.symbolTable.getSymbolsForUri('existing.sysml').length;
+
+            // ensureParsed should be a no-op
+            ensureParsed(ctx, 'existing.sysml');
+            const countAfter = ctx.symbolTable.getSymbolsForUri('existing.sysml').length;
+            expect(countAfter).toBe(countBefore);
         });
     });
 

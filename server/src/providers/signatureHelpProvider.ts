@@ -7,8 +7,8 @@ import {
     TextDocuments,
 } from 'vscode-languageserver/node.js';
 import { DocumentManager } from '../documentManager.js';
-import { SymbolTable } from '../symbols/symbolTable.js';
 import { SysMLElementKind } from '../symbols/sysmlElements.js';
+import { isIdentPart } from '../utils/identUtils.js';
 
 /**
  * Provides signature help when typing inside action/calc invocations.
@@ -17,7 +17,6 @@ import { SysMLElementKind } from '../symbols/sysmlElements.js';
  * when the cursor is inside `perform`, `include`, or inline action bodies.
  */
 export class SignatureHelpProvider {
-    private symbolTable = new SymbolTable();
 
     constructor(
         private documentManager: DocumentManager,
@@ -32,11 +31,8 @@ export class SignatureHelpProvider {
         const result = this.documentManager.get(uri);
         if (!result) return null;
 
-        // Build symbol tables for all documents for cross-file resolution
-        for (const knownUri of this.documentManager.getUris()) {
-            const r = this.documentManager.get(knownUri);
-            if (r) this.symbolTable.build(knownUri, r);
-        }
+        // Use shared workspace symbol table for cross-file resolution
+        const symbolTable = this.documentManager.getWorkspaceSymbolTable();
 
         const text = doc.getText();
         const offset = doc.offsetAt(params.position);
@@ -49,16 +45,12 @@ export class SignatureHelpProvider {
         );
 
         // Match patterns: `perform ActionName(`, `include CalcName(`, or just `CalcName(`
-        const match = lineText.match(
-            /(?:perform|include|action|calc)\s+(\w+)\s*\(?\s*$|(\w+)\s*\(\s*$/
-        );
-        if (!match) return null;
-
-        const targetName = match[1] ?? match[2];
+        // Scan backward from end of lineText to find a target name without regex.
+        const targetName = extractInvocationTarget(lineText);
         if (!targetName) return null;
 
         // Find the definition
-        const defs = this.symbolTable.findByName(targetName);
+        const defs = symbolTable.findByName(targetName);
         const def = defs.find(d =>
             d.kind === SysMLElementKind.ActionDef ||
             d.kind === SysMLElementKind.CalcDef ||
@@ -68,7 +60,7 @@ export class SignatureHelpProvider {
         if (!def) return null;
 
         // Extract parameters from the definition's children
-        const allSymbols = this.symbolTable.getAllSymbols();
+        const allSymbols = symbolTable.getAllSymbols();
         const params_list = allSymbols.filter(s =>
             s.parentQualifiedName === def.qualifiedName &&
             (s.kind === SysMLElementKind.AttributeUsage ||
@@ -92,9 +84,13 @@ export class SignatureHelpProvider {
             parameters: paramInfos,
         };
 
-        // Figure out which parameter the cursor is on
-        const textAfterParen = lineText.slice(lineText.lastIndexOf('(') + 1);
-        const commaCount = (textAfterParen.match(/,/g) ?? []).length;
+        // Count commas to determine which parameter the cursor is on
+        const parenIdx = lineText.lastIndexOf('(');
+        const textAfterParen = parenIdx >= 0 ? lineText.slice(parenIdx + 1) : '';
+        let commaCount = 0;
+        for (let c = 0; c < textAfterParen.length; c++) {
+            if (textAfterParen[c] === ',') commaCount++;
+        }
 
         return {
             signatures: [sig],
@@ -102,4 +98,60 @@ export class SignatureHelpProvider {
             activeParameter: Math.min(commaCount, paramInfos.length - 1),
         };
     }
+}
+
+/** Keywords that precede invocation target names. */
+const INVOCATION_KEYWORDS = ['perform', 'include', 'action', 'calc'];
+
+/**
+ * Extract the invocation target name from a line prefix like
+ * `perform ActionName(` or `CalcName(` — without regex.
+ *
+ * Scans backward from the end of the line.
+ */
+function extractInvocationTarget(lineText: string): string | undefined {
+    const trimmed = lineText.trimEnd();
+    const len = trimmed.length;
+
+    // Skip trailing '(' and whitespace
+    let i = len - 1;
+    while (i >= 0 && (trimmed[i] === ' ' || trimmed[i] === '\t')) i--;
+    if (i >= 0 && trimmed[i] === '(') i--;
+    while (i >= 0 && (trimmed[i] === ' ' || trimmed[i] === '\t')) i--;
+
+    if (i < 0) return undefined;
+
+    // Read identifier backward
+    const nameEnd = i + 1;
+    while (i >= 0 && isIdentPart(trimmed.charCodeAt(i))) i--;
+    const nameStart = i + 1;
+
+    if (nameStart >= nameEnd) return undefined;
+    const name = trimmed.substring(nameStart, nameEnd);
+
+    // Optionally check if preceded by a keyword
+    // Skip whitespace before the name
+    while (i >= 0 && (trimmed[i] === ' ' || trimmed[i] === '\t')) i--;
+
+    if (i >= 0) {
+        // Read potential keyword backward
+        const kwEnd = i + 1;
+        while (i >= 0 && isIdentPart(trimmed.charCodeAt(i))) i--;
+        const kwStart = i + 1;
+        const kw = trimmed.substring(kwStart, kwEnd);
+
+        if (INVOCATION_KEYWORDS.includes(kw)) {
+            return name;
+        }
+    }
+
+    // If the name is directly followed by '(' (no keyword prefix), still valid
+    // Check that the original line had a '(' after the name
+    let afterName = nameEnd;
+    while (afterName < len && (trimmed[afterName] === ' ' || trimmed[afterName] === '\t')) afterName++;
+    if (afterName < len && trimmed[afterName] === '(') {
+        return name;
+    }
+
+    return undefined;
 }

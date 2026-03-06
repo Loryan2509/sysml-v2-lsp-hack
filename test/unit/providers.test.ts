@@ -4,7 +4,7 @@
  * Uses dynamic imports so vscode-languageserver and
  * vscode-languageserver-textdocument resolve from server/node_modules.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -39,7 +39,9 @@ async function setupMulti(entries: { text: string; uri: string }[]) {
 }
 
 /** Minimal mock for TextDocuments<TextDocument> */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mockDocs(docs: { uri: string }[]): any {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const m = new Map<string, any>();
     for (const d of docs) m.set(d.uri, d);
     return { get: (uri: string) => m.get(uri) };
@@ -921,7 +923,7 @@ describe('Hover Provider', () => {
         });
 
         expect(hover).not.toBeNull();
-        expect((hover!.contents as any).value).toContain('Vehicle');
+        expect((hover!.contents as unknown as { value: string }).value).toContain('Vehicle');
     });
 
     it('should return null for empty position', async () => {
@@ -1012,7 +1014,7 @@ describe('References Provider', () => {
         const fileA = `package Lib { part def Sensor { attribute reading : Real; } }`;
         const fileB = `package App { import Lib::*; part mySensor : Sensor; }`;
 
-        const { dm, docs } = await setupMulti([
+        const { dm } = await setupMulti([
             { text: fileA, uri: 'test://lib.sysml' },
             { text: fileB, uri: 'test://app.sysml' },
         ]);
@@ -1134,6 +1136,44 @@ describe('Rename Provider', () => {
         });
         expect(result).not.toBeNull();
     });
+
+    it('should execute rename and return edits', async () => {
+        const { RenameProvider } = await import('../../server/src/providers/renameProvider.js');
+        const { SymbolTable } = await import('../../server/src/symbols/symbolTable.js');
+        const text = `
+package Test {
+    part def Sensor;
+    part mySensor : Sensor;
+}
+`;
+        const { dm } = await setup(text);
+        const uri = 'test://test.sysml';
+
+        const st = new SymbolTable();
+        st.build(uri, dm.get(uri)!);
+        const sensorSym = st.findByName('Sensor')[0];
+        expect(sensorSym).toBeDefined();
+
+        const provider = new RenameProvider(dm);
+        const result = provider.provideRename({
+            textDocument: { uri },
+            position: {
+                line: sensorSym.selectionRange.start.line,
+                character: sensorSym.selectionRange.start.character,
+            },
+            newName: 'Detector',
+        });
+
+        expect(result).toBeDefined();
+        expect(result.changes).toBeDefined();
+        const edits = result.changes![uri];
+        expect(edits).toBeDefined();
+        expect(edits.length).toBeGreaterThanOrEqual(2); // definition + usage
+        // All edits should replace with 'Detector'
+        for (const edit of edits) {
+            expect(edit.newText).toBe('Detector');
+        }
+    });
 });
 
 // ===================================================================
@@ -1154,6 +1194,56 @@ describe('Semantic Tokens Provider', () => {
         expect(tokens.data.length).toBeGreaterThan(0);
         // Token data must be groups of 5 integers
         expect(tokens.data.length % 5).toBe(0);
+    });
+
+    it('should classify keywords with keyword token type', async () => {
+        const { SemanticTokensProvider } = await import('../../server/src/providers/semanticTokensProvider.js');
+        const text = 'package Test { part def Vehicle; }';
+        const { dm } = await setup(text);
+        const uri = 'test://test.sysml';
+
+        const provider = new SemanticTokensProvider(dm);
+        const tokens = provider.provideSemanticTokens({ textDocument: { uri } });
+        expect(tokens.data.length).toBeGreaterThan(0);
+
+        // Token type index 6 = keyword — check at least some tokens are keywords
+        const tokenTypes: number[] = [];
+        for (let i = 3; i < tokens.data.length; i += 5) {
+            tokenTypes.push(tokens.data[i]);
+        }
+        expect(tokenTypes).toContain(6); // keyword type
+    });
+
+    it('should classify numeric literals with number token type', async () => {
+        const { SemanticTokensProvider } = await import('../../server/src/providers/semanticTokensProvider.js');
+        const text = 'package Test { part def V { part w : W[4]; } part def W; }';
+        const { dm } = await setup(text);
+        const uri = 'test://test.sysml';
+
+        const provider = new SemanticTokensProvider(dm);
+        const tokens = provider.provideSemanticTokens({ textDocument: { uri } });
+
+        const tokenTypes: number[] = [];
+        for (let i = 3; i < tokens.data.length; i += 5) {
+            tokenTypes.push(tokens.data[i]);
+        }
+        expect(tokenTypes).toContain(9); // number type
+    });
+
+    it('should classify identifiers with variable token type', async () => {
+        const { SemanticTokensProvider } = await import('../../server/src/providers/semanticTokensProvider.js');
+        const text = 'package Test { part myPart : SomeType; part def SomeType; }';
+        const { dm } = await setup(text);
+        const uri = 'test://test.sysml';
+
+        const provider = new SemanticTokensProvider(dm);
+        const tokens = provider.provideSemanticTokens({ textDocument: { uri } });
+
+        const tokenTypes: number[] = [];
+        for (let i = 3; i < tokens.data.length; i += 5) {
+            tokenTypes.push(tokens.data[i]);
+        }
+        expect(tokenTypes).toContain(3); // variable type
     });
 });
 
@@ -1220,6 +1310,7 @@ describe('Completion Provider', () => {
 
         const provider = new CompletionProvider(dm);
         const item = { label: 'part def', kind: 6, data: 'part def' };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const resolved = provider.resolveCompletion(item as any);
         expect(resolved.label).toBe('part def');
     });

@@ -20,7 +20,7 @@ import { DocumentManager } from '../documentManager.js';
  *  - Unused definition: prefix with underscore to suppress
  */
 export class CodeActionProvider {
-    constructor(private readonly documentManager: DocumentManager) {}
+    constructor(private readonly documentManager: DocumentManager) { }
 
     /**
      * Return code actions for the given range, typically in response to
@@ -75,13 +75,22 @@ export class CodeActionProvider {
         uri: string,
         diagnostic: Diagnostic,
     ): CodeAction | undefined {
-        // Match messages like: Unknown keyword 'paart'. Did you mean 'part'?
-        const match = diagnostic.message.match(
-            /Unknown keyword '(\w+)'\.\s*Did you mean '(\w+)'\?/,
-        );
-        if (!match) return undefined;
+        // Use structured data from diagnostic if available, fall back to message parsing
+        const data = diagnostic.data as { typo?: string; suggestion?: string } | undefined;
+        let typo: string | undefined;
+        let suggestion: string | undefined;
 
-        const [, typo, suggestion] = match;
+        if (data?.typo && data?.suggestion) {
+            typo = data.typo;
+            suggestion = data.suggestion;
+        } else {
+            // Fallback: parse message "Unknown keyword 'X'. Did you mean 'Y'?"
+            const msg = diagnostic.message;
+            typo = extractQuotedString(msg, "Unknown keyword '");
+            suggestion = extractQuotedString(msg, "Did you mean '");
+        }
+
+        if (!typo || !suggestion) return undefined;
 
         const edit: WorkspaceEdit = {
             changes: {
@@ -111,16 +120,26 @@ export class CodeActionProvider {
     ): CodeAction | undefined {
         if (diagnostic.code !== 'naming-convention') return undefined;
 
-        const isPascal = diagnostic.message.includes('PascalCase');
-        const isCamel = diagnostic.message.includes('camelCase');
-        if (!isPascal && !isCamel) return undefined;
+        const data = diagnostic.data as { name?: string; convention?: string } | undefined;
+        let name: string | undefined;
+        let isPascal: boolean;
+        let isCamel: boolean;
 
-        // Extract the identifier name from the message
-        const nameMatch = diagnostic.message.match(
-            /(?:Definition|Usage) '([^']+)'/
-        );
-        if (!nameMatch) return undefined;
-        const name = nameMatch[1];
+        if (data?.name && data?.convention) {
+            name = data.name;
+            isPascal = data.convention === 'PascalCase';
+            isCamel = data.convention === 'camelCase';
+        } else {
+            // Fallback: parse from message
+            isPascal = diagnostic.message.includes('PascalCase');
+            isCamel = diagnostic.message.includes('camelCase');
+            // Extract name from "Definition 'X'" or "Usage 'X'"
+            name = extractQuotedString(diagnostic.message, "Definition '")
+                ?? extractQuotedString(diagnostic.message, "Usage '");
+        }
+
+        if (!isPascal && !isCamel) return undefined;
+        if (!name) return undefined;
 
         let newName: string;
         if (isPascal) {
@@ -161,10 +180,10 @@ export class CodeActionProvider {
     ): CodeAction | undefined {
         if (diagnostic.code !== 'missing-doc') return undefined;
 
-        // Extract the definition name
-        const nameMatch = diagnostic.message.match(/Definition '([^']+)'/);
-        if (!nameMatch) return undefined;
-        const name = nameMatch[1];
+        // Extract the definition name from structured data or message
+        const data = diagnostic.data as { name?: string } | undefined;
+        const name = data?.name ?? extractQuotedString(diagnostic.message, "Definition '");
+        if (!name) return undefined;
 
         const text = this.documentManager.getText(uri);
         if (!text) return undefined;
@@ -271,9 +290,9 @@ export class CodeActionProvider {
     ): CodeAction | undefined {
         if (diagnostic.code !== 'unused-definition') return undefined;
 
-        const nameMatch = diagnostic.message.match(/Definition '([^']+)'/);
-        if (!nameMatch) return undefined;
-        const name = nameMatch[1];
+        const data = diagnostic.data as { name?: string } | undefined;
+        const name = data?.name ?? extractQuotedString(diagnostic.message, "Definition '");
+        if (!name) return undefined;
 
         // Already prefixed?
         if (name.startsWith('_')) return undefined;
@@ -306,7 +325,24 @@ export class CodeActionProvider {
         if (!text) return '';
         const lines = text.split('\n');
         if (line < 0 || line >= lines.length) return '';
-        const match = lines[line].match(/^(\s*)/);
-        return match ? match[1] : '';
+        const ln = lines[line];
+        let end = 0;
+        while (end < ln.length && (ln[end] === ' ' || ln[end] === '\t')) end++;
+        return ln.substring(0, end);
     }
+}
+
+/**
+ * Extract a quoted string from text given a prefix that ends just before the
+ * opening quote.  For example:
+ *   extractQuotedString("Definition 'Foo' has ...", "Definition '") → "Foo"
+ *   extractQuotedString("Unknown keyword 'paart'.", "Unknown keyword '") → "paart"
+ */
+function extractQuotedString(text: string, prefixWithQuote: string): string | undefined {
+    const idx = text.indexOf(prefixWithQuote);
+    if (idx < 0) return undefined;
+    const start = idx + prefixWithQuote.length;
+    const end = text.indexOf("'", start);
+    if (end < 0) return undefined;
+    return text.substring(start, end);
 }

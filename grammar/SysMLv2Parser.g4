@@ -1245,11 +1245,31 @@ referenceUsage
     : (endUsagePrefix | refPrefix) REF usage
     ;
 
-// Unnamed end feature with specialization (e.g., end :>> QualifiedName;)
-// Handles end features in connection/flow/interface definition bodies
-// where no name is given, only a redefines/subsets/typing.
+// Unnamed end feature with specialization (e.g., end :>> QualifiedName;).
+// Handles end features in connection/flow/interface/allocation definition
+// bodies where a SysML usage keyword (port, part, item, occurrence) may
+// optionally appear after "end".  Per SysML v2 spec the keyword is optional.
+// Examples:
+//   end source: Anything :>> ...;          (plain end)
+//   end port source: Port :>> ...;         (with optional keyword)
+//   end occurrence source: Occurrence :>> ...;
+//   end [0..*] item touchedItem :>> ...;   (cross-feature + keyword)
 endFeatureUsage
-    : endUsagePrefix featureDeclaration usageCompletion
+    : endUsagePrefix endUsageKeyword usage
+    | endUsagePrefix featureDeclaration usageCompletion
+    ;
+
+// SysML usage keyword that may follow "end" inside definition bodies.
+endUsageKeyword
+    : PORT
+    | PART
+    | ITEM
+    | OCCURRENCE
+    | CONNECTION
+    | FLOW
+    | INTERFACE
+    | ALLOCATION
+    | ATTRIBUTE
     ;
 
 variantReference
@@ -1535,7 +1555,7 @@ interfaceOccurrenceUsageElement
     ;
 
 defaultInterfaceEnd
-    : END usage
+    : endFeatureUsage
     ;
 
 interfaceUsage

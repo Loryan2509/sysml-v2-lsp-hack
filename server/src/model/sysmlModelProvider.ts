@@ -33,6 +33,136 @@ import type {
     SysMLModelScope,
 } from './sysmlModelTypes.js';
 
+import { isIdentPart as isWordChar } from '../utils/identUtils.js';
+
+// ── String-based extraction helpers (replacing regex) ──
+
+/**
+ * Check if `text` contains `word` as a whole word (word-boundary check).
+ * Equivalent to `/\bword\b/.test(text)` but without regex.
+ */
+function containsWord(text: string, word: string): boolean {
+    let idx = 0;
+    while ((idx = text.indexOf(word, idx)) !== -1) {
+        const before = idx > 0 ? text.charCodeAt(idx - 1) : 32;
+        const after = idx + word.length < text.length ? text.charCodeAt(idx + word.length) : 32;
+        if (!isWordChar(before) && !isWordChar(after)) return true;
+        idx += 1;
+    }
+    return false;
+}
+
+/**
+ * Find all positions where `word` appears as a whole word in `text`.
+ * Returns array of { pos, afterPos } where afterPos is the index right after the word.
+ */
+function findWordPositions(text: string, word: string): { pos: number; afterPos: number }[] {
+    const results: { pos: number; afterPos: number }[] = [];
+    let idx = 0;
+    while ((idx = text.indexOf(word, idx)) !== -1) {
+        const before = idx > 0 ? text.charCodeAt(idx - 1) : 32;
+        const afterIdx = idx + word.length;
+        const after = afterIdx < text.length ? text.charCodeAt(afterIdx) : 32;
+        if (!isWordChar(before) && !isWordChar(after)) {
+            results.push({ pos: idx, afterPos: afterIdx });
+        }
+        idx += 1;
+    }
+    return results;
+}
+
+/** Case-insensitive findWordPositions. */
+function findWordPositionsCI(text: string, word: string): { pos: number; afterPos: number }[] {
+    const lower = text.toLowerCase();
+    const wordLower = word.toLowerCase();
+    const results: { pos: number; afterPos: number }[] = [];
+    let idx = 0;
+    while ((idx = lower.indexOf(wordLower, idx)) !== -1) {
+        const before = idx > 0 ? lower.charCodeAt(idx - 1) : 32;
+        const afterIdx = idx + wordLower.length;
+        const after = afterIdx < lower.length ? lower.charCodeAt(afterIdx) : 32;
+        if (!isWordChar(before) && !isWordChar(after)) {
+            results.push({ pos: idx, afterPos: afterIdx });
+        }
+        idx += 1;
+    }
+    return results;
+}
+
+/** Skip whitespace characters starting at `pos`. */
+function skipWS(text: string, pos: number): number {
+    while (pos < text.length) {
+        const ch = text[pos];
+        if (ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r') pos++;
+        else break;
+    }
+    return pos;
+}
+
+/**
+ * Read an identifier (letters, digits, underscores, `::` separators, and
+ * optionally `.`) starting at `pos`.  Returns [identifier, endPos].
+ */
+function readIdent(text: string, pos: number, allowDots = false): [string, number] {
+    let end = pos;
+    while (end < text.length) {
+        const ch = text.charCodeAt(end);
+        if (isWordChar(ch)) {
+            end++;
+        } else if (allowDots && text[end] === '.') {
+            end++;
+        } else if (text[end] === ':' && end + 1 < text.length && text[end + 1] === ':') {
+            end += 2;
+        } else {
+            break;
+        }
+    }
+    return [text.substring(pos, end), end];
+}
+
+/**
+ * Read a quoted name (' ... ') or plain identifier at `pos`.
+ * Returns [name, endPos].
+ */
+function readNameOrQuoted(text: string, pos: number, allowDots = false): [string, number] {
+    if (pos < text.length && text[pos] === "'") {
+        const close = text.indexOf("'", pos + 1);
+        if (close >= 0) return [text.substring(pos + 1, close), close + 1];
+    }
+    return readIdent(text, pos, allowDots);
+}
+
+/**
+ * After finding a keyword at `afterPos`, skip whitespace and read an identifier.
+ * Returns [identifier, endPos] or ['', afterPos] if none found.
+ */
+function readWordAfterKeyword(text: string, afterPos: number, allowDots = false): [string, number] {
+    const start = skipWS(text, afterPos);
+    return readIdent(text, start, allowDots);
+}
+
+/**
+ * Read comma-separated identifiers starting at `pos`.
+ * Stops at the first token that isn't an identifier, comma, `::`, or whitespace.
+ * Returns an array of trimmed identifier strings.
+ */
+function readCommaSeparatedIdents(text: string, pos: number): string[] {
+    const names: string[] = [];
+    let p = skipWS(text, pos);
+    while (p < text.length) {
+        const [name, end] = readIdent(text, p);
+        if (!name) break;
+        names.push(name);
+        p = skipWS(text, end);
+        if (p < text.length && text[p] === ',') {
+            p = skipWS(text, p + 1);
+        } else {
+            break;
+        }
+    }
+    return names;
+}
+
 /**
  * Provides the full semantic model for a document by converting the
  * server's internal ANTLR parse tree and symbol table into serializable DTOs.
@@ -108,37 +238,38 @@ export class SysMLModelProvider {
         const symbolTable = this._getSymbolTable(uri, parseResult);
 
         const text = this.documentManager.getText(uri) ?? '';
+        const lines = text.split('\n');
 
         const result: SysMLModelResult = { version };
 
         // --- Elements ---
         if (scopeSet.has('elements')) {
-            result.elements = this.convertToElementDTOs(symbolTable, uri, text);
+            result.elements = this.convertToElementDTOs(symbolTable, uri, lines);
         }
 
         // --- Relationships ---
         if (scopeSet.has('relationships')) {
-            result.relationships = this.extractRelationships(symbolTable, uri, text);
+            result.relationships = this.extractRelationships(symbolTable, uri, lines);
         }
 
         // --- Sequence Diagrams ---
         if (scopeSet.has('sequenceDiagrams')) {
-            result.sequenceDiagrams = this.extractSequenceDiagrams(symbolTable, uri);
+            result.sequenceDiagrams = this.extractSequenceDiagrams(symbolTable, uri, lines);
         }
 
         // --- Activity Diagrams ---
         if (scopeSet.has('activityDiagrams')) {
-            result.activityDiagrams = this.extractActivityDiagrams(symbolTable, uri);
+            result.activityDiagrams = this.extractActivityDiagrams(symbolTable, uri, lines);
         }
 
         // --- Resolved Types ---
         if (scopeSet.has('resolvedTypes')) {
-            result.resolvedTypes = this.extractResolvedTypes(symbolTable, uri);
+            result.resolvedTypes = this.extractResolvedTypes(symbolTable, uri, lines);
         }
 
         // --- Semantic Diagnostics ---
         if (scopeSet.has('diagnostics')) {
-            result.diagnostics = this.extractSemanticDiagnostics(symbolTable, uri, text);
+            result.diagnostics = this.extractSemanticDiagnostics(symbolTable, uri);
         }
 
         // --- Stats ---
@@ -148,7 +279,6 @@ export class SysMLModelProvider {
         // not the model-build time which is much smaller on cache hits.
         const parseTimeMs = this.documentManager.getParseTimeMs(uri);
         const timingBreakdown = this.documentManager.getTimingBreakdown(uri);
-        const parseCached = this.documentManager.wasCached();
         const modelBuildTimeMs = Date.now() - startTime;
 
         result.stats = {
@@ -158,7 +288,6 @@ export class SysMLModelProvider {
             parseTimeMs,
             lexTimeMs: timingBreakdown.lexMs,
             parseOnlyTimeMs: timingBreakdown.parseMs,
-            parseCached,
             modelBuildTimeMs,
             complexity: analyseComplexity(allSymbols),
         };
@@ -180,7 +309,7 @@ export class SysMLModelProvider {
     private convertToElementDTOs(
         symbolTable: SymbolTable,
         uri: string,
-        text: string,
+        lines: string[],
     ): SysMLElementDTO[] {
         const symbols = symbolTable.getSymbolsForUri(uri);
 
@@ -205,7 +334,7 @@ export class SysMLModelProvider {
             s => !s.parentQualifiedName || !byQualifiedName.has(s.parentQualifiedName),
         );
 
-        return roots.map(s => this.symbolToElementDTO(s, childrenOf, text));
+        return roots.map(s => this.symbolToElementDTO(s, childrenOf, lines));
     }
 
     /**
@@ -215,14 +344,14 @@ export class SysMLModelProvider {
     private symbolToElementDTO(
         symbol: SysMLSymbol,
         childrenOf: Map<string, SysMLSymbol[]>,
-        text: string,
+        lines: string[],
     ): SysMLElementDTO {
         // Build children recursively from the parent→children index
         const childSymbols = (childrenOf.get(symbol.qualifiedName) ?? [])
             // B1: Filter phantom self-referencing package children
             .filter(c => c.qualifiedName !== symbol.qualifiedName);
         const children: SysMLElementDTO[] = childSymbols.map(c =>
-            this.symbolToElementDTO(c, childrenOf, text),
+            this.symbolToElementDTO(c, childrenOf, lines),
         );
 
         // Build attributes
@@ -244,31 +373,31 @@ export class SysMLModelProvider {
         }
 
         // Extract direction for ports from the source text
-        const direction = this.extractDirection(symbol, text);
+        const direction = this.extractDirection(symbol, lines);
         if (direction) {
             attributes['direction'] = direction;
         }
 
         // Extract multiplicity from the source text
-        const multiplicity = this.extractMultiplicity(symbol, text);
+        const multiplicity = this.extractMultiplicity(symbol, lines);
         if (multiplicity) {
             attributes['multiplicity'] = multiplicity;
         }
 
         // Extract modifiers
-        const modifier = this.extractModifier(symbol, text);
+        const modifier = this.extractModifier(symbol, lines);
         if (modifier) {
             attributes['modifier'] = modifier;
         }
 
         // Extract visibility
-        const visibility = this.extractVisibility(symbol, text);
+        const visibility = this.extractVisibility(symbol, lines);
         if (visibility) {
             attributes['visibility'] = visibility;
         }
 
         // Extract value
-        const value = this.extractValue(symbol, text);
+        const value = this.extractValue(symbol, lines);
         if (value) {
             attributes['value'] = value;
         }
@@ -286,7 +415,7 @@ export class SysMLModelProvider {
         }
 
         // Specialization (detected from text ":>" / "specializes" syntax)
-        const specializations = this.extractSpecializations(symbol, text);
+        const specializations = this.extractSpecializations(symbol, lines);
         for (const spec of specializations) {
             relationships.push({
                 type: 'specializes',
@@ -316,11 +445,10 @@ export class SysMLModelProvider {
     private extractRelationships(
         symbolTable: SymbolTable,
         uri: string,
-        text: string,
+        lines: string[],
     ): RelationshipDTO[] {
         const symbols = symbolTable.getSymbolsForUri(uri);
         const relationships: RelationshipDTO[] = [];
-        const lines = text.split('\n');
 
         for (const symbol of symbols) {
             // Skip packages and imports for relationship extraction —
@@ -346,7 +474,7 @@ export class SysMLModelProvider {
             }
 
             // Specialization (part def X :> Y, Z  or  specializes Y, Z)
-            const specializations = this.extractSpecializations(symbol, text);
+            const specializations = this.extractSpecializations(symbol, lines);
             for (const spec of specializations) {
                 relationships.push({
                     type: 'specializes',
@@ -357,7 +485,7 @@ export class SysMLModelProvider {
 
             // Connection usages create connection relationships
             if (symbol.kind === SysMLElementKind.ConnectionUsage) {
-                const connectionTargets = this.extractConnectionEndpoints(symbol, text);
+                const connectionTargets = this.extractConnectionEndpoints(symbol, lines);
                 if (connectionTargets.length === 2) {
                     relationships.push({
                         type: 'connection',
@@ -370,7 +498,7 @@ export class SysMLModelProvider {
 
             // Allocation usages create allocation relationships
             if (symbol.kind === SysMLElementKind.AllocationUsage) {
-                const allocTargets = this.extractConnectionEndpoints(symbol, text);
+                const allocTargets = this.extractConnectionEndpoints(symbol, lines);
                 if (allocTargets.length === 2) {
                     relationships.push({
                         type: 'allocation',
@@ -405,11 +533,10 @@ export class SysMLModelProvider {
     private extractSequenceDiagrams(
         symbolTable: SymbolTable,
         uri: string,
+        lines: string[],
     ): SequenceDiagramDTO[] {
         const symbols = symbolTable.getSymbolsForUri(uri);
         const diagrams: SequenceDiagramDTO[] = [];
-        const text = this.documentManager.getText(uri) ?? '';
-        const lines = text.split('\n');
         const seen = new Set<string>();
 
         for (const symbol of symbols) {
@@ -439,27 +566,42 @@ export class SysMLModelProvider {
             let occurrence = 1;
 
             // Broader send patterns: send <signal> via|to <target>
-            const sendRe = /\bsend\s+(\w[\w.]*)\s+(?:via|to)\s+(\w[\w.]*)/gi;
-            let sm: RegExpExecArray | null;
-            while ((sm = sendRe.exec(fullText)) !== null) {
+            for (const { afterPos } of findWordPositionsCI(fullText, 'send')) {
+                const sigStart = skipWS(fullText, afterPos);
+                const [signal, afterSig] = readIdent(fullText, sigStart, true);
+                if (!signal) continue;
+                const kwStart = skipWS(fullText, afterSig);
+                const [kw, afterKw] = readIdent(fullText, kwStart);
+                if (kw !== 'via' && kw !== 'to') continue;
+                const tgtStart = skipWS(fullText, afterKw);
+                const [target] = readIdent(fullText, tgtStart, true);
+                if (!target) continue;
                 messages.push({
                     name: `send_${occurrence}`,
                     from: symbol.name,
-                    to: sm[2],
-                    payload: sm[1],
+                    to: target,
+                    payload: signal,
                     occurrence: occurrence++,
                     range: this.rangeToDTO(symbol.range),
                 });
             }
 
             // Broader accept patterns: accept <signal> via|from <source>
-            const acceptRe = /\baccept\s+(\w[\w.]*)\s+(?:via|from)\s+(\w[\w.]*)/gi;
-            while ((sm = acceptRe.exec(fullText)) !== null) {
+            for (const { afterPos } of findWordPositionsCI(fullText, 'accept')) {
+                const sigStart = skipWS(fullText, afterPos);
+                const [signal, afterSig] = readIdent(fullText, sigStart, true);
+                if (!signal) continue;
+                const kwStart = skipWS(fullText, afterSig);
+                const [kw, afterKw] = readIdent(fullText, kwStart);
+                if (kw !== 'via' && kw !== 'from') continue;
+                const srcStart = skipWS(fullText, afterKw);
+                const [source] = readIdent(fullText, srcStart, true);
+                if (!source) continue;
                 messages.push({
                     name: `accept_${occurrence}`,
-                    from: sm[2],
+                    from: source,
                     to: symbol.name,
-                    payload: sm[1],
+                    payload: signal,
                     occurrence: occurrence++,
                     range: this.rangeToDTO(symbol.range),
                 });
@@ -469,25 +611,40 @@ export class SysMLModelProvider {
             for (const child of children) {
                 if (child.kind === SysMLElementKind.ActionUsage) {
                     const childText = this.getFullElementText(child, lines);
-                    const childSendRe = /\bsend\s+(\w[\w.]*)\s+(?:via|to)\s+(\w[\w.]*)/gi;
-                    let cm: RegExpExecArray | null;
-                    while ((cm = childSendRe.exec(childText)) !== null) {
+                    for (const { afterPos } of findWordPositionsCI(childText, 'send')) {
+                        const sigStart = skipWS(childText, afterPos);
+                        const [signal, afterSig] = readIdent(childText, sigStart, true);
+                        if (!signal) continue;
+                        const kwStart = skipWS(childText, afterSig);
+                        const [kw, afterKw] = readIdent(childText, kwStart);
+                        if (kw !== 'via' && kw !== 'to') continue;
+                        const tgtStart = skipWS(childText, afterKw);
+                        const [target] = readIdent(childText, tgtStart, true);
+                        if (!target) continue;
                         messages.push({
                             name: child.name,
-                            from: cm[2] ?? symbol.name,
-                            to: cm[1] ?? '',
-                            payload: cm[1] ?? '',
+                            from: target ?? symbol.name,
+                            to: signal ?? '',
+                            payload: signal ?? '',
                             occurrence: occurrence++,
                             range: this.rangeToDTO(child.range),
                         });
                     }
-                    const childAcceptRe = /\baccept\s+(\w[\w.]*)\s+(?:via|from)\s+(\w[\w.]*)/gi;
-                    while ((cm = childAcceptRe.exec(childText)) !== null) {
+                    for (const { afterPos } of findWordPositionsCI(childText, 'accept')) {
+                        const sigStart = skipWS(childText, afterPos);
+                        const [signal, afterSig] = readIdent(childText, sigStart, true);
+                        if (!signal) continue;
+                        const kwStart = skipWS(childText, afterSig);
+                        const [kw, afterKw] = readIdent(childText, kwStart);
+                        if (kw !== 'via' && kw !== 'from') continue;
+                        const srcStart = skipWS(childText, afterKw);
+                        const [source] = readIdent(childText, srcStart, true);
+                        if (!source) continue;
                         messages.push({
                             name: child.name,
-                            from: cm[2] ?? '',
+                            from: source ?? '',
                             to: symbol.name,
-                            payload: cm[1] ?? '',
+                            payload: signal ?? '',
                             occurrence: occurrence++,
                             range: this.rangeToDTO(child.range),
                         });
@@ -528,7 +685,7 @@ export class SysMLModelProvider {
             if (!hasChildActions) continue;
 
             // Extract flows to check if this action has succession patterns
-            const flows = this.extractSuccessions(symbol, text, lines);
+            const flows = this.extractSuccessions(symbol, lines);
             if (flows.length === 0) continue;
 
             // Build participants from child actions (excluding synthetic nodes)
@@ -590,11 +747,10 @@ export class SysMLModelProvider {
     private extractActivityDiagrams(
         symbolTable: SymbolTable,
         uri: string,
+        lines: string[],
     ): ActivityDiagramDTO[] {
         const symbols = symbolTable.getSymbolsForUri(uri);
         const diagrams: ActivityDiagramDTO[] = [];
-        const text = this.documentManager.getText(uri) ?? '';
-        const lines = text.split('\n');
 
         for (const symbol of symbols) {
             // D2: Include both ActionDef and ActionUsage with child actions
@@ -648,7 +804,7 @@ export class SysMLModelProvider {
 
                     // Decision nodes
                     if (actionType === 'decision') {
-                        const branches = this.extractDecisionBranches(child, text);
+                        const branches = this.extractDecisionBranches(child, lines);
                         decisions.push({
                             name: child.name,
                             condition: '',
@@ -674,17 +830,30 @@ export class SysMLModelProvider {
             }
 
             // D1: Extract flows from succession relationships in text
-            const successionFlows = this.extractSuccessions(symbol, text, lines);
+            const successionFlows = this.extractSuccessions(symbol, lines);
             flows.push(...successionFlows);
 
             // D1: Extract decide/if/merge patterns for decisions
             const fullText = this.getFullElementText(symbol, lines);
-            if (/\bdecide\s*;/.test(fullText)) {
-                const ifRe = /\bif\s+(.+?)\s+then\s+(\w+)\s*;/g;
+            // Check for `decide;` using word-boundary search
+            const decideHits = findWordPositions(fullText, 'decide');
+            const hasDecideStmt = decideHits.some(({ afterPos }) => {
+                const p = skipWS(fullText, afterPos);
+                return p < fullText.length && fullText[p] === ';';
+            });
+            if (hasDecideStmt) {
                 const branches: { condition: string; target: string }[] = [];
-                let dm: RegExpExecArray | null;
-                while ((dm = ifRe.exec(fullText)) !== null) {
-                    branches.push({ condition: dm[1].trim(), target: dm[2] });
+                for (const { afterPos: ifAfter } of findWordPositions(fullText, 'if')) {
+                    const thenIdx = fullText.indexOf('then', ifAfter);
+                    if (thenIdx < 0) continue;
+                    const bBefore = thenIdx > 0 ? fullText.charCodeAt(thenIdx - 1) : 32;
+                    const bAfter = thenIdx + 4 < fullText.length ? fullText.charCodeAt(thenIdx + 4) : 32;
+                    if (isWordChar(bBefore) || isWordChar(bAfter)) continue;
+                    const condition = fullText.substring(ifAfter, thenIdx).trim();
+                    const [target] = readWordAfterKeyword(fullText, thenIdx + 4);
+                    if (target) {
+                        branches.push({ condition, target });
+                    }
                 }
                 if (branches.length > 0) {
                     decisions.push({
@@ -758,10 +927,10 @@ export class SysMLModelProvider {
     private extractResolvedTypes(
         symbolTable: SymbolTable,
         uri: string,
+        lines: string[],
     ): Record<string, ResolvedTypeDTO> {
         const symbols = symbolTable.getSymbolsForUri(uri);
         const result: Record<string, ResolvedTypeDTO> = {};
-        const text = this.documentManager.getText(uri) ?? '';
 
         for (const symbol of symbols) {
             // Only include definitions and typed usages
@@ -770,7 +939,7 @@ export class SysMLModelProvider {
             }
 
             const specializes: string[] = [];
-            const specList = this.extractSpecializations(symbol, text);
+            const specList = this.extractSpecializations(symbol, lines);
             for (const s of specList) {
                 if (!specializes.includes(s)) { specializes.push(s); }
             }
@@ -818,7 +987,6 @@ export class SysMLModelProvider {
     private extractSemanticDiagnostics(
         symbolTable: SymbolTable,
         uri: string,
-        _text: string,
     ): SemanticDiagnosticDTO[] {
         const symbols = symbolTable.getSymbolsForUri(uri);
         const diagnostics: SemanticDiagnosticDTO[] = [];
@@ -904,106 +1072,128 @@ export class SysMLModelProvider {
     }
 
     /** Extract port direction (in | out | inout) from source text. */
-    private extractDirection(symbol: SysMLSymbol, text: string): string | undefined {
+    private extractDirection(symbol: SysMLSymbol, lines: string[]): string | undefined {
         if (symbol.kind !== SysMLElementKind.PortUsage && symbol.kind !== SysMLElementKind.PortDef) {
             return undefined;
         }
-        const lines = text.split('\n');
         const elementText = this.getElementText(symbol, lines);
-        if (/\binout\b/.test(elementText)) return 'inout';
-        if (/\bin\b/.test(elementText)) return 'in';
-        if (/\bout\b/.test(elementText)) return 'out';
+        // Check 'inout' first — it contains 'in' and 'out' as substrings
+        if (containsWord(elementText, 'inout')) return 'inout';
+        if (containsWord(elementText, 'in')) return 'in';
+        if (containsWord(elementText, 'out')) return 'out';
         return undefined;
     }
 
     /** Extract multiplicity (e.g., [4], [0..*]) from source text. */
-    private extractMultiplicity(symbol: SysMLSymbol, text: string): string | undefined {
-        const lines = text.split('\n');
+    private extractMultiplicity(symbol: SysMLSymbol, lines: string[]): string | undefined {
         const elementText = this.getElementText(symbol, lines);
-        const match = elementText.match(/\[([^\]]+)\]/);
-        return match ? match[1] : undefined;
+        const open = elementText.indexOf('[');
+        if (open < 0) return undefined;
+        const close = elementText.indexOf(']', open + 1);
+        if (close < 0) return undefined;
+        return elementText.substring(open + 1, close);
     }
 
     /** Extract modifiers (abstract, readonly, derived, etc.) from source text. */
-    private extractModifier(symbol: SysMLSymbol, text: string): string | undefined {
-        const lines = text.split('\n');
+    private extractModifier(symbol: SysMLSymbol, lines: string[]): string | undefined {
         const elementText = this.getElementText(symbol, lines);
         const modifiers: string[] = [];
-        if (/\babstract\b/.test(elementText)) modifiers.push('abstract');
-        if (/\breadonly\b/.test(elementText)) modifiers.push('readonly');
-        if (/\bderived\b/.test(elementText)) modifiers.push('derived');
-        if (/\bvariation\b/.test(elementText)) modifiers.push('variation');
-        if (/\bindividual\b/.test(elementText)) modifiers.push('individual');
+        if (containsWord(elementText, 'abstract')) modifiers.push('abstract');
+        if (containsWord(elementText, 'readonly')) modifiers.push('readonly');
+        if (containsWord(elementText, 'derived')) modifiers.push('derived');
+        if (containsWord(elementText, 'variation')) modifiers.push('variation');
+        if (containsWord(elementText, 'individual')) modifiers.push('individual');
         return modifiers.length > 0 ? modifiers.join(', ') : undefined;
     }
 
     /** Extract visibility (public | private | protected) from source text. */
-    private extractVisibility(symbol: SysMLSymbol, text: string): string | undefined {
-        const lines = text.split('\n');
+    private extractVisibility(symbol: SysMLSymbol, lines: string[]): string | undefined {
         const elementText = this.getElementText(symbol, lines);
-        if (/\bprivate\b/.test(elementText)) return 'private';
-        if (/\bprotected\b/.test(elementText)) return 'protected';
-        if (/\bpublic\b/.test(elementText)) return 'public';
+        if (containsWord(elementText, 'private')) return 'private';
+        if (containsWord(elementText, 'protected')) return 'protected';
+        if (containsWord(elementText, 'public')) return 'public';
         return undefined;
     }
 
     /** Extract default/assigned value from source text. */
-    private extractValue(symbol: SysMLSymbol, text: string): string | undefined {
+    private extractValue(symbol: SysMLSymbol, lines: string[]): string | undefined {
         if (symbol.kind !== SysMLElementKind.AttributeUsage) {
             return undefined;
         }
-        const lines = text.split('\n');
         const elementText = this.getElementText(symbol, lines);
-        // Match `= value` or `:= value` pattern (attribute assignment)
-        const match = elementText.match(/[:=]=?\s*([^;{}\n]+)/);
-        if (match) {
-            const val = match[1].trim();
-            // Don't return type references as values
-            if (!val.includes('def') && val.length < 100) {
-                return val;
-            }
+        // Find the first `=` (optionally preceded by `:` for `:=`)
+        const eqIdx = elementText.indexOf('=');
+        if (eqIdx < 0) return undefined;
+        // Skip the `=` and any following whitespace
+        let start = eqIdx + 1;
+        // Handle `:=` — the `:` comes before `=` but we've already found `=`
+        // Handle `==` — skip double-equals (comparison, not assignment)
+        if (start < elementText.length && elementText[start] === '=') return undefined;
+        start = skipWS(elementText, start);
+        // Read until `;`, `{`, `}`, or newline
+        let end = start;
+        while (end < elementText.length) {
+            const ch = elementText[end];
+            if (ch === ';' || ch === '{' || ch === '}' || ch === '\n') break;
+            end++;
+        }
+        const val = elementText.substring(start, end).trim();
+        if (val && !val.includes('def') && val.length < 100) {
+            return val;
         }
         return undefined;
     }
 
     /** Extract all specialization targets from `:>` or `specializes` syntax. */
-    private extractSpecializations(symbol: SysMLSymbol, text: string): string[] {
-        const lines = text.split('\n');
+    private extractSpecializations(symbol: SysMLSymbol, lines: string[]): string[] {
         const elementText = this.getElementText(symbol, lines);
 
-        // Match `:>` syntax with comma-separated names
-        const colonMatch = elementText.match(/:>\s*([A-Za-z_][\w:]*(?:\s*,\s*[A-Za-z_][\w:]*)*)/) ;
-        if (colonMatch) {
-            return colonMatch[1].split(',').map(s => s.trim()).filter(Boolean);
+        // Match `:>` syntax — find ':>' then read comma-separated identifiers
+        const colonGtIdx = elementText.indexOf(':>');
+        if (colonGtIdx >= 0) {
+            // Make sure it's not `:>>` (redefinition)
+            if (colonGtIdx + 2 < elementText.length && elementText[colonGtIdx + 2] === '>') {
+                // skip :>> — fall through to specializes check
+            } else {
+                return readCommaSeparatedIdents(elementText, colonGtIdx + 2);
+            }
         }
 
-        // Match `specializes` syntax with comma-separated names
-        const specMatch = elementText.match(/\bspecializes\s+([A-Za-z_][\w:]*(?:\s*,\s*[A-Za-z_][\w:]*)*)/) ;
-        if (specMatch) {
-            return specMatch[1].split(',').map(s => s.trim()).filter(Boolean);
+        // Match `specializes` keyword then read comma-separated identifiers
+        const specPositions = findWordPositions(elementText, 'specializes');
+        if (specPositions.length > 0) {
+            return readCommaSeparatedIdents(elementText, specPositions[0].afterPos);
         }
 
         return [];
     }
 
     /** Extract connection endpoints from `connect` syntax. */
-    private extractConnectionEndpoints(symbol: SysMLSymbol, text: string): string[] {
-        const lines = text.split('\n');
+    private extractConnectionEndpoints(symbol: SysMLSymbol, lines: string[]): string[] {
         const elementText = this.getElementText(symbol, lines);
         const endpoints: string[] = [];
 
         // Pattern: connect X to Y
-        const connectMatch = elementText.match(/\bconnect\s+(\w[\w.]*)\s+to\s+(\w[\w.]*)/);
-        if (connectMatch) {
-            endpoints.push(connectMatch[1], connectMatch[2]);
-            return endpoints;
+        const connectPositions = findWordPositions(elementText, 'connect');
+        for (const { afterPos } of connectPositions) {
+            const [name1, end1] = readWordAfterKeyword(elementText, afterPos, true);
+            if (!name1) continue;
+            const toPos = skipWS(elementText, end1);
+            if (elementText.substring(toPos, toPos + 2) === 'to') {
+                const afterTo = toPos + 2;
+                const [name2] = readWordAfterKeyword(elementText, afterTo, true);
+                if (name2) {
+                    endpoints.push(name1, name2);
+                    return endpoints;
+                }
+            }
         }
 
         // Pattern: end X; end Y (connection end features)
-        const endPattern = /\bend\s+(\w[\w.]*)\s*/g;
-        let endMatch: RegExpExecArray | null;
-        while ((endMatch = endPattern.exec(elementText)) !== null) {
-            endpoints.push(endMatch[1]);
+        const endPositions = findWordPositions(elementText, 'end');
+        for (const { afterPos } of endPositions) {
+            const [name] = readWordAfterKeyword(elementText, afterPos, true);
+            if (name) endpoints.push(name);
         }
 
         return endpoints;
@@ -1014,27 +1204,43 @@ export class SysMLModelProvider {
         const rels: RelationshipDTO[] = [];
 
         // subsetting: `subsets X`
-        const subsetMatch = elementText.match(/\bsubsets\s+([A-Za-z_][\w:]*)/);
-        if (subsetMatch) {
-            rels.push({ type: 'subsetting', source: elementName, target: subsetMatch[1] });
+        const subsetsPositions = findWordPositions(elementText, 'subsets');
+        if (subsetsPositions.length > 0) {
+            const [target] = readWordAfterKeyword(elementText, subsetsPositions[0].afterPos);
+            if (target) rels.push({ type: 'subsetting', source: elementName, target });
         }
 
         // redefinition: `redefines X`
-        const redefMatch = elementText.match(/\bredefines\s+([A-Za-z_][\w:]*)/);
-        if (redefMatch) {
-            rels.push({ type: 'redefinition', source: elementName, target: redefMatch[1] });
+        const redefPositions = findWordPositions(elementText, 'redefines');
+        if (redefPositions.length > 0) {
+            const [target] = readWordAfterKeyword(elementText, redefPositions[0].afterPos);
+            if (target) rels.push({ type: 'redefinition', source: elementName, target });
         }
 
-        // satisfy: `satisfy requirement X`
-        const satisfyMatch = elementText.match(/\bsatisfy\s+(?:requirement\s+)?([A-Za-z_][\w:]*)/);
-        if (satisfyMatch) {
-            rels.push({ type: 'satisfy', source: elementName, target: satisfyMatch[1] });
+        // satisfy: `satisfy [requirement] X`
+        const satisfyPositions = findWordPositions(elementText, 'satisfy');
+        if (satisfyPositions.length > 0) {
+            let pos = skipWS(elementText, satisfyPositions[0].afterPos);
+            // Skip optional 'requirement' keyword
+            const [nextWord, afterWord] = readIdent(elementText, pos);
+            if (nextWord === 'requirement') {
+                pos = skipWS(elementText, afterWord);
+            }
+            const [target] = readIdent(elementText, pos);
+            if (target && target !== 'requirement') rels.push({ type: 'satisfy', source: elementName, target });
         }
 
-        // verify: `verify requirement X`
-        const verifyMatch = elementText.match(/\bverify\s+(?:requirement\s+)?([A-Za-z_][\w:]*)/);
-        if (verifyMatch) {
-            rels.push({ type: 'verify', source: elementName, target: verifyMatch[1] });
+        // verify: `verify [requirement] X`
+        const verifyPositions = findWordPositions(elementText, 'verify');
+        if (verifyPositions.length > 0) {
+            let pos = skipWS(elementText, verifyPositions[0].afterPos);
+            // Skip optional 'requirement' keyword
+            const [nextWord, afterWord] = readIdent(elementText, pos);
+            if (nextWord === 'requirement') {
+                pos = skipWS(elementText, afterWord);
+            }
+            const [target] = readIdent(elementText, pos);
+            if (target && target !== 'requirement') rels.push({ type: 'verify', source: elementName, target });
         }
 
         return rels;
@@ -1043,23 +1249,36 @@ export class SysMLModelProvider {
     /** Extract decision branches from decision node text. */
     private extractDecisionBranches(
         symbol: SysMLSymbol,
-        text: string,
+        lines: string[],
     ): { condition: string; target: string }[] {
-        const lines = text.split('\n');
         const elementText = this.getElementText(symbol, lines);
         const branches: { condition: string; target: string }[] = [];
 
-        // Pattern: if <condition> then <target>
-        const ifPattern = /\bif\s+([^{;]+?)\s+then\s+([A-Za-z_]\w*)/g;
-        let match: RegExpExecArray | null;
-        while ((match = ifPattern.exec(elementText)) !== null) {
-            branches.push({ condition: match[1].trim(), target: match[2] });
+        // Find all 'if' keywords and extract condition + target
+        const ifPositions = findWordPositions(elementText, 'if');
+        for (const { afterPos } of ifPositions) {
+            // Read condition: everything from after 'if' until 'then'
+            const thenIdx = elementText.indexOf('then', afterPos);
+            if (thenIdx < 0) continue;
+            // Ensure 'then' is a word boundary
+            const beforeThen = thenIdx > 0 ? elementText.charCodeAt(thenIdx - 1) : 32;
+            const afterThen = thenIdx + 4 < elementText.length ? elementText.charCodeAt(thenIdx + 4) : 32;
+            if (isWordChar(beforeThen) || isWordChar(afterThen)) continue;
+
+            const condition = elementText.substring(afterPos, thenIdx).trim();
+            const [target] = readWordAfterKeyword(elementText, thenIdx + 4);
+            if (target) {
+                branches.push({ condition, target });
+            }
         }
 
         // Pattern: else <target>
-        const elseMatch = elementText.match(/\belse\s+([A-Za-z_]\w*)/);
-        if (elseMatch) {
-            branches.push({ condition: 'else', target: elseMatch[1] });
+        const elsePositions = findWordPositions(elementText, 'else');
+        if (elsePositions.length > 0) {
+            const [target] = readWordAfterKeyword(elementText, elsePositions[0].afterPos);
+            if (target) {
+                branches.push({ condition: 'else', target });
+            }
         }
 
         return branches;
@@ -1078,7 +1297,6 @@ export class SysMLModelProvider {
      */
     private extractSuccessions(
         parent: SysMLSymbol,
-        _text: string,
         lines: string[],
     ): ControlFlowDTO[] {
         const elementText = this.getFullElementText(parent, lines);
@@ -1124,41 +1342,45 @@ export class SysMLModelProvider {
         // picking up nested `then` keywords inside if/else blocks.
         interface FlowToken { type: 'first' | 'then'; name: string; index: number }
         const tokens: FlowToken[] = [];
-        let m: RegExpExecArray | null;
 
-        // Match `first <name>` or `first '<quoted name>'`
+        // Find `first <name>` or `first '<quoted name>'`
         // Supports qualified names: `first Pkg::element`
-        const firstRe = /\bfirst\s+(?:'([^']+)'|(\w+(?:::\w+)*))/g;
-        while ((m = firstRe.exec(elementText)) !== null) {
-            if (braceDepthAt(elementText, m.index) !== topDepth) continue;
-            const name = stripQualifier(m[1] || m[2]);
-            tokens.push({ type: 'first', name, index: m.index });
+        for (const { pos, afterPos } of findWordPositions(elementText, 'first')) {
+            if (braceDepthAt(elementText, pos) !== topDepth) continue;
+            const nameStart = skipWS(elementText, afterPos);
+            const [name] = readNameOrQuoted(elementText, nameStart);
+            if (name) {
+                tokens.push({ type: 'first', name: stripQualifier(name), index: pos });
+            }
         }
 
-        // Match `then [action] <name>` — skips the optional `action` keyword
+        // Find `then [action] <name>` — skips the optional `action` keyword
         // so that `then action startBatmobile` captures "startBatmobile".
         // Also supports quoted names and qualified names.
-        const thenRe = /\bthen\s+(?:action\s+)?(?:'([^']+)'|(\w+(?:::\w+)*))/g;
-        while ((m = thenRe.exec(elementText)) !== null) {
+        for (const { pos, afterPos } of findWordPositions(elementText, 'then')) {
             // Only process tokens at the top-level brace depth
-            if (braceDepthAt(elementText, m.index) !== topDepth) continue;
+            if (braceDepthAt(elementText, pos) !== topDepth) continue;
             // Skip `then` that is part of `if <condition> then <target>`
-            const preceding = elementText.substring(Math.max(0, m.index - 100), m.index);
-            if (/\bif\b[^;]*$/i.test(preceding)) continue;
-            const name = stripQualifier(m[1] || m[2]);
+            // Look back up to 100 chars for an `if` keyword without an intervening `;`
+            const lookbackStart = Math.max(0, pos - 100);
+            const preceding = elementText.substring(lookbackStart, pos);
+            if (containsWord(preceding, 'if') && !preceding.includes(';')) continue;
+
+            let nameStart = skipWS(elementText, afterPos);
+            // Skip optional `action` keyword
+            const [maybeAction, afterAction] = readIdent(elementText, nameStart);
+            if (maybeAction === 'action') {
+                nameStart = skipWS(elementText, afterAction);
+            }
+            const [name] = readNameOrQuoted(elementText, nameStart);
             // Skip `then if` — decision points handled in Step 4
-            if (name === 'if') continue;
-            tokens.push({ type: 'then', name, index: m.index });
+            if (!name || name === 'if') continue;
+            tokens.push({ type: 'then', name: stripQualifier(name), index: pos });
         }
 
         tokens.sort((a, b) => a.index - b.index);
 
         // ── Step 2: Build succession chains from ordered tokens ──
-        // Each `first` token starts a new chain; subsequent `then` tokens
-        // extend it until the next `first` or end of tokens.
-        // Each `first X then Y` statement produces ONLY the direct edge X→Y.
-        // The start→first and last→done connections are only emitted when
-        // `start` or `done` appear explicitly in the SysML text.
         const coveredIndices = new Set<number>();
 
         for (let i = 0; i < tokens.length; i++) {
@@ -1170,11 +1392,9 @@ export class SysMLModelProvider {
                         chain.push(tokens[j].name);
                         coveredIndices.add(j);
                     } else {
-                        break; // next 'first' = different chain
+                        break;
                     }
                 }
-                // Connect each adjacent pair in the chain.
-                // start/done are only connected when they appear in the text.
                 for (let k = 0; k < chain.length - 1; k++) {
                     addFlow(chain[k], chain[k + 1]);
                 }
@@ -1182,8 +1402,6 @@ export class SysMLModelProvider {
         }
 
         // Handle orphan `then` tokens not covered by a `first` chain.
-        // This happens when `then action X;` appears without a preceding
-        // `first` keyword (the action before it is the implicit start).
         const uncoveredThens = tokens.filter(
             (t, i) => !coveredIndices.has(i) && t.type === 'then',
         );
@@ -1194,10 +1412,7 @@ export class SysMLModelProvider {
         }
 
         // ── Synthesise start→first and last→done edges ──
-        // When succession chains exist, add synthetic control nodes
-        // so activity diagrams have well-defined entry/exit points.
         if (flows.length > 0) {
-            // Find the first action in the chain (target of no other flow)
             const allTargets = new Set(flows.map(f => f.to));
             const allSources = new Set(flows.map(f => f.from));
             const entryActions = flows
@@ -1207,34 +1422,70 @@ export class SysMLModelProvider {
                 .map(f => f.to)
                 .filter(name => name !== 'start' && name !== 'done' && !allSources.has(name));
 
-            // Connect start → first entry action
             if (entryActions.length > 0) {
                 addFlow('start', entryActions[0]);
             }
-            // Connect last exit action → done
             if (exitActions.length > 0) {
                 addFlow(exitActions[exitActions.length - 1], 'done');
             }
         }
 
         // ── Step 3: Explicit `succession` keyword ──
-        // Handles both control successions and data flow successions:
         //   succession [first] X then Y;
         //   succession flow from X[.port] to Y[.port];
-        const succRe = /\bsuccession\s+(?:first\s+)?(?:'([^']+)'|(\w+(?:::\w+)*))\s+then\s+(?:'([^']+)'|(\w+(?:::\w+)*))/g;
-        while ((m = succRe.exec(elementText)) !== null) {
-            addFlow(stripQualifier(m[1] || m[2]), stripQualifier(m[3] || m[4]));
-        }
-        // succession flow from X.port to Y.port — data flow implies control flow
-        const succFlowRe = /\bsuccession\s+flow\s+from\s+(\w+)(?:\.\w+)?\s+to\s+(\w+)(?:\.\w+)?/g;
-        while ((m = succFlowRe.exec(elementText)) !== null) {
-            addFlow(m[1], m[2]);
+        for (const { afterPos } of findWordPositions(elementText, 'succession')) {
+            let p = skipWS(elementText, afterPos);
+            const [word1, afterWord1] = readIdent(elementText, p);
+
+            // Check for `succession flow from X to Y`
+            if (word1 === 'flow') {
+                p = skipWS(elementText, afterWord1);
+                const [fromKw, afterFrom] = readIdent(elementText, p);
+                if (fromKw === 'from') {
+                    p = skipWS(elementText, afterFrom);
+                    const [srcFull, afterSrc] = readIdent(elementText, p, true);
+                    // Strip `.port` suffix — take only the part before first dot
+                    const src = srcFull.includes('.') ? srcFull.substring(0, srcFull.indexOf('.')) : srcFull;
+                    p = skipWS(elementText, afterSrc);
+                    const [toKw, afterTo] = readIdent(elementText, p);
+                    if (toKw === 'to') {
+                        p = skipWS(elementText, afterTo);
+                        const [dstFull] = readIdent(elementText, p, true);
+                        const dst = dstFull.includes('.') ? dstFull.substring(0, dstFull.indexOf('.')) : dstFull;
+                        if (src && dst) addFlow(src, dst);
+                    }
+                }
+                continue;
+            }
+
+            // Check for `succession [first] X then Y`
+            let nameStart = p;
+            if (word1 === 'first') {
+                nameStart = skipWS(elementText, afterWord1);
+            }
+            const [name1] = readNameOrQuoted(elementText, nameStart);
+            if (!name1) continue;
+            // Find 'then' after name1
+            const afterName1 = nameStart + name1.length + (elementText[nameStart] === "'" ? 2 : 0);
+            const thenCheck = skipWS(elementText, afterName1);
+            const [thenKw, afterThen] = readIdent(elementText, thenCheck);
+            if (thenKw === 'then') {
+                const name2Start = skipWS(elementText, afterThen);
+                const [name2] = readNameOrQuoted(elementText, name2Start);
+                if (name2) addFlow(stripQualifier(name1), stripQualifier(name2));
+            }
         }
 
         // ── Step 4: Decision / merge patterns ──
-        if (/\bdecide\s*;/.test(elementText)) {
-            // Remove all auto-generated flows FROM 'decide' — decision
-            // branches (added below) replace the direct chain edge.
+        // Check for `decide;` as a whole word followed by `;`
+        const decidePositions = findWordPositions(elementText, 'decide');
+        const hasDecide = decidePositions.some(({ afterPos }) => {
+            const p = skipWS(elementText, afterPos);
+            return p < elementText.length && elementText[p] === ';';
+        });
+
+        if (hasDecide) {
+            // Remove all auto-generated flows FROM 'decide'
             for (let fi = flows.length - 1; fi >= 0; fi--) {
                 if (flows[fi].from === 'decide') {
                     seen.delete(`decide->${flows[fi].to}`);
@@ -1243,25 +1494,46 @@ export class SysMLModelProvider {
             }
 
             // Extract decision branches: `if <cond> then <target>;`
-            // Supports both simple names and quoted names for targets.
-            const ifRe = /\bif\s+(.+?)\s+then\s+(?:'([^']+)'|(\w+))\s*;/g;
             const branchTargets: string[] = [];
-            while ((m = ifRe.exec(elementText)) !== null) {
-                const target = m[2] || m[3];
-                addFlow('decide', target, m[1].trim());
-                branchTargets.push(target);
+            for (const { afterPos: ifAfter } of findWordPositions(elementText, 'if')) {
+                // Read condition: everything until 'then'
+                const thenIdx = elementText.indexOf('then', ifAfter);
+                if (thenIdx < 0) continue;
+                // Ensure 'then' is a word boundary
+                const bBefore = thenIdx > 0 ? elementText.charCodeAt(thenIdx - 1) : 32;
+                const bAfter = thenIdx + 4 < elementText.length ? elementText.charCodeAt(thenIdx + 4) : 32;
+                if (isWordChar(bBefore) || isWordChar(bAfter)) continue;
+
+                const condition = elementText.substring(ifAfter, thenIdx).trim();
+                const targetStart = skipWS(elementText, thenIdx + 4);
+                const [target] = readNameOrQuoted(elementText, targetStart);
+                if (target) {
+                    // Check that a `;` follows the target
+                    const afterTarget = targetStart + target.length + (elementText[targetStart] === "'" ? 2 : 0);
+                    const semi = skipWS(elementText, afterTarget);
+                    if (semi < elementText.length && elementText[semi] === ';') {
+                        addFlow('decide', target, condition);
+                        branchTargets.push(target);
+                    }
+                }
             }
 
             // Extract merge target: `merge <target>;`
-            const mergeRe = /\bmerge\s+(?:'([^']+)'|(\w+))\s*;/g;
-            while ((m = mergeRe.exec(elementText)) !== null) {
-                const mergeTarget = m[1] || m[2];
+            for (const { pos: mergePos, afterPos: mergeAfter } of findWordPositions(elementText, 'merge')) {
+                const mStart = skipWS(elementText, mergeAfter);
+                const [mergeTarget] = readNameOrQuoted(elementText, mStart);
+                if (!mergeTarget) continue;
+                // Check for trailing `;`
+                const afterMT = mStart + mergeTarget.length + (elementText[mStart] === "'" ? 2 : 0);
+                const semiP = skipWS(elementText, afterMT);
+                if (semiP >= elementText.length || elementText[semiP] !== ';') continue;
+
                 for (const branch of branchTargets) {
                     addFlow(branch, mergeTarget);
                 }
                 // Connect merge target to next `then` in the chain
                 const afterMerge = tokens.filter(
-                    t => t.type === 'then' && t.index > m!.index,
+                    t => t.type === 'then' && t.index > mergePos,
                 );
                 if (afterMerge.length > 0) {
                     addFlow(mergeTarget, afterMerge[0].name);

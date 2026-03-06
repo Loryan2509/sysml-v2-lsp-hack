@@ -30,14 +30,38 @@ export interface MermaidResult {
 // Sanitisation — Mermaid is picky about node IDs and labels
 // ---------------------------------------------------------------------------
 
-/** Create a safe Mermaid node ID from a qualified name */
+/** Create a safe Mermaid node ID from a qualified name (no regex). */
 function safeId(name: string): string {
-    return name.replace(/[^a-zA-Z0-9_]/g, '_').replace(/^_+|_+$/g, '') || 'node';
+    let result = '';
+    for (let i = 0; i < name.length; i++) {
+        const c = name.charCodeAt(i);
+        if ((c >= 65 && c <= 90) || (c >= 97 && c <= 122) ||
+            (c >= 48 && c <= 57) || c === 95) {
+            result += name[i];
+        } else {
+            result += '_';
+        }
+    }
+    // Trim leading/trailing underscores
+    let start = 0;
+    while (start < result.length && result[start] === '_') start++;
+    let end = result.length;
+    while (end > start && result[end - 1] === '_') end--;
+    return result.substring(start, end) || 'node';
 }
 
-/** Escape label text for Mermaid (quotes and special chars) */
+/** Escape label text for Mermaid (quotes and angle brackets, no regex). */
 function escapeLabel(text: string): string {
-    return text.replace(/"/g, '#quot;').replace(/[<>]/g, '');
+    let result = '';
+    for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        if (ch === '"') {
+            result += '#quot;';
+        } else if (ch !== '<' && ch !== '>') {
+            result += ch;
+        }
+    }
+    return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -206,7 +230,6 @@ export function inferDiagramType(symbols: SysMLSymbol[]): DiagramType {
 
     // Sequence-specific: multiple participant types + action def with child actions
     const partDefCount = kinds.get(SysMLElementKind.PartDef) ?? 0;
-    const _partUsageCount = kinds.get(SysMLElementKind.PartUsage) ?? 0;
     const actionDefCount = kinds.get(SysMLElementKind.ActionDef) ?? 0;
     const connectionCount = (kinds.get(SysMLElementKind.ConnectionUsage) ?? 0)
         + (kinds.get(SysMLElementKind.InterfaceUsage) ?? 0);
@@ -609,9 +632,6 @@ function generateSequenceView(symbols: SysMLSymbol[], symbolTable: Map<string, S
     ];
     let elementCount = 0;
 
-    // Build parent→children index
-    const _childrenOf = buildChildrenIndex([...symbolTable.values()]);
-
     // Collect candidate participants.
     // Prefer part usages (instances) over part defs (types) — usages represent
     // the actual swim-lane participants; defs are just their types.
@@ -719,9 +739,6 @@ function generateUseCaseView(symbols: SysMLSymbol[], symbolTable: Map<string, Sy
     const nodeStyles = new Map<string, string>();  // nodeId → kindLabel for styling
     let elementCount = 0;
 
-    // Build parent→children index
-    const _childrenOf = buildChildrenIndex([...symbolTable.values()]);
-
     // ── Collect by kind ──────────────────────────────────────────────────
     const actors = symbols.filter(s => s.kind === SysMLElementKind.ActorUsage);
     const subjects = symbols.filter(s => s.kind === SysMLElementKind.SubjectUsage);
@@ -730,8 +747,6 @@ function generateUseCaseView(symbols: SysMLSymbol[], symbolTable: Map<string, Sy
     const includes = symbols.filter(s => s.kind === SysMLElementKind.IncludeUseCaseUsage);
 
     // ── De-duplicate: keep defs; drop usages whose type matches a def ───
-    const _defNames = new Set(allUseCaseDefs.map(d => d.name));
-    const _defQNames = new Set(allUseCaseDefs.map(d => d.qualifiedName));
     const untypedUsages = allUseCaseUsages.filter(u =>
         !u.typeNames.some(t => {
             const resolved = symbolTable.get(t)

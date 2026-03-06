@@ -100,8 +100,6 @@ export interface SysMLModelResult {
         lexTimeMs?: number;
         /** ANTLR parser-only time in milliseconds (excludes lexing). */
         parseOnlyTimeMs?: number;
-        /** Whether the parse result was served from cache (no re-parse). */
-        parseCached?: boolean;
         /** Time to build symbol table + extract DTOs for the requested scopes. */
         modelBuildTimeMs: number;
         /** Model Complexity Index report. */

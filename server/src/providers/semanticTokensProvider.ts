@@ -4,6 +4,54 @@ import {
     SemanticTokensParams,
 } from 'vscode-languageserver/node.js';
 import { DocumentManager } from '../documentManager.js';
+import { SysMLv2Lexer } from '../generated/SysMLv2Lexer.js';
+import { SYSML_KEYWORDS } from '../utils/sysmlKeywords.js';
+
+/** Lexer token types that map to the "operator" semantic token. */
+const OPERATOR_TOKENS = new Set([
+    SysMLv2Lexer.BANG_EQ_EQ,    // !==
+    SysMLv2Lexer.STAR_STAR,     // **
+    SysMLv2Lexer.COLON_GT,      // :>
+    SysMLv2Lexer.COLON_GT_GT,   // :>>
+    SysMLv2Lexer.AMP,           // &
+    SysMLv2Lexer.COLON_COLON,   // ::
+    SysMLv2Lexer.STAR,          // *
+    SysMLv2Lexer.PIPE,          // |
+    SysMLv2Lexer.EQ_EQ,         // ==
+    SysMLv2Lexer.BANG_EQ,        // !=
+    SysMLv2Lexer.PLUS,          // +
+    SysMLv2Lexer.MINUS,         // -
+    SysMLv2Lexer.ARROW,         // ->
+    SysMLv2Lexer.SLASH,         // /
+    SysMLv2Lexer.LT,            // <
+    SysMLv2Lexer.EQ,            // =
+    SysMLv2Lexer.GT,            // >
+    SysMLv2Lexer.CARET,         // ^
+    SysMLv2Lexer.TILDE,         // ~
+]);
+
+/** Lexer token types for punctuation — let tmLanguage handle these. */
+const PUNCTUATION_TOKENS = new Set([
+    SysMLv2Lexer.LBRACE,        // {
+    SysMLv2Lexer.RBRACE,        // }
+    SysMLv2Lexer.LPAREN,        // (
+    SysMLv2Lexer.RPAREN,        // )
+    SysMLv2Lexer.SEMI,          // ;
+    SysMLv2Lexer.COMMA,         // ,
+    SysMLv2Lexer.DOT,           // .
+    SysMLv2Lexer.LBRACK,        // [
+    SysMLv2Lexer.RBRACK,        // ]
+    SysMLv2Lexer.COLON,         // :
+]);
+
+/** Module-level keyword sets — allocated once, shared by all provider instances. */
+const STRUCTURAL_KEYWORDS = new Set([
+    'part', 'port', 'item', 'state', 'constraint', 'requirement',
+    'concern', 'case', 'view', 'viewpoint', 'rendering',
+    'allocation', 'connection', 'interface', 'occurrence',
+    'individual', 'flow', 'binding', 'succession', 'metadata',
+    'enum', 'actor', 'subject', 'ref', 'use',
+]);
 
 /**
  * Semantic token types — must match the legend registered in server capabilities.
@@ -61,7 +109,7 @@ export class SemanticTokensProvider {
             }
 
             const text = token.text;
-            const tokenType = this.classifyTokenInContext(text, prevMeaningful);
+            const tokenType = this.classifyTokenInContext(text, prevMeaningful, token.type);
 
             // Track previous meaningful token for context-sensitive classification
             prevMeaningful = text;
@@ -83,29 +131,29 @@ export class SemanticTokensProvider {
     /**
      * Classify a token using surrounding context to match tmLanguage scopes.
      */
-    private classifyTokenInContext(text: string, prev: string | undefined): number | undefined {
+    private classifyTokenInContext(text: string, prev: string | undefined, lexerType: number): number | undefined {
         // Comments
-        if (text.startsWith('/*') || text.startsWith('//')) {
+        if (lexerType === SysMLv2Lexer.REGULAR_COMMENT || lexerType === SysMLv2Lexer.SINGLE_LINE_NOTE) {
             return 7; // comment
         }
 
         // Strings
-        if (text.startsWith('"') || text.startsWith("'")) {
+        if (lexerType === SysMLv2Lexer.STRING || lexerType === SysMLv2Lexer.DOUBLE_STRING) {
             return 8; // string
         }
 
         // Numbers
-        if (/^\d/.test(text)) {
+        if (lexerType === SysMLv2Lexer.INTEGER || lexerType === SysMLv2Lexer.REAL) {
             return 9; // number
         }
 
-        // Operators and punctuation
-        if (/^[+\-*/<>=!&|^~%]+$/.test(text) || text === '::' || text === ':>' || text === ':>>') {
+        // Operators
+        if (OPERATOR_TOKENS.has(lexerType)) {
             return 10; // operator
         }
 
         // Punctuation — let tmLanguage handle
-        if (/^[{}();,.[\]]$/.test(text) || text === ':') {
+        if (PUNCTUATION_TOKENS.has(lexerType)) {
             return undefined;
         }
 
@@ -115,7 +163,7 @@ export class SemanticTokensProvider {
         }
 
         // Identifiers — context-sensitive classification
-        if (/^[a-zA-Z_]\w*$/.test(text)) {
+        if (lexerType === SysMLv2Lexer.IDENTIFIER) {
             return this.classifyIdentifier(prev);
         }
 
@@ -155,38 +203,10 @@ export class SemanticTokensProvider {
      * Keywords that precede member/instance names in usage declarations.
      */
     private isStructuralKeyword(text: string): boolean {
-        const structural = new Set([
-            'part', 'port', 'item', 'state', 'constraint', 'requirement',
-            'concern', 'case', 'view', 'viewpoint', 'rendering',
-            'allocation', 'connection', 'interface', 'occurrence',
-            'individual', 'flow', 'binding', 'succession', 'metadata',
-            'enum', 'actor', 'subject', 'ref', 'use',
-        ]);
-        return structural.has(text);
+        return STRUCTURAL_KEYWORDS.has(text);
     }
 
     private isKeyword(text: string): boolean {
-        const keywords = new Set([
-            'about', 'abstract', 'accept', 'action', 'actor', 'after', 'alias',
-            'all', 'allocate', 'allocation', 'analysis', 'and', 'as', 'assert',
-            'assign', 'assume', 'attribute', 'bind', 'binding', 'bool', 'by',
-            'calc', 'case', 'comment', 'concern', 'connect', 'connection',
-            'constraint', 'decide', 'def', 'default', 'defined', 'dependency',
-            'derived', 'do', 'doc', 'else', 'end', 'entry', 'enum', 'event',
-            'exhibit', 'exit', 'expose', 'false', 'feature', 'filter', 'first',
-            'flow', 'for', 'fork', 'frame', 'from', 'hastype', 'if', 'implies',
-            'import', 'in', 'include', 'individual', 'inout', 'interface',
-            'istype', 'item', 'join', 'language', 'library', 'locale', 'merge',
-            'message', 'meta', 'metadata', 'multiplicity', 'namespace', 'nonunique',
-            'not', 'null', 'objective', 'occurrence', 'of', 'or', 'ordered', 'out',
-            'package', 'parallel', 'part', 'perform', 'port', 'private',
-            'protected', 'public', 'readonly', 'redefines', 'ref', 'references',
-            'render', 'rendering', 'rep', 'require', 'requirement', 'return',
-            'satisfy', 'send', 'snapshot', 'specializes', 'stakeholder', 'state',
-            'subject', 'subsets', 'succession', 'then', 'timeslice', 'to', 'transition',
-            'true', 'type', 'use', 'variant', 'variation', 'verification', 'verify',
-            'view', 'viewpoint', 'when', 'while', 'xor',
-        ]);
-        return keywords.has(text);
+        return SYSML_KEYWORDS.has(text);
     }
 }

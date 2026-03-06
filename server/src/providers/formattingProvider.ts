@@ -86,7 +86,12 @@ export class FormattingProvider {
             const trimmed = line.trim();
 
             // Handle closing braces — decrease indent before this line
-            const leadingCloses = (trimmed.match(/^[}\]]+/) || [''])[0].length;
+            let leadingCloses = 0;
+            for (let c = 0; c < trimmed.length; c++) {
+                const ch = trimmed[c];
+                if (ch === '}' || ch === ']') leadingCloses++;
+                else break;
+            }
             if (leadingCloses > 0) {
                 depth = Math.max(0, depth - leadingCloses);
             }
@@ -135,28 +140,70 @@ export class FormattingProvider {
 
     /**
      * Normalize spacing around common SysML operators.
-     * Preserves spacing inside strings.
+     * Preserves spacing inside strings. No regex.
      */
     private normalizeSpacing(line: string): string {
         // Don't modify lines that are primarily strings
         if (line.startsWith('"') || line.startsWith("'")) return line;
 
-        let result = line;
+        const len = line.length;
+        let result = '';
+        let inString = false;
+        let stringChar = '';
 
-        // Normalize space before opening brace
-        result = result.replace(/\s*{/g, ' {');
+        for (let i = 0; i < len; i++) {
+            const ch = line[i];
 
-        // Ensure space after semicolons (for inline statements)
-        result = result.replace(/;\s*(\S)/g, '; $1');
+            // Track string boundaries
+            if (inString) {
+                result += ch;
+                if (ch === stringChar && (i === 0 || line[i - 1] !== '\\')) {
+                    inString = false;
+                }
+                continue;
+            }
+            if (ch === '"' || ch === "'") {
+                inString = true;
+                stringChar = ch;
+                result += ch;
+                continue;
+            }
 
-        // Clean up multiple spaces (but not in strings)
-        result = result.replace(/  +/g, (match, offset) => {
-            // Don't collapse spaces inside strings
-            const before = result.substring(0, offset);
-            const quotes = (before.match(/"/g) || []).length;
-            if (quotes % 2 !== 0) return match;
-            return ' ';
-        });
+            // Normalize space before opening brace: collapse whitespace before '{'
+            if (ch === '{') {
+                // Remove trailing whitespace from result, then add single space
+                let end = result.length;
+                while (end > 0 && (result[end - 1] === ' ' || result[end - 1] === '\t')) end--;
+                result = result.substring(0, end) + ' {';
+                continue;
+            }
+
+            // Ensure space after semicolons (for inline statements)
+            if (ch === ';' && i + 1 < len) {
+                result += ';';
+                // Skip whitespace after semicolon
+                let j = i + 1;
+                while (j < len && (line[j] === ' ' || line[j] === '\t')) j++;
+                // If there's a non-whitespace character after, add single space
+                if (j < len) {
+                    result += ' ';
+                    i = j - 1; // loop will increment
+                }
+                continue;
+            }
+
+            // Collapse multiple spaces (outside strings)
+            if (ch === ' ' || ch === '\t') {
+                // Skip consecutive whitespace
+                let j = i + 1;
+                while (j < len && (line[j] === ' ' || line[j] === '\t')) j++;
+                result += ' ';
+                i = j - 1; // loop will increment
+                continue;
+            }
+
+            result += ch;
+        }
 
         return result;
     }

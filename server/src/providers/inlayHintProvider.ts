@@ -5,7 +5,6 @@ import {
     Position,
 } from 'vscode-languageserver/node.js';
 import { DocumentManager } from '../documentManager.js';
-import { SymbolTable } from '../symbols/symbolTable.js';
 import { isDefinition, isUsage, SysMLElementKind } from '../symbols/sysmlElements.js';
 
 /**
@@ -15,17 +14,15 @@ import { isDefinition, isUsage, SysMLElementKind } from '../symbols/sysmlElement
  *  - Element kind labels on anonymous usages
  */
 export class InlayHintProvider {
-    private symbolTable = new SymbolTable();
 
     constructor(private documentManager: DocumentManager) { }
 
     provideInlayHints(params: InlayHintParams): InlayHint[] {
         const uri = params.textDocument.uri;
-        const result = this.documentManager.get(uri);
-        if (!result) return [];
+        const symbolTable = this.documentManager.getSymbolTable(uri);
+        if (!symbolTable) return [];
 
-        this.symbolTable.build(uri, result);
-        const symbols = this.symbolTable.getSymbolsForUri(uri);
+        const symbols = symbolTable.getSymbolsForUri(uri);
         const hints: InlayHint[] = [];
         const { range } = params;
 

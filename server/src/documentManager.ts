@@ -1,5 +1,6 @@
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { parseDocument, ParseResult } from './parser/parseDocument.js';
+import { SymbolTable } from './symbols/symbolTable.js';
 
 /**
  * Manages parsed documents — caches parse results by URI and content hash.
@@ -7,6 +8,10 @@ import { parseDocument, ParseResult } from './parser/parseDocument.js';
  */
 export class DocumentManager {
     private cache = new Map<string, CachedDocument>();
+    /** Shared workspace-wide symbol table — rebuilt incrementally. */
+    private wsSymbolTable = new SymbolTable();
+    /** Tracks per-URI versions that were last built into the workspace table. */
+    private wsBuiltVersions = new Map<string, number>();
 
     /**
      * Parse a document and cache the result.
@@ -74,10 +79,37 @@ export class DocumentManager {
     }
 
     /**
-     * Whether the last parse was served from cache.
+     * Get a cached symbol table for a URI, building it if necessary.
+     * The symbol table is cached alongside the parse result and only
+     * rebuilt when the document version changes.
      */
-    wasCached(): boolean {
-        return false;
+    getSymbolTable(uri: string): SymbolTable | undefined {
+        const cached = this.cache.get(uri);
+        if (!cached) return undefined;
+
+        if (!cached.symbolTable) {
+            const st = new SymbolTable();
+            st.build(uri, cached.result);
+            cached.symbolTable = st;
+        }
+        return cached.symbolTable;
+    }
+
+    /**
+     * Get a workspace-wide symbol table covering all cached documents.
+     *
+     * Incrementally maintained — only re-builds URIs whose document
+     * version has changed since the last call.  All 6+ providers that
+     * previously built their own private tables should use this instead.
+     */
+    getWorkspaceSymbolTable(): SymbolTable {
+        for (const [uri, cached] of this.cache) {
+            const builtVersion = this.wsBuiltVersions.get(uri);
+            if (builtVersion === cached.version) continue;
+            this.wsSymbolTable.build(uri, cached.result);
+            this.wsBuiltVersions.set(uri, cached.version);
+        }
+        return this.wsSymbolTable;
     }
 
     /**
@@ -85,6 +117,9 @@ export class DocumentManager {
      */
     remove(uri: string): void {
         this.cache.delete(uri);
+        // Also evict from the workspace symbol table
+        this.wsSymbolTable.removeUri(uri);
+        this.wsBuiltVersions.delete(uri);
     }
 
     /**
@@ -99,4 +134,6 @@ interface CachedDocument {
     version: number;
     text: string;
     result: ParseResult;
+    /** Lazily built and cached symbol table — invalidated on re-parse. */
+    symbolTable?: SymbolTable;
 }

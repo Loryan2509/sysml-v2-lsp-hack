@@ -178,6 +178,25 @@ package WarmUp {
         interface wfi : WheelFastenerInterface [5]
             connect lugComposite.lug to shankComposite.shank;
     }
+    // ---- End-keyword syntax (issue #15) ----
+    // Exercises "end <keyword> <name>" alternatives in endFeatureUsage
+    // so the DFA snapshot covers these paths.
+    interface def EndKeywordTest {
+        end port ep1;
+        end port ep2 : DrivePort;
+        end part ePart1;
+        end item eItem1;
+        end occurrence eOcc1;
+        end ep3;
+    }
+    connection def EndKeywordConnDef {
+        end port connPort1;
+        end connection connEnd1;
+        end flow flowEnd1;
+        end interface intfEnd1;
+        end allocation allocEnd1;
+        end attribute attrEnd1;
+    }
 
     // ---- Allocation ----
     allocation def LogicalToPhysical {
@@ -1007,7 +1026,7 @@ package WarmUp {
         attribute hastype = z hastype String;
         attribute select = items.>filter(x | x > 0);
         attribute collect = items->collect(x | x.name);
-        attribute all = all v : Vehicle {| v.mass > 0 |}; 
+        attribute all = all v : Vehicle {| v.mass > 0 |};
     }
 
     // ---- Assignment actions ----
@@ -1018,5 +1037,21 @@ package WarmUp {
             assign x := if x > 10 ? 0 : x;
         }
     }
+
+    // ---- Bare item usages & defined by ----
+    // These constructs must be in the warmup text to ensure the DFA
+    // snapshot covers their token transitions.
+    part def DefinedByPart {
+        item myItem;
+        item namedItem : ItemType;
+        part sub defined by SubDef, AltDef;
+        part multi : TypeA, TypeB;
+    }
+    item def ItemType;
+    part def SubDef;
+    part def AltDef;
+    part def TypeA;
+    part def TypeB;
+
 }
 `;

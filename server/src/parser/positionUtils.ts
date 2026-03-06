@@ -42,9 +42,9 @@ export function contextToRange(ctx: ParserRuleContext): Range {
 
     const end: Position = stopToken
         ? {
-              line: (stopToken.line ?? 1) - 1,
-              character: (stopToken.column ?? 0) + (stopToken.text?.length ?? 1),
-          }
+            line: (stopToken.line ?? 1) - 1,
+            character: (stopToken.column ?? 0) + (stopToken.text?.length ?? 1),
+        }
         : { line: start.line, character: start.character + 1 };
 
     return { start, end };
@@ -76,13 +76,28 @@ export function isPositionInRange(position: Position, range: Range): boolean {
 
 /**
  * Find the token at a given LSP position in a token stream.
+ * Uses binary search on the sorted token list for O(log n) performance.
  */
 export function findTokenAtPosition(
     tokens: Token[],
     position: Position,
 ): Token | undefined {
-    for (const token of tokens) {
-        if (isPositionInToken(position, token)) {
+    let lo = 0;
+    let hi = tokens.length - 1;
+
+    while (lo <= hi) {
+        const mid = (lo + hi) >>> 1;
+        const token = tokens[mid];
+        const tokenLine = (token.line ?? 1) - 1;
+        const tokenCol = token.column ?? 0;
+        const tokenEnd = tokenCol + (token.text?.length ?? 1);
+
+        if (tokenLine < position.line || (tokenLine === position.line && tokenEnd <= position.character)) {
+            lo = mid + 1;
+        } else if (tokenLine > position.line || (tokenLine === position.line && tokenCol > position.character)) {
+            hi = mid - 1;
+        } else {
+            // tokenLine === position.line && tokenCol <= position.character < tokenEnd
             return token;
         }
     }
@@ -91,24 +106,32 @@ export function findTokenAtPosition(
 
 /**
  * Get the token index closest to a given LSP position.
+ * Uses binary search for O(log n) performance.
  */
 export function getTokenIndexAtPosition(
     tokens: Token[],
     position: Position,
 ): number {
-    for (let i = 0; i < tokens.length; i++) {
-        const token = tokens[i];
+    if (tokens.length === 0) return 0;
+
+    let lo = 0;
+    let hi = tokens.length - 1;
+
+    while (lo <= hi) {
+        const mid = (lo + hi) >>> 1;
+        const token = tokens[mid];
         const tokenLine = (token.line ?? 1) - 1;
         const tokenCol = token.column ?? 0;
         const tokenEnd = tokenCol + (token.text?.length ?? 1);
 
-        if (tokenLine === position.line && tokenCol <= position.character && position.character <= tokenEnd) {
-            return i;
-        }
-        // If we've passed the position, return the previous token
-        if (tokenLine > position.line || (tokenLine === position.line && tokenCol > position.character)) {
-            return Math.max(0, i - 1);
+        if (tokenLine < position.line || (tokenLine === position.line && tokenEnd <= position.character)) {
+            lo = mid + 1;
+        } else if (tokenLine > position.line || (tokenLine === position.line && tokenCol > position.character)) {
+            hi = mid - 1;
+        } else {
+            return mid;
         }
     }
-    return tokens.length - 1;
+    // lo is the insertion point — return the nearest preceding token
+    return Math.max(0, lo - 1);
 }

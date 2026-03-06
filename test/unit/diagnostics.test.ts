@@ -152,6 +152,111 @@ package Test {
         });
     });
 
+    describe('interface end port syntax (issue #15)', () => {
+        it('should produce zero errors for "end port portName" in interface def', async () => {
+            const text = `
+port def PowerPort;
+interface def MyIntf1 {
+    end port port1 : PowerPort;
+}
+`;
+            const result = (await import('../../server/src/parser/parseDocument.js')).parseDocument(text);
+            expect(result.errors.length).toBe(0);
+        });
+
+        it('should produce zero errors for "end portName" shorthand in interface def', async () => {
+            const text = `
+port def SignalPort;
+interface def MyIntf2 {
+    end port2 : SignalPort;
+}
+`;
+            const result = (await import('../../server/src/parser/parseDocument.js')).parseDocument(text);
+            expect(result.errors.length).toBe(0);
+        });
+
+        it('should produce zero errors when both forms are used together', async () => {
+            const text = `
+port def PowerPort;
+port def SignalPort;
+interface def MyIntf3 {
+    end port port1 : PowerPort;
+    end port2 : SignalPort;
+}
+`;
+            const result = (await import('../../server/src/parser/parseDocument.js')).parseDocument(text);
+            expect(result.errors.length).toBe(0);
+        });
+    });
+
+    describe('end keyword patterns in definition bodies', () => {
+        it('should parse "end occurrence" in flow def', async () => {
+            const text = `
+flow def DataFlow {
+    end occurrence source : Anything;
+    end occurrence target : Anything;
+}
+`;
+            const result = (await import('../../server/src/parser/parseDocument.js')).parseDocument(text);
+            expect(result.errors.length).toBe(0);
+        });
+
+        it('should parse "end item" in connection def', async () => {
+            const text = `
+connection def ItemLink {
+    end item a : Anything;
+    end item b : Anything;
+}
+`;
+            const result = (await import('../../server/src/parser/parseDocument.js')).parseDocument(text);
+            expect(result.errors.length).toBe(0);
+        });
+
+        it('should parse "end part" in connection def', async () => {
+            const text = `
+connection def PartLink {
+    end part left : Anything;
+    end part right : Anything;
+}
+`;
+            const result = (await import('../../server/src/parser/parseDocument.js')).parseDocument(text);
+            expect(result.errors.length).toBe(0);
+        });
+
+        it('should parse "end occurrence" in connection def', async () => {
+            const text = `
+connection def OccLink {
+    end occurrence a : Anything;
+    end occurrence b : Anything;
+}
+`;
+            const result = (await import('../../server/src/parser/parseDocument.js')).parseDocument(text);
+            expect(result.errors.length).toBe(0);
+        });
+
+        it('should parse "end part" in allocation def', async () => {
+            const text = `
+allocation def HwAlloc {
+    end part source : Anything;
+    end part target : Anything;
+}
+`;
+            const result = (await import('../../server/src/parser/parseDocument.js')).parseDocument(text);
+            expect(result.errors.length).toBe(0);
+        });
+
+        it('should still parse plain "end name" without keyword', async () => {
+            const text = `
+connection def SimpleLink {
+    end source : Anything;
+    end target : Anything;
+}
+`;
+            const result = (await import('../../server/src/parser/parseDocument.js')).parseDocument(text);
+            expect(result.errors.length).toBe(0);
+        });
+    });
+
     describe('empty enumerations', () => {
         it('should flag enum definitions with no values', async () => {
             const text = `

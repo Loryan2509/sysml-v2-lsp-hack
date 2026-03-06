@@ -4,7 +4,6 @@ import {
     Command,
 } from 'vscode-languageserver/node.js';
 import { DocumentManager } from '../documentManager.js';
-import { SymbolTable } from '../symbols/symbolTable.js';
 import { isDefinition, SysMLSymbol } from '../symbols/sysmlElements.js';
 
 /**
@@ -14,17 +13,15 @@ import { isDefinition, SysMLSymbol } from '../symbols/sysmlElements.js';
  * the references panel.
  */
 export class CodeLensProvider {
-    private symbolTable = new SymbolTable();
 
     constructor(private documentManager: DocumentManager) { }
 
     provideCodeLenses(params: CodeLensParams): CodeLens[] {
         const uri = params.textDocument.uri;
-        const result = this.documentManager.get(uri);
-        if (!result) return [];
+        const symbolTable = this.documentManager.getSymbolTable(uri);
+        if (!symbolTable) return [];
 
-        this.symbolTable.build(uri, result);
-        const symbols = this.symbolTable.getSymbolsForUri(uri);
+        const symbols = symbolTable.getSymbolsForUri(uri);
         const lenses: CodeLens[] = [];
 
         for (const sym of symbols) {
@@ -58,6 +55,7 @@ export class CodeLensProvider {
 
     private countReferences(sym: SysMLSymbol): number {
         // Count symbol references across all open documents
-        return this.symbolTable.findReferences(sym.name).length;
+        const symbolTable = this.documentManager.getSymbolTable(sym.uri);
+        return symbolTable ? symbolTable.findReferences(sym.name).length : 0;
     }
 }

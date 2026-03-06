@@ -6,14 +6,29 @@ import {
     Range,
 } from 'vscode-languageserver/node.js';
 import { DocumentManager } from '../documentManager.js';
-import { SymbolTable } from '../symbols/symbolTable.js';
+import { isIdentPart as isWordChar } from '../utils/identUtils.js';
+
+/** Find all positions where `word` appears at word boundaries in `line`. */
+function findWordOccurrences(line: string, word: string): number[] {
+    const positions: number[] = [];
+    let from = 0;
+    while (from <= line.length - word.length) {
+        const idx = line.indexOf(word, from);
+        if (idx < 0) break;
+        if ((idx === 0 || !isWordChar(line.charCodeAt(idx - 1))) &&
+            (idx + word.length >= line.length || !isWordChar(line.charCodeAt(idx + word.length)))) {
+            positions.push(idx);
+        }
+        from = idx + 1;
+    }
+    return positions;
+}
 
 /**
  * Provides symbol rename functionality.
  * Renames a symbol and updates all references within the document.
  */
 export class RenameProvider {
-    private symbolTable = new SymbolTable();
 
     constructor(private documentManager: DocumentManager) { }
 
@@ -21,12 +36,10 @@ export class RenameProvider {
      * Check if the token at position is renameable and return its range.
      */
     prepareRename(params: TextDocumentPositionParams): Range | null {
-        const result = this.documentManager.get(params.textDocument.uri);
-        if (!result) return null;
+        const symbolTable = this.documentManager.getSymbolTable(params.textDocument.uri);
+        if (!symbolTable) return null;
 
-        this.symbolTable.build(params.textDocument.uri, result);
-
-        const symbol = this.symbolTable.findSymbolAtPosition(
+        const symbol = symbolTable.findSymbolAtPosition(
             params.textDocument.uri,
             params.position.line,
             params.position.character,
@@ -41,12 +54,10 @@ export class RenameProvider {
      * Perform the rename — update the symbol and all references.
      */
     provideRename(params: RenameParams): WorkspaceEdit | null {
-        const result = this.documentManager.get(params.textDocument.uri);
-        if (!result) return null;
+        const symbolTable = this.documentManager.getSymbolTable(params.textDocument.uri);
+        if (!symbolTable) return null;
 
-        this.symbolTable.build(params.textDocument.uri, result);
-
-        const symbol = this.symbolTable.findSymbolAtPosition(
+        const symbol = symbolTable.findSymbolAtPosition(
             params.textDocument.uri,
             params.position.line,
             params.position.character,
@@ -63,7 +74,7 @@ export class RenameProvider {
         const newName = params.newName;
 
         // Find all references by name match
-        const references = this.symbolTable.findReferences(oldName);
+        const references = symbolTable.findReferences(oldName);
         for (const ref of references) {
             if (ref.uri === params.textDocument.uri) {
                 edits.push({
@@ -75,16 +86,14 @@ export class RenameProvider {
 
         // Also find text occurrences that might be type references
         const lines = text.split('\n');
-        const wordRegex = new RegExp(`\\b${this.escapeRegex(oldName)}\\b`, 'g');
         for (let i = 0; i < lines.length; i++) {
-            let match: RegExpExecArray | null;
-            while ((match = wordRegex.exec(lines[i])) !== null) {
+            for (const col of findWordOccurrences(lines[i], oldName)) {
                 const range: Range = {
-                    start: { line: i, character: match.index },
-                    end: { line: i, character: match.index + oldName.length },
+                    start: { line: i, character: col },
+                    end: { line: i, character: col + oldName.length },
                 };
                 // Avoid duplicates from symbol table
-                if (!edits.some(e => e.range.start.line === i && e.range.start.character === match!.index)) {
+                if (!edits.some(e => e.range.start.line === i && e.range.start.character === col)) {
                     edits.push({ range, newText: newName });
                 }
             }
@@ -97,9 +106,5 @@ export class RenameProvider {
                 [params.textDocument.uri]: edits,
             },
         };
-    }
-
-    private escapeRegex(str: string): string {
-        return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     }
 }

@@ -6,7 +6,6 @@ import {
     TypeHierarchySupertypesParams,
 } from 'vscode-languageserver/node.js';
 import { DocumentManager } from '../documentManager.js';
-import { SymbolTable } from '../symbols/symbolTable.js';
 import { isDefinition, SysMLElementKind, SysMLSymbol } from '../symbols/sysmlElements.js';
 
 /**
@@ -17,7 +16,6 @@ import { isDefinition, SysMLElementKind, SysMLSymbol } from '../symbols/sysmlEle
  *  - Subtypes: what specializes this type?
  */
 export class TypeHierarchyProvider {
-    private symbolTable = new SymbolTable();
 
     constructor(private documentManager: DocumentManager) { }
 
@@ -29,10 +27,9 @@ export class TypeHierarchyProvider {
         const text = this.documentManager.getText(uri);
         if (!text) return null;
 
-        this.buildAllSymbols();
-        this.symbolTable.build(uri, result);
+        const symbolTable = this.documentManager.getWorkspaceSymbolTable();
 
-        const symbol = this.symbolTable.findSymbolAtPosition(
+        const symbol = symbolTable.findSymbolAtPosition(
             uri, params.position.line, params.position.character,
         );
         if (!symbol || !isDefinition(symbol.kind)) return null;
@@ -41,11 +38,11 @@ export class TypeHierarchyProvider {
     }
 
     provideSupertypes(params: TypeHierarchySupertypesParams): TypeHierarchyItem[] {
-        this.buildAllSymbols();
+        const symbolTable = this.documentManager.getWorkspaceSymbolTable();
 
         const item = params.item;
         // Find the symbol for this item
-        const symbols = this.symbolTable.getSymbolsForUri(item.uri);
+        const symbols = symbolTable.getSymbolsForUri(item.uri);
         const sym = symbols.find(s =>
             s.name === item.name &&
             s.selectionRange.start.line === item.selectionRange.start.line
@@ -55,7 +52,7 @@ export class TypeHierarchyProvider {
         // The typeNames holds all supertype names
         const items: TypeHierarchyItem[] = [];
         for (const tn of sym.typeNames) {
-            const supertypes = this.symbolTable.findByName(tn);
+            const supertypes = symbolTable.findByName(tn);
             for (const s of supertypes) {
                 if (isDefinition(s.kind)) {
                     items.push(this.toTypeHierarchyItem(s));
@@ -66,10 +63,10 @@ export class TypeHierarchyProvider {
     }
 
     provideSubtypes(params: TypeHierarchySubtypesParams): TypeHierarchyItem[] {
-        this.buildAllSymbols();
+        const symbolTable = this.documentManager.getWorkspaceSymbolTable();
 
         const item = params.item;
-        const allSymbols = this.symbolTable.getAllSymbols();
+        const allSymbols = symbolTable.getAllSymbols();
 
         // Find all definitions whose typeNames includes this item's name
         const subtypes = allSymbols.filter(s =>
@@ -77,15 +74,6 @@ export class TypeHierarchyProvider {
         );
 
         return subtypes.map(s => this.toTypeHierarchyItem(s));
-    }
-
-    private buildAllSymbols(): void {
-        for (const uri of this.documentManager.getUris()) {
-            const result = this.documentManager.get(uri);
-            if (result) {
-                this.symbolTable.build(uri, result);
-            }
-        }
     }
 
     private toTypeHierarchyItem(sym: SysMLSymbol): TypeHierarchyItem {
