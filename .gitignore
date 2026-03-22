@@ -10,5 +10,7 @@ server/out/
 .sysml-cache/
 examples/temp/
 /docs/
+test/fixtures/conformance/
 *.tgz
+*.patch
 .venv/

@@ -243,6 +243,8 @@ export class SymbolTable {
         const documentation = this.extractDocumentation(ctx);
         // Only extract multiplicity for usages
         const { multiplicity, multiplicityRange } = isUsageKind(kind) ? this.extractMultiplicity(ctx) : {};
+        // Extract prefix metadata annotations (#name)
+        const metadataAnnotations = this.extractPrefixMetadataAnnotations(ctx);
 
         return {
             name,
@@ -258,6 +260,7 @@ export class SymbolTable {
             children: [],
             multiplicity,
             multiplicityRange,
+            metadataAnnotations: metadataAnnotations.length > 0 ? metadataAnnotations : undefined,
         };
     }
 
@@ -360,10 +363,13 @@ export class SymbolTable {
             }
         }
 
-        // Fallback: look deeper for any identifier in the first few children
+        // Fallback: look deeper for any identifier in the first few children.
+        // Skip prefix/extension contexts — they contain metadata annotation
+        // identifiers (e.g. #product) which are not the element's own name.
         for (let i = 0; i < Math.min(ctx.getChildCount(), 5); i++) {
             const child = ctx.getChild(i);
             if (child instanceof ParserRuleContext) {
+                if (this.isPrefixOrExtensionContext(child)) continue;
                 const name = this.extractName(child);
                 if (name) return name;
             }
@@ -382,6 +388,9 @@ export class SymbolTable {
                 return tokenToRange(child.symbol);
             }
             if (child instanceof ParserRuleContext) {
+                // Skip prefix/extension contexts that contain annotation
+                // identifiers rather than the element's own name.
+                if (this.isPrefixOrExtensionContext(child)) continue;
                 const result = this.extractNameRange(child);
                 if (result) return result;
             }
@@ -634,6 +643,59 @@ export class SymbolTable {
             }
         }
         return undefined;
+    }
+
+    /**
+     * Whether a context is a prefix metadata or definition/usage prefix rule.
+     * These contain annotation identifiers (e.g. from `#product`) that should
+     * not be mistaken for the element's own declared name.
+     */
+    private isPrefixOrExtensionContext(ctx: ParserRuleContext): boolean {
+        const rule = this.getRuleName(ctx).toLowerCase();
+        return (
+            rule.includes('prefixmetadata') ||
+            rule.includes('extensionkeyword') ||
+            rule === 'occurrencedefinitionprefix' ||
+            rule === 'occurrenceusageprefix' ||
+            rule === 'definitionprefix' ||
+            rule === 'basicdefinitionprefix' ||
+            rule === 'typeprefix' ||
+            rule === 'featureprefix' ||
+            rule === 'basicfeatureprefix' ||
+            rule === 'endfeatureprefix'
+        );
+    }
+
+    /**
+     * Extract prefix metadata annotation names from a context.
+     * Looks for `#name` patterns in prefixMetadataMember / prefixMetadataAnnotation children.
+     */
+    private extractPrefixMetadataAnnotations(ctx: ParserRuleContext): string[] {
+        const annotations: string[] = [];
+        this.collectPrefixMetadata(ctx, annotations, 0);
+        return annotations;
+    }
+
+    private collectPrefixMetadata(ctx: ParserRuleContext, annotations: string[], depth: number): void {
+        if (depth > 4) return;
+        for (let i = 0; i < ctx.getChildCount(); i++) {
+            const child = ctx.getChild(i);
+            if (!(child instanceof ParserRuleContext)) continue;
+            const rule = this.getRuleName(child).toLowerCase();
+            if (rule === 'prefixmetadatamember' || rule === 'prefixmetadataannotation') {
+                const name = this.extractTextFromSubtree(child);
+                if (name) annotations.push(name);
+            } else if (
+                rule.includes('prefix') ||
+                rule.includes('extensionkeyword') ||
+                rule === 'definition' ||
+                rule === 'usage'
+            ) {
+                // Recurse into prefix/wrapper rules that may contain nested annotations
+                this.collectPrefixMetadata(child, annotations, depth + 1);
+            }
+            // Stop recursing once we hit body/declaration rules
+        }
     }
 
     /**

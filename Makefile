@@ -1,4 +1,4 @@
-.PHONY: help install generate build watch test test-e2e lint package package-server test-package clean update-grammar update-library ci web
+.PHONY: help install generate build watch test test-e2e lint package package-server test-package clean update-grammar dfa update-library web
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -71,16 +71,26 @@ test-package: package-server ## Test npm package in a simulated consumer project
 clean: ## Clean build artifacts
 	npm run clean
 
-GRAMMAR_REPO := daltskin/grammars-v4
-GRAMMAR_BRANCH := master
-GRAMMAR_DIR := sysml-v2
-GRAMMAR_BASE_URL := https://raw.githubusercontent.com/$(GRAMMAR_REPO)/$(GRAMMAR_BRANCH)/$(GRAMMAR_DIR)
+GRAMMAR_REPO := daltskin/sysml-v2-grammar
+GRAMMAR_BRANCH := main
+GRAMMAR_BASE_URL := https://raw.githubusercontent.com/$(GRAMMAR_REPO)/$(GRAMMAR_BRANCH)/grammar
 
-update-grammar: ## Pull latest grammar from daltskin/grammars-v4
-	@echo "📥 Fetching grammar from $(GRAMMAR_REPO)/$(GRAMMAR_DIR)..."
+update-grammar: ## Pull latest grammar, rebuild parser, and regenerate DFA snapshot
+	@echo "📥 Fetching grammar from $(GRAMMAR_REPO)..."
 	curl -fsSL $(GRAMMAR_BASE_URL)/SysMLv2Lexer.g4 -o grammar/SysMLv2Lexer.g4
 	curl -fsSL $(GRAMMAR_BASE_URL)/SysMLv2Parser.g4 -o grammar/SysMLv2Parser.g4
 	@echo "✅ Grammar files updated from $(GRAMMAR_REPO)"
+	@echo ""
+	@echo "🔧 Rebuilding parser and DFA snapshot..."
+	npm run build
+	npx tsx scripts/generate-dfa-snapshot.ts
+	npm run compile
+	@echo "✅ DFA snapshot regenerated"
+
+dfa: build ## Regenerate the DFA snapshot (run after any grammar change)
+	npx tsx scripts/generate-dfa-snapshot.ts
+	npm run compile
+	@echo "✅ DFA snapshot regenerated"
 
 LIBRARY_REPO := Systems-Modeling/SysML-v2-Release
 LIBRARY_BRANCH := master

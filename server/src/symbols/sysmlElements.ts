@@ -87,6 +87,8 @@ export interface SysMLSymbol {
     multiplicity?: string;
     /** Parsed multiplicity bounds */
     multiplicityRange?: { lower: number; upper: number | '*' };
+    /** Prefix metadata annotation names (e.g., ["product"] from `#product part def ...`) */
+    metadataAnnotations?: string[];
 }
 
 /**

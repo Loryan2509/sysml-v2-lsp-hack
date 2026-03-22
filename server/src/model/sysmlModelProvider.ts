@@ -372,6 +372,11 @@ export class SysMLModelProvider {
             attributes['documentation'] = symbol.documentation;
         }
 
+        // Include prefix metadata annotations (#name)
+        if (symbol.metadataAnnotations && symbol.metadataAnnotations.length > 0) {
+            attributes['metadataAnnotations'] = symbol.metadataAnnotations.join(', ');
+        }
+
         // Extract direction for ports from the source text
         const direction = this.extractDirection(symbol, lines);
         if (direction) {

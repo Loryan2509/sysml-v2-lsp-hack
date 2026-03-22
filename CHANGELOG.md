@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.8.0]
+
+### Added
+
+- Update grammar files with Full OMG SysML v2 spec conformance: grammar now passes all official training, validation, and example files (309 .sysml files across 4 suites)
+- `make update-grammar` now automatically rebuilds parser and regenerates DFA snapshot
+- Standard library smoke test retained in LSP repo (`test/unit/conformance.test.ts`)
+- 12 new grammar patches (Fix 40–51) in the grammar generator for spec conformance
+
+### Changed
+
+- Grammar updated with conformance fixes: `endOccurrenceUsageElement` named ends, `unreservedKeyword` for 14 keywords used as names in OMG standard library, `//*..*/` block comment support, `REF` in body expressions, prefix metadata on enum members, `send` without inline payload, `actionNodeMember` reordering, `REGULAR_COMMENT` in expressions, `definitionBodyItem` in `functionBodyPart`
+- `update-grammar` Makefile target now sources grammar from `daltskin/sysml-v2-grammar` (was `daltskin/grammars-v4`)
+
 ## [0.7.0]
 
 ### Added

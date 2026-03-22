@@ -25,6 +25,7 @@ import { LiteralInfinityContext } from "./SysMLv2Parser.js";
 import { ArgumentMemberContext } from "./SysMLv2Parser.js";
 import { ArgumentExpressionMemberContext } from "./SysMLv2Parser.js";
 import { NameContext } from "./SysMLv2Parser.js";
+import { UnreservedKeywordContext } from "./SysMLv2Parser.js";
 import { IdentificationContext } from "./SysMLv2Parser.js";
 import { RelationshipBodyContext } from "./SysMLv2Parser.js";
 import { RelationshipOwnedElementContext } from "./SysMLv2Parser.js";
@@ -258,6 +259,7 @@ import { ReferenceUsageContext } from "./SysMLv2Parser.js";
 import { EndFeatureUsageContext } from "./SysMLv2Parser.js";
 import { VariantReferenceContext } from "./SysMLv2Parser.js";
 import { NonOccurrenceUsageElementContext } from "./SysMLv2Parser.js";
+import { EndOccurrenceUsageElementContext } from "./SysMLv2Parser.js";
 import { OccurrenceUsageElementContext } from "./SysMLv2Parser.js";
 import { StructureUsageElementContext } from "./SysMLv2Parser.js";
 import { BehaviorUsageElementContext } from "./SysMLv2Parser.js";
@@ -645,6 +647,12 @@ export class SysMLv2ParserVisitor<Result> extends AbstractParseTreeVisitor<Resul
      * @return the visitor result
      */
     visitName?: (ctx: NameContext) => Result;
+    /**
+     * Visit a parse tree produced by `SysMLv2Parser.unreservedKeyword`.
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    visitUnreservedKeyword?: (ctx: UnreservedKeywordContext) => Result;
     /**
      * Visit a parse tree produced by `SysMLv2Parser.identification`.
      * @param ctx the parse tree
@@ -2043,6 +2051,12 @@ export class SysMLv2ParserVisitor<Result> extends AbstractParseTreeVisitor<Resul
      * @return the visitor result
      */
     visitNonOccurrenceUsageElement?: (ctx: NonOccurrenceUsageElementContext) => Result;
+    /**
+     * Visit a parse tree produced by `SysMLv2Parser.endOccurrenceUsageElement`.
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    visitEndOccurrenceUsageElement?: (ctx: EndOccurrenceUsageElementContext) => Result;
     /**
      * Visit a parse tree produced by `SysMLv2Parser.occurrenceUsageElement`.
      * @param ctx the parse tree

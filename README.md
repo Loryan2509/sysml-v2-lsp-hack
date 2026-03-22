@@ -128,26 +128,28 @@ sysml-v2-lsp/
 ```bash
 make help             # Show all targets
 make install          # Install all dependencies
-make generate         # Generate TypeScript parser from grammar
-make build            # Compile + bundle
+make build            # Generate parser + compile + bundle
 make watch            # Watch mode
 make test             # Run unit tests
 make lint             # ESLint
 make package          # Build .vsix
 make package-server   # Build server tarball for npm
 make web              # Launch web client (http://localhost:3000)
-make update-grammar   # Pull latest grammar from upstream
+make update-grammar   # Pull latest grammar, rebuild parser + DFA snapshot
 make update-library   # Pull latest SysML v2 standard library
+make dfa              # Regenerate DFA snapshot (after any grammar change)
 make ci               # Full CI pipeline (lint + build + test)
 ```
 
 ## Grammar Updates
 
-The grammar files in `grammar/` are sourced from [daltskin/sysml-v2-grammar](https://github.com/daltskin/sysml-v2-grammar). To pull the latest version:
+The grammar files in `grammar/` are sourced from [daltskin/sysml-v2-grammar](https://github.com/daltskin/sysml-v2-grammar). To pull the latest version, rebuild the parser, and regenerate the DFA snapshot:
 
 ```bash
 make update-grammar
 ```
+
+This fetches the `.g4` files, runs `npm run build`, and regenerates the DFA snapshot that eliminates the ANTLR4 cold-start penalty. If you edit grammar files manually, run `make dfa` afterwards.
 
 ## Technology Stack
 
