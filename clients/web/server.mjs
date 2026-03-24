@@ -10,8 +10,8 @@
  */
 
 import { createServer } from "http";
-import { readFileSync, existsSync } from "fs";
-import { resolve, dirname, extname, join } from "path";
+import { readFileSync, existsSync, readdirSync } from "fs";
+import { resolve, dirname, extname, join, sep } from "path";
 import { fileURLToPath } from "url";
 import { spawn } from "child_process";
 
@@ -21,6 +21,13 @@ const PORT = parseInt(process.argv.find((_, i, a) => a[i - 1] === "--port") ?? "
 // Resolve the repo root from this script's location (clients/web/)
 const REPO_ROOT = resolve(__dirname, "../..");
 const SERVER_JS = join(REPO_ROOT, "dist/server/server.js");
+const CRITERIA_DIR = join(REPO_ROOT, "ModelQualityCriteria");
+
+// LLM configuration via environment variables
+const LLM_BASE_URL = process.env.LLM_BASE_URL || "https://ai-gateway-eastus2.azure-api.net";
+const LLM_API_KEY = process.env.LLM_API_KEY || "9ad3ded3800d457ba76029a6b3bcaa52";
+const LLM_MODEL = process.env.LLM_MODEL || "gpt-5.4";
+const LLM_API_VERSION = process.env.LLM_API_VERSION || "2024-10-21";
 
 if (!existsSync(SERVER_JS)) {
     console.error(`\x1b[31mERROR:\x1b[0m Server bundle not found at ${SERVER_JS}`);
@@ -270,7 +277,6 @@ const server = createServer(async (req, res) => {
     // --- API: GET /api/examples ---
     if (url.pathname === "/api/examples" && req.method === "GET") {
         const exDir = join(REPO_ROOT, "examples");
-        const { readdirSync } = await import("fs");
         const files = readdirSync(exDir).filter((f) => f.endsWith(".sysml"));
         const examples = files.map((f) => ({
             name: f.replace(".sysml", ""),
@@ -281,13 +287,190 @@ const server = createServer(async (req, res) => {
         return;
     }
 
+    // --- API: GET /api/criteria ---
+    if (url.pathname === "/api/criteria" && req.method === "GET") {
+        try {
+            const files = readdirSync(CRITERIA_DIR).filter(f => f.endsWith(".md")).sort();
+            const criteria = files.map(f => {
+                const content = readFileSync(join(CRITERIA_DIR, f), "utf-8");
+                const titleMatch = content.match(/^#\s+SysML v2 Model Assessment:\s*(.+)/m);
+                const purposeMatch = content.match(/## Purpose\s+(.+?)(?:\n\n|\n##)/s);
+                return {
+                    id: f.replace(".md", ""),
+                    name: titleMatch?.[1]?.trim() ?? f.replace(".md", ""),
+                    description: purposeMatch?.[1]?.trim().split("\n")[0] ?? "",
+                };
+            });
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify(criteria));
+        } catch (err) {
+            res.writeHead(500, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: err.message }));
+        }
+        return;
+    }
+
+    // --- API: GET /api/review/config ---
+    if (url.pathname === "/api/review/config" && req.method === "GET") {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({
+            configured: !!LLM_API_KEY,
+            model: LLM_MODEL,
+            baseUrl: LLM_BASE_URL.replace(/\/+$/, ""),
+            apiVersion: LLM_API_VERSION,
+        }));
+        return;
+    }
+
+    // --- API: POST /api/review (SSE streaming) ---
+    if (url.pathname === "/api/review" && req.method === "POST") {
+        try {
+            const body = await readBody(req);
+            const { files, code, criteria } = JSON.parse(body);
+
+            // Support both old single-code and new multi-file format
+            const fileList = files?.length ? files : (code ? [{ name: 'model.sysml', code }] : []);
+
+            if (!fileList.length || !criteria?.length) {
+                res.writeHead(400, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "Missing 'files' (or 'code') or 'criteria' fields" }));
+                return;
+            }
+
+            if (!LLM_API_KEY) {
+                res.writeHead(503, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "LLM not configured. Set LLM_API_KEY environment variable." }));
+                return;
+            }
+
+            // Validate criteria IDs — must match existing files
+            const allFiles = readdirSync(CRITERIA_DIR).filter(f => f.endsWith(".md")).map(f => f.replace(".md", ""));
+            const invalid = criteria.filter(c => !allFiles.includes(c));
+            if (invalid.length) {
+                res.writeHead(400, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: `Unknown criteria: ${invalid.join(", ")}` }));
+                return;
+            }
+
+            // Set up SSE
+            res.writeHead(200, {
+                "Content-Type": "text/event-stream",
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+            });
+
+            const sendEvent = (event, data) => {
+                res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+            };
+
+            // Recommended execution order from the criteria files
+            const EXEC_ORDER = [
+                "01_completeness", "05_conflicting_requirements",
+                "03_misrepresentation_conflation", "07_failure_modes_resilience",
+                "02_correctness_intent", "06_contextual_plausibility",
+                "04_redundancy", "08_abstraction_level_consistency",
+                "09_assumptions_design_rationale", "10_emergent_system_properties",
+            ];
+            const ordered = criteria.sort((a, b) => {
+                const ia = EXEC_ORDER.indexOf(a);
+                const ib = EXEC_ORDER.indexOf(b);
+                return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+            });
+
+            sendEvent("start", { criteria: ordered, model: LLM_MODEL });
+
+            // Process each criterion sequentially
+            for (const criterionId of ordered) {
+                const criterionFile = join(CRITERIA_DIR, `${criterionId}.md`);
+                const criterionContent = readFileSync(criterionFile, "utf-8");
+                const titleMatch = criterionContent.match(/^#\s+SysML v2 Model Assessment:\s*(.+)/m);
+                const criterionName = titleMatch?.[1]?.trim() ?? criterionId;
+
+                sendEvent("criterion-start", { id: criterionId, name: criterionName });
+
+                try {
+                    const llmUrl = `${LLM_BASE_URL.replace(/\/+$/, "")}/openai/deployments/${encodeURIComponent(LLM_MODEL)}/chat/completions?api-version=${LLM_API_VERSION}`;
+                    const llmRes = await fetch(llmUrl, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "api-key": LLM_API_KEY,
+                        },
+                        body: JSON.stringify({
+                            stream: true,
+                            messages: [
+                                {
+                                    role: "system",
+                                    content: "You are an expert SysML v2 model quality assessor. You will be given a quality assessment criterion and a SysML v2 model to review. Follow the assessment instructions precisely. Output findings in the exact ISSUE format specified in the criterion document. At the end, output the summary table and Overall Assessment Score.",
+                                },
+                                {
+                                    role: "user",
+                                    content: `## Assessment Criterion\n\n${criterionContent}\n\n---\n\n## SysML v2 Model to Review\n\n${fileList.map(f => `### File: ${f.name}\n\`\`\`sysml\n${f.code}\n\`\`\``).join('\n\n')}\n\nPlease assess ${fileList.length > 1 ? 'these models' : 'this model'} against the criterion above. Follow the output format exactly as specified.`,
+                                },
+                            ],
+                        }),
+                    });
+
+                    if (!llmRes.ok) {
+                        const errText = await llmRes.text();
+                        sendEvent("criterion-error", { id: criterionId, error: `LLM API error ${llmRes.status}: ${errText.slice(0, 500)}` });
+                        continue;
+                    }
+
+                    // Stream the SSE response from the LLM
+                    const reader = llmRes.body.getReader();
+                    const decoder = new TextDecoder();
+                    let buffer = "";
+
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        buffer += decoder.decode(value, { stream: true });
+
+                        // Parse SSE lines from LLM
+                        const lines = buffer.split("\n");
+                        buffer = lines.pop(); // keep incomplete line
+
+                        for (const line of lines) {
+                            if (!line.startsWith("data: ")) continue;
+                            const payload = line.slice(6).trim();
+                            if (payload === "[DONE]") continue;
+                            try {
+                                const chunk = JSON.parse(payload);
+                                const content = chunk.choices?.[0]?.delta?.content;
+                                if (content) {
+                                    sendEvent("chunk", { id: criterionId, text: content });
+                                }
+                            } catch { /* skip malformed chunks */ }
+                        }
+                    }
+
+                    sendEvent("criterion-end", { id: criterionId });
+                } catch (err) {
+                    sendEvent("criterion-error", { id: criterionId, error: err.message });
+                }
+            }
+
+            sendEvent("done", {});
+            res.end();
+        } catch (err) {
+            if (!res.headersSent) {
+                res.writeHead(500, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: err.message }));
+            } else {
+                res.end();
+            }
+        }
+        return;
+    }
+
     // --- Static files ---
     let filePath = url.pathname === "/" ? "/index.html" : url.pathname;
     const publicDir = resolve(__dirname, "public");
     const fullPath = resolve(publicDir, filePath.replace(/^\/+/, ""));
 
     // Prevent path traversal — resolved path must be inside public/
-    if (!fullPath.startsWith(publicDir + "/") && fullPath !== publicDir) {
+    if (!fullPath.startsWith(publicDir + sep) && fullPath !== publicDir) {
         res.writeHead(403, { "Content-Type": "text/plain" });
         res.end("Forbidden");
         return;

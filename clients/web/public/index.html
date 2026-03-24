@@ -62,7 +62,7 @@
   /* ────────────────── Layout ────────────────── */
   .app {
     display: grid;
-    grid-template-rows: auto 1fr;
+    grid-template-rows: auto 1fr auto;
     height: 100vh;
     overflow: hidden;
   }
@@ -555,6 +555,539 @@
     .workspace { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
     .panel { border-right: none; border-bottom: 1px solid var(--border); }
   }
+
+  /* ────────────────── Review full-page mode ────────────────── */
+  .review-mode .workspace { display: none; }
+  .review-mode .review-page { display: grid; }
+
+  .review-page {
+    display: none;
+    grid-template-columns: 340px 1fr;
+    grid-template-rows: 1fr auto;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  /* ── Left sidebar: config + criteria + file picker ── */
+  .review-sidebar {
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-panel);
+    border-right: 1px solid var(--border);
+    overflow: hidden;
+  }
+
+  .review-sidebar-header {
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .review-sidebar-header h2 {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .review-status-banner {
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    font-size: 11.5px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .review-status-banner.not-configured {
+    background: rgba(245,158,11,0.1);
+    border: 1px solid rgba(245,158,11,0.25);
+    color: var(--amber);
+  }
+
+  .review-status-banner.configured {
+    background: rgba(34,197,94,0.08);
+    border: 1px solid rgba(34,197,94,0.2);
+    color: var(--green);
+  }
+
+  .review-sidebar-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 16px;
+  }
+
+  .review-section-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+    margin-top: 12px;
+  }
+
+  .review-section-label:first-child { margin-top: 0; }
+
+  /* ── File picker (multi-select) ── */
+  .file-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    margin-bottom: 4px;
+  }
+
+  .file-picker-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 8px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background var(--transition);
+    font-size: 12.5px;
+    color: var(--text-secondary);
+  }
+
+  .file-picker-item:hover { background: var(--bg-hover); }
+
+  .file-picker-item input[type="checkbox"] {
+    accent-color: var(--cyan);
+    flex-shrink: 0;
+  }
+
+  .file-picker-item .file-icon {
+    font-size: 13px;
+    opacity: 0.6;
+    flex-shrink: 0;
+  }
+
+  .file-picker-item label {
+    cursor: pointer;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .file-picker-item.editor-file {
+    border: 1px solid rgba(59,130,246,0.25);
+    background: rgba(59,130,246,0.06);
+  }
+
+  /* ── Criteria list for review ── */
+  .criteria-actions {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 6px;
+    align-items: center;
+  }
+
+  .criteria-actions .link-btn {
+    background: none;
+    border: none;
+    color: var(--accent);
+    font-size: 11px;
+    cursor: pointer;
+    text-decoration: underline;
+    font-family: var(--font-ui);
+    padding: 0;
+  }
+
+  .criteria-actions .link-btn:hover { color: var(--text-primary); }
+
+  .criteria-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .criteria-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border-radius: var(--radius-sm);
+    transition: all var(--transition);
+    cursor: pointer;
+    border: 1px solid transparent;
+    position: relative;
+  }
+
+  .criteria-item:hover { background: var(--bg-hover); }
+
+  .criteria-item input[type="checkbox"] {
+    accent-color: var(--accent);
+    flex-shrink: 0;
+  }
+
+  .criteria-item-text {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .criteria-item-name {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text-primary);
+    display: block;
+  }
+
+  .criteria-item-desc {
+    font-size: 10.5px;
+    color: var(--text-muted);
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .criteria-item-status {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+  }
+
+  /* Criterion states */
+  .criteria-item.state-pending .criteria-item-status { color: var(--text-muted); }
+  .criteria-item.state-running {
+    background: rgba(245,158,11,0.06);
+    border-color: rgba(245,158,11,0.25);
+  }
+  .criteria-item.state-running .criteria-item-status {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid var(--border);
+    border-top-color: var(--amber);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  .criteria-item.state-done {
+    background: rgba(34,197,94,0.05);
+    border-color: rgba(34,197,94,0.15);
+  }
+  .criteria-item.state-done .criteria-item-status { color: var(--green); }
+  .criteria-item.state-error {
+    background: rgba(239,68,68,0.05);
+    border-color: rgba(239,68,68,0.15);
+  }
+  .criteria-item.state-error .criteria-item-status { color: var(--red); }
+
+  /* Score pill on criteria item */
+  .criteria-item-score {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 8px;
+    flex-shrink: 0;
+  }
+
+  /* ── Sidebar footer: start/stop ── */
+  .review-sidebar-footer {
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .btn-review {
+    background: linear-gradient(135deg, #8b5cf6, var(--accent));
+    border: none;
+    color: white;
+    padding: 9px 20px;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-ui);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+    justify-content: center;
+  }
+
+  .btn-review:hover:not(:disabled) {
+    box-shadow: 0 0 24px rgba(139,92,246,0.35);
+    transform: translateY(-1px);
+  }
+
+  .btn-review:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-review:active:not(:disabled) { transform: scale(0.97); }
+
+  .btn-stop-review {
+    background: var(--red);
+    border: none;
+    color: white;
+    padding: 9px 16px;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-ui);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition);
+    flex: 1;
+    text-align: center;
+  }
+
+  .btn-stop-review:hover { background: #dc2626; }
+
+  .btn-back {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    padding: 9px 14px;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-ui);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition);
+  }
+
+  .btn-back:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+  /* ── Right: report area ── */
+  .review-report-area {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .review-report-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .review-report-title {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+  }
+
+  .review-progress-text {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-style: italic;
+  }
+
+  .review-report-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 20px;
+  }
+
+  .review-empty {
+    text-align: center;
+    padding: 60px 16px;
+    color: var(--text-muted);
+  }
+
+  .review-empty .icon { font-size: 48px; opacity: 0.4; margin-bottom: 12px; }
+
+  /* ── Criterion report sections ── */
+  .criterion-section { margin-bottom: 20px; }
+
+  .criterion-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    background: var(--bg-surface);
+    border-radius: var(--radius-sm);
+    margin-bottom: 8px;
+    border-left: 3px solid var(--accent);
+    cursor: pointer;
+    user-select: none;
+    transition: background var(--transition);
+  }
+
+  .criterion-header:hover { background: var(--bg-hover); }
+
+  .criterion-header.running { border-left-color: var(--amber); }
+  .criterion-header.done { border-left-color: var(--green); }
+  .criterion-header.error { border-left-color: var(--red); }
+
+  .criterion-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    flex: 1;
+  }
+
+  .criterion-chevron {
+    color: var(--text-muted);
+    font-size: 12px;
+    transition: transform var(--transition);
+  }
+
+  .criterion-header.collapsed .criterion-chevron { transform: rotate(-90deg); }
+
+  .criterion-score-badge {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 10px;
+  }
+
+  .score-good   { background: rgba(34,197,94,0.15); color: var(--green); }
+  .score-notable { background: rgba(245,158,11,0.15); color: var(--amber); }
+  .score-significant { background: rgba(239,68,68,0.15); color: var(--red); }
+  .score-critical { background: rgba(239,68,68,0.25); color: #fca5a5; }
+
+  .criterion-stream {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.65;
+    color: var(--text-secondary);
+    white-space: pre-wrap;
+    word-break: break-word;
+    padding: 0 8px;
+    max-height: 600px;
+    overflow-y: auto;
+    transition: max-height 0.3s ease;
+  }
+
+  .criterion-stream.collapsed { max-height: 0; overflow: hidden; padding: 0; }
+
+  .criterion-spinner {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid var(--border);
+    border-top-color: var(--amber);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    flex-shrink: 0;
+  }
+
+  /* ── Review summary ── */
+  .review-summary {
+    padding: 16px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 20px;
+  }
+
+  .review-summary-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 10px;
+  }
+
+  .review-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 8px;
+  }
+
+  .summary-card {
+    padding: 10px 12px;
+    background: var(--bg-panel);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+  }
+
+  .summary-card-label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+  }
+
+  .summary-card-value {
+    font-family: var(--font-mono);
+    font-size: 20px;
+    font-weight: 600;
+  }
+
+  /* ── Fix issues footer bar ── */
+  .review-footer-bar {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 16px;
+    background: var(--bg-panel);
+    border-top: 1px solid var(--border);
+  }
+
+  .review-footer-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .review-footer-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .btn-download-json {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    font-family: var(--font-ui);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition);
+  }
+
+  .btn-download-json:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+  .btn-fix-issues {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border: 1px solid rgba(34,197,94,0.3);
+    border-radius: var(--radius-sm);
+    background: rgba(34,197,94,0.1);
+    color: var(--green);
+    font-family: var(--font-ui);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition);
+  }
+
+  .btn-fix-issues:hover {
+    background: rgba(34,197,94,0.18);
+    border-color: rgba(34,197,94,0.5);
+    box-shadow: 0 0 16px rgba(34,197,94,0.15);
+  }
+
+  .btn-fix-issues:disabled { opacity: 0.4; cursor: not-allowed; }
 </style>
 </head>
 
@@ -575,6 +1108,9 @@
     <div class="header-actions">
       <button class="btn btn-primary" id="analyseBtn" onclick="analyse()">
         ▶ Analyse <kbd>⌘↵</kbd>
+      </button>
+      <button class="btn btn-primary" id="reviewModeBtn" onclick="enterReviewMode()" style="background: linear-gradient(135deg, #8b5cf6, var(--accent));">
+        📋 Review
       </button>
     </div>
   </header>
@@ -641,9 +1177,86 @@
             </div>
           </div>
         </div>
+
       </div>
     </div>
 
+  </div>
+
+  <!-- ═══ Review Full-Page Mode ═══ -->
+  <div class="review-page" id="reviewPage">
+
+    <!-- Left: sidebar with config, file picker, criteria -->
+    <div class="review-sidebar">
+      <div class="review-sidebar-header">
+        <h2>📋 Model Quality Review</h2>
+        <div class="review-status-banner not-configured" id="reviewStatusBanner">
+          <span>⚙</span>
+          <span>Checking LLM configuration…</span>
+        </div>
+      </div>
+      <div class="review-sidebar-body">
+
+        <!-- File picker -->
+        <div class="review-section-label">SysML Files</div>
+        <div class="file-picker" id="filePicker">
+          <div class="file-picker-item editor-file">
+            <input type="checkbox" id="fileEditor" checked>
+            <span class="file-icon">📝</span>
+            <label for="fileEditor">Current editor</label>
+          </div>
+        </div>
+
+        <!-- Criteria -->
+        <div class="review-section-label">Assessment Criteria</div>
+        <div class="criteria-actions">
+          <button class="link-btn" onclick="toggleAllCriteria(true)">Select all</button>
+          <button class="link-btn" onclick="toggleAllCriteria(false)">Deselect all</button>
+        </div>
+        <div class="criteria-list" id="criteriaList">
+          <div style="color:var(--text-muted); font-size:12px; padding:8px;">Loading criteria…</div>
+        </div>
+      </div>
+
+      <!-- Sidebar footer: run / stop / back -->
+      <div class="review-sidebar-footer">
+        <button class="btn-back" onclick="exitReviewMode()">← Back</button>
+        <button class="btn-review" id="reviewRunBtn" onclick="runReview()" disabled>
+          ⚡ Run Review
+        </button>
+        <button class="btn-stop-review" id="reviewStopBtn" onclick="stopReview()" style="display:none;">
+          ⏹ Stop
+        </button>
+      </div>
+    </div>
+
+    <!-- Right: report stream -->
+    <div class="review-report-area">
+      <div class="review-report-header">
+        <span class="review-report-title">Review Report</span>
+        <span class="review-progress-text" id="reviewProgressText"></span>
+      </div>
+      <div class="review-report-body" id="reviewReport">
+        <div class="review-empty">
+          <div class="icon">📋</div>
+          <div>Select files &amp; criteria, then run a review</div>
+          <div style="margin-top:4px; font-size:12px;">The LLM will assess your SysML model against each selected quality criterion</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer bar -->
+    <div class="review-footer-bar">
+      <div class="review-footer-left" id="reviewFooterStatus"></div>
+      <div class="review-footer-right">
+        <button class="btn-download-json" id="downloadJsonBtn" onclick="downloadReviewJson()" style="display:none;">
+          ⬇ Download JSON
+        </button>
+        <button class="btn-fix-issues" id="fixIssuesBtn" onclick="alert('This feature is coming soon — your colleague is working on it!')" disabled>
+          🔧 Fix Issues →
+        </button>
+      </div>
+    </div>
   </div>
 
   <!-- ═══ Status bar ═══ -->
@@ -1098,6 +1711,522 @@ document.getElementById('diagramContainer')?.addEventListener('wheel', (e) => {
 loadExamples();
 // Analyse the default content on first load
 window.addEventListener('DOMContentLoaded', () => setTimeout(analyse, 300));
+
+// ═══════════════════════════════════════════════════════════════
+// Review Mode — LLM-powered model quality assessment (full page)
+// ═══════════════════════════════════════════════════════════════
+
+const reviewPage = document.getElementById('reviewPage');
+const reviewReport = document.getElementById('reviewReport');
+const reviewRunBtn = document.getElementById('reviewRunBtn');
+const reviewStopBtn = document.getElementById('reviewStopBtn');
+const reviewProgressText = document.getElementById('reviewProgressText');
+const reviewStatusBanner = document.getElementById('reviewStatusBanner');
+const criteriaList = document.getElementById('criteriaList');
+const filePicker = document.getElementById('filePicker');
+const downloadJsonBtn = document.getElementById('downloadJsonBtn');
+const fixIssuesBtn = document.getElementById('fixIssuesBtn');
+const reviewFooterStatus = document.getElementById('reviewFooterStatus');
+
+let _reviewAbortController = null;
+let _criteriaData = [];
+let _llmConfigured = false;
+let _exampleFiles = [];  // cached {name, code}
+let _reviewJsonReport = null;
+
+// ─── Enter / Exit review mode ───
+function enterReviewMode() {
+    document.querySelector('.app').classList.add('review-mode');
+    updateReviewBtnState();
+}
+
+function exitReviewMode() {
+    if (_reviewAbortController) stopReview();
+    document.querySelector('.app').classList.remove('review-mode');
+}
+
+// ─── Load review config + criteria + example files on startup ───
+async function initReview() {
+    // Check LLM config
+    try {
+        const cfgRes = await fetch('/api/review/config');
+        const cfg = await cfgRes.json();
+        _llmConfigured = cfg.configured;
+        if (cfg.configured) {
+            reviewStatusBanner.className = 'review-status-banner configured';
+            reviewStatusBanner.innerHTML = `<span>✓</span><span>LLM configured — model: <strong>${escHtml(cfg.model)}</strong></span>`;
+        } else {
+            reviewStatusBanner.className = 'review-status-banner not-configured';
+            reviewStatusBanner.innerHTML = `<span>⚠</span><span>LLM not configured. Set <code style="font-family:var(--font-mono);background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:3px;">LLM_API_KEY</code> and <code style="font-family:var(--font-mono);background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:3px;">LLM_MODEL</code>.</span>`;
+        }
+    } catch {
+        reviewStatusBanner.className = 'review-status-banner not-configured';
+        reviewStatusBanner.innerHTML = `<span>✗</span><span>Could not check LLM configuration</span>`;
+    }
+
+    // Load criteria
+    try {
+        const res = await fetch('/api/criteria');
+        _criteriaData = await res.json();
+        renderCriteriaList();
+    } catch {
+        criteriaList.innerHTML = '<div style="color:var(--red); font-size:12px; padding:8px;">Failed to load criteria</div>';
+    }
+
+    // Load example files for the file picker
+    try {
+        const res = await fetch('/api/examples');
+        const names = await res.json();
+        _exampleFiles = [];
+        for (const name of names) {
+            const r = await fetch(`/examples/${encodeURIComponent(name)}`);
+            const code = await r.text();
+            _exampleFiles.push({ name, code });
+        }
+        renderFilePicker();
+    } catch { /* examples not available */ }
+
+    updateReviewBtnState();
+}
+
+// ─── File picker (multi-select) ───
+function renderFilePicker() {
+    // Keep the "Current editor" item, add example files
+    const editorItem = filePicker.querySelector('.editor-file');
+    filePicker.innerHTML = '';
+    filePicker.appendChild(editorItem);
+
+    for (const f of _exampleFiles) {
+        const id = 'file-' + f.name.replace(/[^a-zA-Z0-9]/g, '_');
+        const item = document.createElement('div');
+        item.className = 'file-picker-item';
+        item.innerHTML = `
+            <input type="checkbox" id="${id}" value="${escHtml(f.name)}" onchange="updateReviewBtnState()" onclick="event.stopPropagation()">
+            <span class="file-icon">📄</span>
+            <label for="${id}" onclick="event.stopPropagation()">${escHtml(f.name)}</label>
+        `;
+        item.addEventListener('click', (e) => {
+            if (e.target.tagName !== 'INPUT') item.querySelector('input').click();
+        });
+        filePicker.appendChild(item);
+    }
+}
+
+function getSelectedFiles() {
+    const files = [];
+    const editorCb = document.getElementById('fileEditor');
+    if (editorCb?.checked) {
+        const code = editor.value.trim();
+        if (code) files.push({ name: 'editor (current)', code });
+    }
+    filePicker.querySelectorAll('input[type="checkbox"]:not(#fileEditor):checked').forEach(cb => {
+        const ef = _exampleFiles.find(f => f.name === cb.value);
+        if (ef) files.push({ name: ef.name, code: ef.code });
+    });
+    return files;
+}
+
+// ─── Criteria list with status indicators ───
+function renderCriteriaList() {
+    criteriaList.innerHTML = _criteriaData.map(c => `
+        <div class="criteria-item state-pending" id="criteria-item-${c.id}" onclick="const cb=this.querySelector('input');cb.checked=!cb.checked;updateReviewBtnState();">
+            <input type="checkbox" id="crit-${c.id}" value="${c.id}" checked onchange="updateReviewBtnState()" onclick="event.stopPropagation()">
+            <div class="criteria-item-text">
+                <span class="criteria-item-name">${escHtml(c.name)}</span>
+                <span class="criteria-item-desc">${c.description ? escHtml(c.description.slice(0, 100)) : ''}</span>
+            </div>
+            <div class="criteria-item-status"></div>
+        </div>
+    `).join('');
+}
+
+function setCriterionState(id, state, score) {
+    const el = document.getElementById(`criteria-item-${id}`);
+    if (!el) return;
+    el.className = `criteria-item state-${state}`;
+    const statusEl = el.querySelector('.criteria-item-status');
+    if (state === 'pending') statusEl.innerHTML = '';
+    else if (state === 'running') statusEl.innerHTML = ''; // CSS spinner via border
+    else if (state === 'done') statusEl.innerHTML = '✓';
+    else if (state === 'error') statusEl.innerHTML = '✗';
+
+    // Remove old score pill if any
+    el.querySelector('.criteria-item-score')?.remove();
+    if (score !== null && score !== undefined && state === 'done') {
+        const pill = document.createElement('span');
+        pill.className = `criteria-item-score ${getScoreClass(score)}`;
+        pill.textContent = score.toFixed(2);
+        el.insertBefore(pill, statusEl);
+    }
+}
+
+function toggleAllCriteria(checked) {
+    criteriaList.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = checked);
+    updateReviewBtnState();
+}
+
+function getSelectedCriteria() {
+    return Array.from(criteriaList.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+}
+
+function updateReviewBtnState() {
+    const hasFiles = getSelectedFiles().length > 0;
+    const hasCriteria = getSelectedCriteria().length > 0;
+    reviewRunBtn.disabled = !_llmConfigured || !hasFiles || !hasCriteria;
+}
+
+// ─── Run Review (SSE streaming, multi-file) ───
+async function runReview() {
+    const files = getSelectedFiles();
+    const criteria = getSelectedCriteria();
+    if (!files.length || !criteria.length) return;
+
+    // Reset UI
+    reviewRunBtn.style.display = 'none';
+    reviewStopBtn.style.display = '';
+    reviewProgressText.textContent = 'Starting review…';
+    reviewReport.innerHTML = '';
+    downloadJsonBtn.style.display = 'none';
+    fixIssuesBtn.disabled = true;
+    reviewFooterStatus.textContent = '';
+
+    // Reset criteria states
+    _criteriaData.forEach(c => setCriterionState(c.id, 'pending', null));
+
+    _reviewAbortController = new AbortController();
+    const sectionElements = {};
+    const criterionTexts = {};
+
+    // Prepare JSON report skeleton
+    _reviewJsonReport = {
+        timestamp: new Date().toISOString(),
+        files: files.map(f => f.name),
+        criteria: criteria,
+        results: [],
+    };
+
+    try {
+        const res = await fetch('/api/review', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ files, criteria }),
+            signal: _reviewAbortController.signal,
+        });
+
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({ error: res.statusText }));
+            throw new Error(err.error || `HTTP ${res.status}`);
+        }
+
+        // Parse SSE stream
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+
+            const lines = buffer.split('\n');
+            buffer = lines.pop();
+
+            let eventType = '';
+            for (const line of lines) {
+                if (line.startsWith('event: ')) {
+                    eventType = line.slice(7).trim();
+                } else if (line.startsWith('data: ')) {
+                    const dataStr = line.slice(6);
+                    try {
+                        const data = JSON.parse(dataStr);
+                        handleReviewEvent(eventType, data, sectionElements, criterionTexts);
+                    } catch { /* skip malformed */ }
+                    eventType = '';
+                }
+            }
+        }
+    } catch (err) {
+        if (err.name !== 'AbortError') {
+            reviewReport.innerHTML += `
+                <div style="padding:16px;color:var(--red);font-size:13px;">
+                    ✗ Review failed: ${escHtml(err.message)}
+                    <br><button class="btn" style="margin-top:8px;" onclick="runReview()">Retry</button>
+                </div>`;
+        }
+    } finally {
+        reviewRunBtn.style.display = '';
+        reviewStopBtn.style.display = 'none';
+        _reviewAbortController = null;
+    }
+}
+
+function stopReview() {
+    if (_reviewAbortController) {
+        _reviewAbortController.abort();
+        reviewProgressText.textContent = 'Review stopped.';
+    }
+}
+
+function handleReviewEvent(event, data, sections, texts) {
+    switch (event) {
+        case 'start':
+            reviewProgressText.textContent = `Reviewing with ${data.model}… (${data.criteria.length} criteria)`;
+            break;
+
+        case 'criterion-start': {
+            setCriterionState(data.id, 'running', null);
+
+            const section = document.createElement('div');
+            section.className = 'criterion-section';
+            section.id = `review-section-${data.id}`;
+
+            const header = document.createElement('div');
+            header.className = 'criterion-header running';
+            header.innerHTML = `
+                <div class="criterion-spinner"></div>
+                <div class="criterion-title">${escHtml(data.name)}</div>
+                <span class="criterion-chevron">▼</span>
+            `;
+            header.addEventListener('click', () => {
+                header.classList.toggle('collapsed');
+                const stream = section.querySelector('.criterion-stream');
+                stream?.classList.toggle('collapsed');
+            });
+
+            const stream = document.createElement('div');
+            stream.className = 'criterion-stream';
+            stream.id = `review-stream-${data.id}`;
+
+            section.appendChild(header);
+            section.appendChild(stream);
+            reviewReport.appendChild(section);
+            sections[data.id] = section;
+            texts[data.id] = '';
+            reviewProgressText.textContent = `Assessing: ${data.name}…`;
+            section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            break;
+        }
+
+        case 'chunk': {
+            const stream = document.getElementById(`review-stream-${data.id}`);
+            if (stream) {
+                texts[data.id] = (texts[data.id] || '') + data.text;
+                stream.innerHTML = formatReviewMarkdown(texts[data.id]);
+                stream.scrollTop = stream.scrollHeight;
+            }
+            break;
+        }
+
+        case 'criterion-end': {
+            const section = sections[data.id];
+            if (section) {
+                const header = section.querySelector('.criterion-header');
+                header.classList.remove('running');
+                header.classList.add('done');
+                header.querySelector('.criterion-spinner')?.remove();
+
+                const score = extractOverallScore(texts[data.id] || '');
+
+                if (score !== null) {
+                    const badge = document.createElement('span');
+                    badge.className = `criterion-score-badge ${getScoreClass(score)}`;
+                    badge.textContent = score.toFixed(2);
+                    header.insertBefore(badge, header.querySelector('.criterion-chevron'));
+                }
+
+                setCriterionState(data.id, 'done', score);
+
+                // Add to JSON report
+                const criterion = _criteriaData.find(c => c.id === data.id);
+                _reviewJsonReport.results.push({
+                    criterionId: data.id,
+                    name: criterion?.name ?? data.id,
+                    score: score,
+                    rawText: texts[data.id] || '',
+                });
+            }
+            break;
+        }
+
+        case 'criterion-error': {
+            const section = sections[data.id];
+            if (section) {
+                const header = section.querySelector('.criterion-header');
+                header.classList.remove('running');
+                header.classList.add('error');
+                header.querySelector('.criterion-spinner')?.remove();
+                const stream = document.getElementById(`review-stream-${data.id}`);
+                if (stream) {
+                    stream.innerHTML = `<div style="color:var(--red);padding:8px;">Error: ${escHtml(data.error)}</div>`;
+                }
+            }
+            setCriterionState(data.id, 'error', null);
+
+            // Still record in JSON
+            _reviewJsonReport.results.push({
+                criterionId: data.id,
+                name: data.name || data.id,
+                score: null,
+                error: data.error,
+                rawText: texts[data.id] || '',
+            });
+            break;
+        }
+
+        case 'done': {
+            reviewProgressText.textContent = 'Review complete.';
+            buildReviewSummary(texts);
+
+            // Enable downloads and fix-issues link
+            downloadJsonBtn.style.display = '';
+            fixIssuesBtn.disabled = false;
+
+            const total = _reviewJsonReport.results.length;
+            const avgScore = _reviewJsonReport.results.reduce((s, r) => s + (r.score ?? 0), 0) / (total || 1);
+            reviewFooterStatus.textContent = `${total} criteria assessed · avg score ${avgScore.toFixed(2)}`;
+            break;
+        }
+    }
+}
+
+// ─── Download JSON report ───
+function downloadReviewJson() {
+    if (!_reviewJsonReport) return;
+    const blob = new Blob([JSON.stringify(_reviewJsonReport, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `sysml-review-${new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+// ─── Extract overall assessment score from LLM output ───
+function extractOverallScore(text) {
+    const patterns = [
+        /Overall\s+(?:Assessment\s+)?Score\s*[=:]\s*([\d.]+)/i,
+        /Overall\s+Score\s*[=:]\s*([\d.]+)/i,
+        /\*\*Overall.*?Score.*?\*\*.*?([\d.]+)/i,
+    ];
+    for (const p of patterns) {
+        const m = text.match(p);
+        if (m) {
+            const val = parseFloat(m[1]);
+            if (val >= 0 && val <= 1) return val;
+        }
+    }
+    return null;
+}
+
+function getScoreClass(score) {
+    if (score >= 0.9) return 'score-good';
+    if (score >= 0.7) return 'score-notable';
+    if (score >= 0.5) return 'score-significant';
+    return 'score-critical';
+}
+
+function getScoreColor(score) {
+    if (score >= 0.9) return 'var(--green)';
+    if (score >= 0.7) return 'var(--amber)';
+    if (score >= 0.5) return '#f97316';
+    return 'var(--red)';
+}
+
+// ─── Build summary bar at top of report ───
+function buildReviewSummary(texts) {
+    const scores = [];
+    for (const [id, text] of Object.entries(texts)) {
+        const score = extractOverallScore(text);
+        const criterion = _criteriaData.find(c => c.id === id);
+        if (score !== null) {
+            scores.push({ id, name: criterion?.name ?? id, score });
+        }
+    }
+    if (!scores.length) return;
+
+    const avg = scores.reduce((s, c) => s + c.score, 0) / scores.length;
+
+    // Store final overall in the JSON report
+    _reviewJsonReport.overallScore = avg;
+
+    const summaryEl = document.createElement('div');
+    summaryEl.className = 'review-summary';
+    summaryEl.innerHTML = `
+        <div class="review-summary-title">Review Summary</div>
+        <div class="review-summary-grid">
+            <div class="summary-card">
+                <div class="summary-card-label">Overall</div>
+                <div class="summary-card-value" style="color:${getScoreColor(avg)}">${avg.toFixed(2)}</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-card-label">Criteria</div>
+                <div class="summary-card-value" style="color:var(--text-primary)">${scores.length}</div>
+            </div>
+            ${scores.map(s => `
+                <div class="summary-card">
+                    <div class="summary-card-label">${escHtml(s.name)}</div>
+                    <div class="summary-card-value" style="color:${getScoreColor(s.score)}">${s.score.toFixed(2)}</div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+    reviewReport.insertBefore(summaryEl, reviewReport.firstChild);
+}
+
+// ─── Simple markdown-like formatting for LLM output ───
+function formatReviewMarkdown(text) {
+    let html = escHtml(text);
+
+    html = html.replace(
+        /^(ISSUE \[[\w-]+\])$/gm,
+        '<div style="font-weight:600;color:var(--accent);margin-top:12px;">$1</div>'
+    );
+
+    html = html.replace(
+        /^((?:Element|Check|Finding|Evidence|Score|Confidence|Impact|Recommendation):)\s*/gm,
+        '<span style="color:var(--text-muted);font-weight:500;">$1</span> '
+    );
+
+    html = html.replace(
+        /^(CHECK PASSED:.*$)/gm,
+        '<span style="color:var(--green);">$1</span>'
+    );
+
+    html = html.replace(
+        /(Overall\s+(?:Assessment\s+)?Score\s*[=:]\s*)([\d.]+)/gi,
+        (match, prefix, scoreStr) => {
+            const s = parseFloat(scoreStr);
+            const color = getScoreColor(s);
+            return `<span style="font-weight:600;">${prefix}<span style="color:${color};font-size:14px;">${scoreStr}</span></span>`;
+        }
+    );
+
+    html = html.replace(/\*\*(.+?)\*\*/g, '<strong style="color:var(--text-primary);">$1</strong>');
+
+    html = html.replace(/^### (.+)$/gm, '<div style="font-size:13px;font-weight:600;color:var(--text-primary);margin:10px 0 4px;">$1</div>');
+    html = html.replace(/^## (.+)$/gm, '<div style="font-size:14px;font-weight:600;color:var(--text-primary);margin:12px 0 6px;">$1</div>');
+
+    html = html.replace(/^---+$/gm, '<hr style="border:none;border-top:1px solid var(--border);margin:8px 0;">');
+
+    html = html.replace(
+        /^\|(.+)\|$/gm,
+        (match, inner) => {
+            if (inner.match(/^[\s\-|]+$/)) return '';
+            const cells = inner.split('|').map(c => c.trim());
+            return '<div style="display:flex;gap:8px;padding:2px 0;">' + cells.map(c =>
+                `<span style="flex:1;min-width:0;">${c}</span>`
+            ).join('') + '</div>';
+        }
+    );
+
+    return html;
+}
+
+// Listen for editor changes to update review button state
+editor.addEventListener('input', updateReviewBtnState);
+
+// Initialize review on load
+initReview();
 </script>
 
 </body>
