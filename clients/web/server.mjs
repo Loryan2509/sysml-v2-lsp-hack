@@ -10,7 +10,7 @@
  */
 
 import { createServer } from "http";
-import { readFileSync, existsSync, readdirSync } from "fs";
+import { readFileSync, existsSync, readdirSync, mkdirSync, writeFileSync } from "fs";
 import { resolve, dirname, extname, join, sep } from "path";
 import { fileURLToPath } from "url";
 import { spawn } from "child_process";
@@ -22,6 +22,7 @@ const PORT = parseInt(process.argv.find((_, i, a) => a[i - 1] === "--port") ?? "
 const REPO_ROOT = resolve(__dirname, "../..");
 const SERVER_JS = join(REPO_ROOT, "dist/server/server.js");
 const CRITERIA_DIR = join(REPO_ROOT, "ModelQualityCriteria");
+const REVIEW_RUNS_DIR = join(REPO_ROOT, ".review-runs");
 
 // LLM configuration via environment variables
 const LLM_BASE_URL = process.env.LLM_BASE_URL || "https://ai-gateway-eastus2.azure-api.net";
@@ -322,6 +323,261 @@ const server = createServer(async (req, res) => {
         return;
     }
 
+    // --- API: GET /api/review-runs ---
+    if (url.pathname === "/api/review-runs" && req.method === "GET") {
+        try {
+            ensureReviewRunsDir();
+            const files = readdirSync(REVIEW_RUNS_DIR)
+                .filter((name) => name.endsWith(".json"))
+                .sort()
+                .reverse();
+
+            const runs = files.map((fileName) => {
+                const fullPath = join(REVIEW_RUNS_DIR, fileName);
+                const raw = JSON.parse(readFileSync(fullPath, "utf-8"));
+                return buildReviewRunSummary(raw);
+            });
+
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify(runs));
+        } catch (err) {
+            res.writeHead(500, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: err.message }));
+        }
+        return;
+    }
+
+    // --- API: POST /api/review-runs ---
+    if (url.pathname === "/api/review-runs" && req.method === "POST") {
+        try {
+            const body = await readBody(req);
+            const { report } = JSON.parse(body);
+            if (!report?.results?.length) {
+                res.writeHead(400, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "Missing review report payload" }));
+                return;
+            }
+
+            ensureReviewRunsDir();
+            const runId = report.id || buildReviewRunId(report.timestamp);
+            const stored = {
+                ...report,
+                id: runId,
+                savedAt: new Date().toISOString(),
+            };
+            writeFileSync(join(REVIEW_RUNS_DIR, `${runId}.json`), JSON.stringify(stored, null, 2), "utf-8");
+
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ ok: true, run: buildReviewRunSummary(stored) }));
+        } catch (err) {
+            res.writeHead(500, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: err.message }));
+        }
+        return;
+    }
+
+    // --- API: GET /api/review-runs/:id ---
+    if (url.pathname.startsWith("/api/review-runs/") && req.method === "GET") {
+        try {
+            ensureReviewRunsDir();
+            const runId = sanitizeReviewRunId(url.pathname.slice("/api/review-runs/".length));
+            if (!runId) {
+                res.writeHead(400, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "Invalid review run id" }));
+                return;
+            }
+
+            const fullPath = join(REVIEW_RUNS_DIR, `${runId}.json`);
+            if (!existsSync(fullPath)) {
+                res.writeHead(404, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "Review run not found" }));
+                return;
+            }
+
+            const raw = JSON.parse(readFileSync(fullPath, "utf-8"));
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify(raw));
+        } catch (err) {
+            res.writeHead(500, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: err.message }));
+        }
+        return;
+    }
+
+    // --- API: POST /api/fix-proposals ---
+    if (url.pathname === "/api/fix-proposals" && req.method === "POST") {
+        try {
+            const body = await readBody(req);
+            const { code, diagnostic, reviewIssue } = JSON.parse(body);
+            const issue = reviewIssue || diagnostic;
+
+            if (!code || !issue) {
+                res.writeHead(400, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "Missing 'code' or issue payload ('reviewIssue' or 'diagnostic')" }));
+                return;
+            }
+
+            if (!LLM_API_KEY) {
+                res.writeHead(503, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({
+                    error: "LLM not configured. Set LLM_API_KEY to the key provided for ai-gateway-eastus2.",
+                    proposals: []
+                }));
+                return;
+            }
+
+            const { range, message, code: diagCode, severity, criterionName, criterionId, rawText } = issue;
+            const lines = code.split('\n');
+            const fallbackLine = 0;
+            const startLine = Math.max(0, ((range?.start?.line ?? fallbackLine) - 2));
+            const endLine = Math.min(lines.length, ((range?.end?.line ?? fallbackLine) + 3));
+            const codeContext = lines.slice(startLine, endLine).join('\n');
+            const numberedCode = lines
+                .map((line, idx) => `${String(idx + 1).padStart(4, ' ')} | ${line}`)
+                .join('\n');
+
+            let criterionContent = null;
+            try {
+                if (criterionId) {
+                    const directPath = join(CRITERIA_DIR, `${criterionId}.md`);
+                    if (existsSync(directPath)) {
+                        criterionContent = readFileSync(directPath, 'utf-8');
+                    }
+                }
+
+                if (!criterionContent && criterionName) {
+                    const normalized = criterionName.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+                    const files = readdirSync(CRITERIA_DIR).filter(f => f.endsWith('.md'));
+                    const fallbackFile = files.find(f => f.toLowerCase().includes(normalized));
+                    if (fallbackFile) {
+                        criterionContent = readFileSync(join(CRITERIA_DIR, fallbackFile), 'utf-8');
+                    }
+                }
+            } catch (readErr) {
+                console.warn('Failed to load criterion guidance for fix proposals:', readErr.message);
+            }
+
+            const trimmedCriterion = criterionContent
+                ? criterionContent.slice(0, 8_000)
+                : 'No additional criterion guidance was available. Use SysML best practices.';
+
+            const prompt = `You are a SysML v2 modeling expert. Craft a SINGLE, production-ready fix for the review finding below by applying the cited quality criterion guidance. The fix must be directly actionable: update the model to resolve the cited deficiency, such as introducing missing requirements for uncovered attributes.
+
+## Review Finding (verbatim)
+${rawText || message}
+
+## Criterion Guidance (${criterionId || criterionName || 'unknown'})
+${trimmedCriterion}
+
+## Issue Metadata
+- Severity: ${severity === 1 ? 'Error' : severity === 2 ? 'Warning' : 'Info'}
+- Diagnostic Code: ${diagCode || 'unknown'}
+- Criterion: ${criterionName || criterionId || 'N/A'}
+- Suspect Lines: ${startLine + 1}-${endLine}
+
+## Code Context
+\`\`\`sysml
+${codeContext}
+\`\`\`
+
+## Full SysML Model (with line numbers)
+\`\`\`sysml
+${numberedCode}
+\`\`\`
+
+Deliver exactly one fix that updates the full model. Ensure new requirements, constraints, or allocations are added when review findings cite missing artifacts. Highlight deletions or edits as needed.
+
+Respond ONLY with JSON using this schema:
+{
+    "fix": {
+        "title": "Concise fix title",
+        "description": "Why this fix resolves the issue",
+        "code": "Complete updated SysML model",
+        "changes": [
+            {
+                "type": "add|delete|alter",
+                "description": "What changed and why",
+                "before": "Previous SysML snippet or empty string",
+                "after": "Updated SysML snippet or empty string"
+            }
+        ]
+    }
+}
+
+Only output valid JSON, no other text.`;
+
+            const llmUrl = `${LLM_BASE_URL.replace(/\/+$/, "")}/openai/deployments/${encodeURIComponent(LLM_MODEL)}/chat/completions?api-version=${LLM_API_VERSION}`;
+            const llmRes = await fetch(llmUrl, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "api-key": LLM_API_KEY,
+                },
+                body: JSON.stringify({
+                    temperature: 0.35,
+                    max_tokens: 2048,
+                    messages: [
+                        {
+                            role: "system",
+                            content: "You are an expert SysML v2 modeling assistant who produces production-ready fixes.",
+                        },
+                        {
+                            role: "user",
+                            content: prompt,
+                        },
+                    ],
+                }),
+            });
+
+            if (!llmRes.ok) {
+                const errText = await llmRes.text();
+                console.error(`LLM API error: ${llmRes.status} ${errText}`);
+                res.writeHead(503, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({
+                    error: `LLM API error ${llmRes.status}`,
+                    proposals: []
+                }));
+                return;
+            }
+
+            const llmData = await llmRes.json();
+            let responseText = "";
+            const rawContent = llmData.choices?.[0]?.message?.content;
+            if (Array.isArray(rawContent)) {
+                responseText = rawContent.map(part => typeof part === "string" ? part : (part?.text ?? "")).join("");
+            } else if (typeof rawContent === "string") {
+                responseText = rawContent;
+            } else {
+                responseText = rawContent?.text ?? "";
+            }
+
+            let proposals = [];
+            try {
+                // Extract JSON from the response
+                const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                    const parsed = JSON.parse(jsonMatch[0]);
+                    if (parsed.fix) {
+                        proposals = [parsed.fix];
+                    } else if (Array.isArray(parsed.fixes)) {
+                        proposals = parsed.fixes;
+                    }
+                }
+            } catch (e) {
+                console.error("Failed to parse LLM response:", e.message);
+                // Fallback: return empty proposals
+            }
+
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ proposals }));
+        } catch (err) {
+            console.error("Fix proposals error:", err);
+            res.writeHead(500, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: err.message, proposals: [] }));
+        }
+        return;
+    }
+
     // --- API: POST /api/review (SSE streaming) ---
     if (url.pathname === "/api/review" && req.method === "POST") {
         try {
@@ -492,7 +748,7 @@ const server = createServer(async (req, res) => {
     }
 });
 
-const MAX_BODY_SIZE = 1024 * 1024; // 1 MB limit
+const MAX_BODY_SIZE = 10 * 1024 * 1024; // 10 MB limit
 
 function readBody(req) {
     return new Promise((resolve, reject) => {
@@ -507,6 +763,33 @@ function readBody(req) {
         req.on("end", () => resolve(data));
         req.on("error", reject);
     });
+}
+
+function ensureReviewRunsDir() {
+    if (!existsSync(REVIEW_RUNS_DIR)) {
+        mkdirSync(REVIEW_RUNS_DIR, { recursive: true });
+    }
+}
+
+function buildReviewRunId(timestamp) {
+    const base = (timestamp || new Date().toISOString()).replace(/[:.]/g, "-");
+    return `review-${base}`;
+}
+
+function sanitizeReviewRunId(value) {
+    return String(value || "").replace(/[^a-zA-Z0-9_-]/g, "");
+}
+
+function buildReviewRunSummary(report) {
+    return {
+        id: report.id || buildReviewRunId(report.timestamp),
+        timestamp: report.timestamp,
+        savedAt: report.savedAt || null,
+        files: report.files || [],
+        criteria: report.criteria || [],
+        overallScore: report.overallScore ?? null,
+        resultCount: report.results?.length ?? 0,
+    };
 }
 
 // ---------------------------------------------------------------------------

@@ -1,1293 +1,2257 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SysML v2 — Model Explorer</title>
-
-<!-- Mermaid for diagram rendering -->
-<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
-
-<!-- JetBrains Mono for the editor, DM Sans for UI -->
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-
-<style>
-  /* ────────────────── Design tokens ────────────────── */
-  :root {
-    --bg-deep:     #0a0e17;
-    --bg-panel:    #111827;
-    --bg-surface:  #1a2236;
-    --bg-hover:    #243049;
-    --border:      #1e2d4a;
-    --border-glow: #3b82f6;
-
-    --text-primary:   #e2e8f0;
-    --text-secondary: #8896b3;
-    --text-muted:     #4b5c7c;
-
-    --accent:      #3b82f6;
-    --accent-soft: #1e3a5f;
-    --green:       #22c55e;
-    --amber:       #f59e0b;
-    --red:         #ef4444;
-    --cyan:        #06b6d4;
-    --purple:      #a78bfa;
-
-    --radius:      10px;
-    --radius-sm:   6px;
-    --transition:  0.2s cubic-bezier(0.4, 0, 0.2, 1);
-
-    --font-ui:   'DM Sans', system-ui, sans-serif;
-    --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
-  }
-
-  /* ────────────────── Reset & base ────────────────── */
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-  html, body {
-    height: 100%;
-    font-family: var(--font-ui);
-    background: var(--bg-deep);
-    color: var(--text-primary);
-    -webkit-font-smoothing: antialiased;
-  }
-
-  /* Scrollbar styling */
-  ::-webkit-scrollbar { width: 6px; height: 6px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-  ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
-
-  /* ────────────────── Layout ────────────────── */
-  .app {
-    display: grid;
-    grid-template-rows: auto 1fr auto;
-    height: 100vh;
-    overflow: hidden;
-  }
-
-  .header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px 20px;
-    background: var(--bg-panel);
-    border-bottom: 1px solid var(--border);
-    gap: 16px;
-    z-index: 10;
-  }
-
-  .header-left {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .logo {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-weight: 700;
-    font-size: 16px;
-    letter-spacing: -0.02em;
-    white-space: nowrap;
-  }
-
-  .logo-mark {
-    width: 28px; height: 28px;
-    background: linear-gradient(135deg, var(--accent), var(--cyan));
-    border-radius: var(--radius-sm);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 14px;
-    font-weight: 700;
-    color: white;
-    font-family: var(--font-mono);
-  }
-
-  .logo span { color: var(--text-secondary); font-weight: 400; }
-
-  .header-actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  /* ────────────────── Buttons ────────────────── */
-  .btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 7px 14px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: var(--bg-surface);
-    color: var(--text-secondary);
-    font-family: var(--font-ui);
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all var(--transition);
-    white-space: nowrap;
-  }
-
-  .btn:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
-    border-color: var(--text-muted);
-  }
-
-  .btn-primary {
-    background: var(--accent);
-    border-color: var(--accent);
-    color: white;
-  }
-
-  .btn-primary:hover {
-    background: #2563eb;
-    border-color: #2563eb;
-    box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
-  }
-
-  .btn-primary:active { transform: scale(0.97); }
-
-  .btn kbd {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    padding: 1px 5px;
-    background: rgba(255,255,255,0.1);
-    border-radius: 3px;
-    opacity: 0.7;
-  }
-
-  select.example-select {
-    appearance: none;
-    padding: 7px 28px 7px 12px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: var(--bg-surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%238896b3'%3E%3Cpath d='M2 4l4 4 4-4'/%3E%3C/svg%3E") no-repeat right 10px center;
-    color: var(--text-secondary);
-    font-family: var(--font-ui);
-    font-size: 13px;
-    cursor: pointer;
-    transition: all var(--transition);
-  }
-
-  select.example-select:hover {
-    border-color: var(--text-muted);
-    color: var(--text-primary);
-  }
-
-  select.example-select:focus {
-    outline: none;
-    border-color: var(--accent);
-  }
-
-  /* ────────────────── Main workspace ────────────────── */
-  .workspace {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0;
-    overflow: hidden;
-  }
-
-  .panel {
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    border-right: 1px solid var(--border);
-  }
-
-  .panel:last-child { border-right: none; }
-
-  .panel-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 8px 16px;
-    background: var(--bg-panel);
-    border-bottom: 1px solid var(--border);
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--text-muted);
-    flex-shrink: 0;
-  }
-
-  .panel-header .badge {
-    font-size: 11px;
-    font-weight: 600;
-    padding: 2px 8px;
-    border-radius: 10px;
-    font-family: var(--font-mono);
-  }
-
-  .badge-ok    { background: rgba(34,197,94,0.15); color: var(--green); }
-  .badge-warn  { background: rgba(245,158,11,0.15); color: var(--amber); }
-  .badge-error { background: rgba(239,68,68,0.15); color: var(--red); }
-
-  .panel-body {
-    flex: 1;
-    overflow: auto;
-    position: relative;
-  }
-
-  /* ────────────────── Editor ────────────────── */
-  .editor-container {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-  }
-
-  .editor-area {
-    flex: 1;
-    position: relative;
-    overflow: hidden;
-  }
-
-  #editor {
-    width: 100%;
-    height: 100%;
-    padding: 16px;
-    padding-left: 56px;
-    background: var(--bg-deep);
-    color: var(--text-primary);
-    border: none;
-    outline: none;
-    font-family: var(--font-mono);
-    font-size: 13.5px;
-    line-height: 1.7;
-    resize: none;
-    tab-size: 4;
-    white-space: pre;
-    overflow: auto;
-  }
-
-  .line-numbers {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 44px;
-    padding: 16px 8px 16px 0;
-    text-align: right;
-    font-family: var(--font-mono);
-    font-size: 13.5px;
-    line-height: 1.7;
-    color: var(--text-muted);
-    user-select: none;
-    pointer-events: none;
-    overflow: hidden;
-    background: var(--bg-deep);
-    border-right: 1px solid var(--border);
-  }
-
-  /* ────────────────── Diagnostics strip ────────────────── */
-  .diagnostics-strip {
-    flex-shrink: 0;
-    max-height: 35%;
-    overflow-y: auto;
-    background: var(--bg-panel);
-    border-top: 1px solid var(--border);
-  }
-
-  .diag-item {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    padding: 8px 16px;
-    font-size: 12.5px;
-    border-bottom: 1px solid rgba(30,45,74,0.5);
-    transition: background var(--transition);
-    cursor: default;
-  }
-
-  .diag-item:hover { background: var(--bg-surface); }
-
-  .diag-icon {
-    flex-shrink: 0;
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 10px;
-    font-weight: 700;
-    margin-top: 1px;
-  }
-
-  .diag-error .diag-icon   { background: rgba(239,68,68,0.2); color: var(--red); }
-  .diag-warning .diag-icon { background: rgba(245,158,11,0.2); color: var(--amber); }
-  .diag-info .diag-icon    { background: rgba(59,130,246,0.2); color: var(--accent); }
-  .diag-hint .diag-icon    { background: rgba(167,139,250,0.2); color: var(--purple); }
-
-  .diag-location {
-    font-family: var(--font-mono);
-    font-size: 11px;
-    color: var(--text-muted);
-    flex-shrink: 0;
-    min-width: 48px;
-  }
-
-  .diag-message { color: var(--text-secondary); flex: 1; }
-
-  .diag-empty {
-    padding: 20px 16px;
-    text-align: center;
-    color: var(--text-muted);
-    font-size: 13px;
-  }
-
-  .diag-empty .check {
-    display: inline-block;
-    width: 32px; height: 32px;
-    background: rgba(34,197,94,0.12);
-    border-radius: 50%;
-    line-height: 32px;
-    font-size: 16px;
-    margin-bottom: 6px;
-  }
-
-  /* ────────────────── Right panel — tabs ────────────────── */
-  .tabs {
-    display: flex;
-    gap: 0;
-  }
-
-  .tab {
-    padding: 8px 16px;
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--text-muted);
-    cursor: pointer;
-    border-bottom: 2px solid transparent;
-    transition: all var(--transition);
-  }
-
-  .tab:hover { color: var(--text-secondary); }
-  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
-
-  .tab-content { display: none; height: 100%; overflow: auto; }
-  .tab-content.active { display: block; }
-
-  /* ────────────────── Diagram view ────────────────── */
-  .diagram-container {
-    position: relative;
-    height: 100%;
-    overflow: hidden;
-    background: var(--bg-deep);
-  }
-
-  .diagram-view {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 100%;
-    padding: 24px;
-    transform-origin: 0 0;
-    transition: transform 0.15s ease-out;
-    cursor: grab;
-  }
-
-  .diagram-view.panning { cursor: grabbing; transition: none; }
-
-  .diagram-view svg {
-    max-width: none;
-    height: auto;
-  }
-
-  .diagram-placeholder {
-    text-align: center;
-    color: var(--text-muted);
-    padding: 40px;
-  }
-
-  .diagram-placeholder .icon {
-    font-size: 48px;
-    margin-bottom: 12px;
-    opacity: 0.4;
-  }
-
-  /* ── Zoom toolbar ── */
-  .zoom-toolbar {
-    position: absolute;
-    bottom: 12px;
-    right: 12px;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: 4px;
-    background: var(--bg-panel);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    z-index: 10;
-    user-select: none;
-  }
-
-  .zoom-btn {
-    width: 28px; height: 28px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: none;
-    border-radius: 4px;
-    background: transparent;
-    color: var(--text-secondary);
-    font-size: 15px;
-    font-family: var(--font-mono);
-    cursor: pointer;
-    transition: all var(--transition);
-  }
-
-  .zoom-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
-
-  .zoom-level {
-    font-family: var(--font-mono);
-    font-size: 11px;
-    color: var(--text-muted);
-    min-width: 38px;
-    text-align: center;
-  }
-
-  /* ────────────────── Symbol tree ────────────────── */
-  .symbol-tree {
-    padding: 8px 0;
-  }
-
-  .sym-node {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 4px 16px;
-    font-size: 13px;
-    cursor: default;
-    transition: background var(--transition);
-  }
-
-  .sym-node:hover { background: var(--bg-hover); }
-
-  .sym-indent { flex-shrink: 0; }
-
-  .sym-kind {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    font-weight: 600;
-    padding: 1px 6px;
-    border-radius: 3px;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    flex-shrink: 0;
-  }
-
-  .kind-package   { background: rgba(59,130,246,0.15); color: var(--accent); }
-  .kind-part      { background: rgba(6,182,212,0.15); color: var(--cyan); }
-  .kind-attribute  { background: rgba(167,139,250,0.15); color: var(--purple); }
-  .kind-port      { background: rgba(245,158,11,0.15); color: var(--amber); }
-  .kind-enum      { background: rgba(34,197,94,0.15); color: var(--green); }
-  .kind-interface { background: rgba(244,114,182,0.15); color: #f472b6; }
-  .kind-action    { background: rgba(251,146,60,0.15); color: #fb923c; }
-  .kind-req       { background: rgba(239,68,68,0.15); color: var(--red); }
-  .kind-default   { background: rgba(139,152,180,0.1); color: var(--text-secondary); }
-
-  .sym-name { color: var(--text-primary); }
-  .sym-type { color: var(--text-muted); font-size: 12px; }
-
-  /* ────────────────── Status bar ────────────────── */
-  .status-bar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 4px 16px;
-    background: var(--accent);
-    color: white;
-    font-size: 11.5px;
-    font-weight: 500;
-  }
-
-  .status-bar.error { background: var(--red); }
-  .status-bar.idle { background: var(--bg-panel); color: var(--text-muted); border-top: 1px solid var(--border); }
-
-  .pulse {
-    display: inline-block;
-    width: 7px; height: 7px;
-    border-radius: 50%;
-    background: currentColor;
-    margin-right: 6px;
-    animation: pulse 1.2s ease-in-out infinite;
-  }
-
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.3; }
-  }
-
-  /* ────────────────── Loading overlay ────────────────── */
-  .loading-overlay {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(10,14,23,0.85);
-    z-index: 100;
-    transition: opacity 0.3s;
-  }
-
-  .loading-overlay.hidden { opacity: 0; pointer-events: none; }
-
-  .spinner {
-    width: 28px; height: 28px;
-    border: 3px solid var(--border);
-    border-top-color: var(--accent);
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-  }
-
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  /* ────────────────── Responsive ────────────────── */
-  @media (max-width: 900px) {
-    .workspace { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
-    .panel { border-right: none; border-bottom: 1px solid var(--border); }
-  }
-
-  /* ────────────────── Review full-page mode ────────────────── */
-  .review-mode .workspace { display: none; }
-  .review-mode .review-page { display: grid; }
-
-  .review-page {
-    display: none;
-    grid-template-columns: 340px 1fr;
-    grid-template-rows: 1fr auto;
-    height: 100%;
-    overflow: hidden;
-  }
-
-  /* ── Left sidebar: config + criteria + file picker ── */
-  .review-sidebar {
-    display: flex;
-    flex-direction: column;
-    background: var(--bg-panel);
-    border-right: 1px solid var(--border);
-    overflow: hidden;
-  }
-
-  .review-sidebar-header {
-    padding: 14px 16px 10px;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .review-sidebar-header h2 {
-    font-size: 14px;
-    font-weight: 600;
-    margin-bottom: 8px;
-    color: var(--text-primary);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .review-status-banner {
-    padding: 8px 12px;
-    border-radius: var(--radius-sm);
-    font-size: 11.5px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .review-status-banner.not-configured {
-    background: rgba(245,158,11,0.1);
-    border: 1px solid rgba(245,158,11,0.25);
-    color: var(--amber);
-  }
-
-  .review-status-banner.configured {
-    background: rgba(34,197,94,0.08);
-    border: 1px solid rgba(34,197,94,0.2);
-    color: var(--green);
-  }
-
-  .review-sidebar-body {
-    flex: 1;
-    overflow-y: auto;
-    padding: 12px 16px;
-  }
-
-  .review-section-label {
-    font-size: 10px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--text-muted);
-    margin-bottom: 8px;
-    margin-top: 12px;
-  }
-
-  .review-section-label:first-child { margin-top: 0; }
-
-  /* ── File picker (multi-select) ── */
-  .file-picker {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    margin-bottom: 4px;
-  }
-
-  .file-picker-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 5px 8px;
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    transition: background var(--transition);
-    font-size: 12.5px;
-    color: var(--text-secondary);
-  }
-
-  .file-picker-item:hover { background: var(--bg-hover); }
-
-  .file-picker-item input[type="checkbox"] {
-    accent-color: var(--cyan);
-    flex-shrink: 0;
-  }
-
-  .file-picker-item .file-icon {
-    font-size: 13px;
-    opacity: 0.6;
-    flex-shrink: 0;
-  }
-
-  .file-picker-item label {
-    cursor: pointer;
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .file-picker-item.editor-file {
-    border: 1px solid rgba(59,130,246,0.25);
-    background: rgba(59,130,246,0.06);
-  }
-
-  /* ── Criteria list for review ── */
-  .criteria-actions {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 6px;
-    align-items: center;
-  }
-
-  .criteria-actions .link-btn {
-    background: none;
-    border: none;
-    color: var(--accent);
-    font-size: 11px;
-    cursor: pointer;
-    text-decoration: underline;
-    font-family: var(--font-ui);
-    padding: 0;
-  }
-
-  .criteria-actions .link-btn:hover { color: var(--text-primary); }
-
-  .criteria-list {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .criteria-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 7px 10px;
-    border-radius: var(--radius-sm);
-    transition: all var(--transition);
-    cursor: pointer;
-    border: 1px solid transparent;
-    position: relative;
-  }
-
-  .criteria-item:hover { background: var(--bg-hover); }
-
-  .criteria-item input[type="checkbox"] {
-    accent-color: var(--accent);
-    flex-shrink: 0;
-  }
-
-  .criteria-item-text {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .criteria-item-name {
-    font-size: 12.5px;
-    font-weight: 500;
-    color: var(--text-primary);
-    display: block;
-  }
-
-  .criteria-item-desc {
-    font-size: 10.5px;
-    color: var(--text-muted);
-    display: block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .criteria-item-status {
-    flex-shrink: 0;
-    width: 20px;
-    height: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 11px;
-  }
-
-  /* Criterion states */
-  .criteria-item.state-pending .criteria-item-status { color: var(--text-muted); }
-  .criteria-item.state-running {
-    background: rgba(245,158,11,0.06);
-    border-color: rgba(245,158,11,0.25);
-  }
-  .criteria-item.state-running .criteria-item-status {
-    display: inline-block;
-    width: 14px; height: 14px;
-    border: 2px solid var(--border);
-    border-top-color: var(--amber);
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-  }
-  .criteria-item.state-done {
-    background: rgba(34,197,94,0.05);
-    border-color: rgba(34,197,94,0.15);
-  }
-  .criteria-item.state-done .criteria-item-status { color: var(--green); }
-  .criteria-item.state-error {
-    background: rgba(239,68,68,0.05);
-    border-color: rgba(239,68,68,0.15);
-  }
-  .criteria-item.state-error .criteria-item-status { color: var(--red); }
-
-  /* Score pill on criteria item */
-  .criteria-item-score {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    font-weight: 600;
-    padding: 1px 6px;
-    border-radius: 8px;
-    flex-shrink: 0;
-  }
-
-  /* ── Sidebar footer: start/stop ── */
-  .review-sidebar-footer {
-    padding: 12px 16px;
-    border-top: 1px solid var(--border);
-    display: flex;
-    gap: 8px;
-    align-items: center;
-  }
-
-  .btn-review {
-    background: linear-gradient(135deg, #8b5cf6, var(--accent));
-    border: none;
-    color: white;
-    padding: 9px 20px;
-    border-radius: var(--radius-sm);
-    font-family: var(--font-ui);
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all var(--transition);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    flex: 1;
-    justify-content: center;
-  }
-
-  .btn-review:hover:not(:disabled) {
-    box-shadow: 0 0 24px rgba(139,92,246,0.35);
-    transform: translateY(-1px);
-  }
-
-  .btn-review:disabled { opacity: 0.4; cursor: not-allowed; }
-  .btn-review:active:not(:disabled) { transform: scale(0.97); }
-
-  .btn-stop-review {
-    background: var(--red);
-    border: none;
-    color: white;
-    padding: 9px 16px;
-    border-radius: var(--radius-sm);
-    font-family: var(--font-ui);
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all var(--transition);
-    flex: 1;
-    text-align: center;
-  }
-
-  .btn-stop-review:hover { background: #dc2626; }
-
-  .btn-back {
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    color: var(--text-secondary);
-    padding: 9px 14px;
-    border-radius: var(--radius-sm);
-    font-family: var(--font-ui);
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all var(--transition);
-  }
-
-  .btn-back:hover { background: var(--bg-hover); color: var(--text-primary); }
-
-  /* ── Right: report area ── */
-  .review-report-area {
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-
-  .review-report-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px 16px;
-    background: var(--bg-panel);
-    border-bottom: 1px solid var(--border);
-    flex-shrink: 0;
-  }
-
-  .review-report-title {
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--text-muted);
-  }
-
-  .review-progress-text {
-    font-size: 12px;
-    color: var(--text-muted);
-    font-style: italic;
-  }
-
-  .review-report-body {
-    flex: 1;
-    overflow-y: auto;
-    padding: 16px 20px;
-  }
-
-  .review-empty {
-    text-align: center;
-    padding: 60px 16px;
-    color: var(--text-muted);
-  }
-
-  .review-empty .icon { font-size: 48px; opacity: 0.4; margin-bottom: 12px; }
-
-  /* ── Criterion report sections ── */
-  .criterion-section { margin-bottom: 20px; }
-
-  .criterion-header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 12px 14px;
-    background: var(--bg-surface);
-    border-radius: var(--radius-sm);
-    margin-bottom: 8px;
-    border-left: 3px solid var(--accent);
-    cursor: pointer;
-    user-select: none;
-    transition: background var(--transition);
-  }
-
-  .criterion-header:hover { background: var(--bg-hover); }
-
-  .criterion-header.running { border-left-color: var(--amber); }
-  .criterion-header.done { border-left-color: var(--green); }
-  .criterion-header.error { border-left-color: var(--red); }
-
-  .criterion-title {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text-primary);
-    flex: 1;
-  }
-
-  .criterion-chevron {
-    color: var(--text-muted);
-    font-size: 12px;
-    transition: transform var(--transition);
-  }
-
-  .criterion-header.collapsed .criterion-chevron { transform: rotate(-90deg); }
-
-  .criterion-score-badge {
-    font-family: var(--font-mono);
-    font-size: 11px;
-    font-weight: 600;
-    padding: 2px 8px;
-    border-radius: 10px;
-  }
-
-  .score-good   { background: rgba(34,197,94,0.15); color: var(--green); }
-  .score-notable { background: rgba(245,158,11,0.15); color: var(--amber); }
-  .score-significant { background: rgba(239,68,68,0.15); color: var(--red); }
-  .score-critical { background: rgba(239,68,68,0.25); color: #fca5a5; }
-
-  .criterion-stream {
-    font-family: var(--font-mono);
-    font-size: 12px;
-    line-height: 1.65;
-    color: var(--text-secondary);
-    white-space: pre-wrap;
-    word-break: break-word;
-    padding: 0 8px;
-    max-height: 600px;
-    overflow-y: auto;
-    transition: max-height 0.3s ease;
-  }
-
-  .criterion-stream.collapsed { max-height: 0; overflow: hidden; padding: 0; }
-
-  .criterion-spinner {
-    display: inline-block;
-    width: 14px; height: 14px;
-    border: 2px solid var(--border);
-    border-top-color: var(--amber);
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-    flex-shrink: 0;
-  }
-
-  /* ── Review summary ── */
-  .review-summary {
-    padding: 16px;
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    margin-bottom: 20px;
-  }
-
-  .review-summary-title {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin-bottom: 10px;
-  }
-
-  .review-summary-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-    gap: 8px;
-  }
-
-  .summary-card {
-    padding: 10px 12px;
-    background: var(--bg-panel);
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border);
-  }
-
-  .summary-card-label {
-    font-size: 10px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--text-muted);
-    margin-bottom: 4px;
-  }
-
-  .summary-card-value {
-    font-family: var(--font-mono);
-    font-size: 20px;
-    font-weight: 600;
-  }
-
-  /* ── Fix issues footer bar ── */
-  .review-footer-bar {
-    grid-column: 1 / -1;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 8px 16px;
-    background: var(--bg-panel);
-    border-top: 1px solid var(--border);
-  }
-
-  .review-footer-left {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    font-size: 12px;
-    color: var(--text-muted);
-  }
-
-  .review-footer-right {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .btn-download-json {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 6px 12px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: var(--bg-surface);
-    color: var(--text-secondary);
-    font-family: var(--font-ui);
-    font-size: 12px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all var(--transition);
-  }
-
-  .btn-download-json:hover { background: var(--bg-hover); color: var(--text-primary); }
-
-  .btn-fix-issues {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 14px;
-    border: 1px solid rgba(34,197,94,0.3);
-    border-radius: var(--radius-sm);
-    background: rgba(34,197,94,0.1);
-    color: var(--green);
-    font-family: var(--font-ui);
-    font-size: 12px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all var(--transition);
-  }
-
-  .btn-fix-issues:hover {
-    background: rgba(34,197,94,0.18);
-    border-color: rgba(34,197,94,0.5);
-    box-shadow: 0 0 16px rgba(34,197,94,0.15);
-  }
-
-  .btn-fix-issues:disabled { opacity: 0.4; cursor: not-allowed; }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SysML v2 — Model Explorer</title>
+
+  <!-- Mermaid for diagram rendering -->
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+
+  <!-- JetBrains Mono for the editor, DM Sans for UI -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    rel="stylesheet">
+
+  <style>
+    /* ────────────────── Design tokens ────────────────── */
+    :root {
+      --bg-deep: #0a0e17;
+      --bg-panel: #111827;
+      --bg-surface: #1a2236;
+      --bg-hover: #243049;
+      --border: #1e2d4a;
+      --border-glow: #3b82f6;
+
+      --text-primary: #e2e8f0;
+      --text-secondary: #8896b3;
+      --text-muted: #4b5c7c;
+
+      --accent: #3b82f6;
+      --accent-soft: #1e3a5f;
+      --green: #22c55e;
+      --amber: #f59e0b;
+      --red: #ef4444;
+      --cyan: #06b6d4;
+      --purple: #a78bfa;
+
+      --radius: 10px;
+      --radius-sm: 6px;
+      --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+
+      --font-ui: 'DM Sans', system-ui, sans-serif;
+      --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+    }
+
+    /* ────────────────── Reset & base ────────────────── */
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html,
+    body {
+      height: 100%;
+      font-family: var(--font-ui);
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Scrollbar styling */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 3px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--text-muted);
+    }
+
+    /* ────────────────── Layout ────────────────── */
+    .app {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 20px;
+      background: var(--bg-panel);
+      border-bottom: 1px solid var(--border);
+      gap: 16px;
+      z-index: 10;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 16px;
+      letter-spacing: -0.02em;
+      white-space: nowrap;
+    }
+
+    .logo-mark {
+      width: 28px;
+      height: 28px;
+      background: linear-gradient(135deg, var(--accent), var(--cyan));
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 700;
+      color: white;
+      font-family: var(--font-mono);
+    }
+
+    .logo span {
+      color: var(--text-secondary);
+      font-weight: 400;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* ────────────────── Buttons ────────────────── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 14px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--bg-surface);
+      color: var(--text-secondary);
+      font-family: var(--font-ui);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all var(--transition);
+      white-space: nowrap;
+    }
+
+    .btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+      border-color: var(--text-muted);
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #2563eb;
+      border-color: #2563eb;
+      box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+    }
+
+    .btn-primary:active {
+      transform: scale(0.97);
+    }
+
+    .btn kbd {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      padding: 1px 5px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 3px;
+      opacity: 0.7;
+    }
+
+    select.example-select {
+      appearance: none;
+      padding: 7px 28px 7px 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--bg-surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%238896b3'%3E%3Cpath d='M2 4l4 4 4-4'/%3E%3C/svg%3E") no-repeat right 10px center;
+      color: var(--text-secondary);
+      font-family: var(--font-ui);
+      font-size: 13px;
+      cursor: pointer;
+      transition: all var(--transition);
+    }
+
+    select.example-select:hover {
+      border-color: var(--text-muted);
+      color: var(--text-primary);
+    }
+
+    select.example-select:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    /* ────────────────── Main workspace ────────────────── */
+    .workspace {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+      overflow: hidden;
+    }
+
+    .panel {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      border-right: 1px solid var(--border);
+    }
+
+    .panel:last-child {
+      border-right: none;
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 16px;
+      background: var(--bg-panel);
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+
+    .panel-header .badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-family: var(--font-mono);
+    }
+
+    .badge-ok {
+      background: rgba(34, 197, 94, 0.15);
+      color: var(--green);
+    }
+
+    .badge-warn {
+      background: rgba(245, 158, 11, 0.15);
+      color: var(--amber);
+    }
+
+    .badge-error {
+      background: rgba(239, 68, 68, 0.15);
+      color: var(--red);
+    }
+
+    .panel-body {
+      flex: 1;
+      overflow: auto;
+      position: relative;
+    }
+
+    /* ────────────────── Editor ────────────────── */
+    .editor-container {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+
+    .editor-area {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+
+    #editor {
+      width: 100%;
+      height: 100%;
+      padding: 16px;
+      padding-left: 56px;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      border: none;
+      outline: none;
+      font-family: var(--font-mono);
+      font-size: 13.5px;
+      line-height: 1.7;
+      resize: none;
+      tab-size: 4;
+      white-space: pre;
+      overflow: auto;
+    }
+
+    .line-numbers {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 44px;
+      padding: 16px 8px 16px 0;
+      text-align: right;
+      font-family: var(--font-mono);
+      font-size: 13.5px;
+      line-height: 1.7;
+      color: var(--text-muted);
+      user-select: none;
+      pointer-events: none;
+      overflow: hidden;
+      background: var(--bg-deep);
+      border-right: 1px solid var(--border);
+    }
+
+    /* ────────────────── Diagnostics strip ────────────────── */
+    .diagnostics-strip {
+      flex-shrink: 0;
+      max-height: 35%;
+      overflow-y: auto;
+      background: var(--bg-panel);
+      border-top: 1px solid var(--border);
+    }
+
+    .diag-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 8px 16px;
+      font-size: 12.5px;
+      border-bottom: 1px solid rgba(30, 45, 74, 0.5);
+      transition: background var(--transition);
+      cursor: default;
+    }
+
+    .diag-item:hover {
+      background: var(--bg-surface);
+    }
+
+    .diag-icon {
+      flex-shrink: 0;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 700;
+      margin-top: 1px;
+    }
+
+    .diag-error .diag-icon {
+      background: rgba(239, 68, 68, 0.2);
+      color: var(--red);
+    }
+
+    .diag-warning .diag-icon {
+      background: rgba(245, 158, 11, 0.2);
+      color: var(--amber);
+    }
+
+    .diag-info .diag-icon {
+      background: rgba(59, 130, 246, 0.2);
+      color: var(--accent);
+    }
+
+    .diag-hint .diag-icon {
+      background: rgba(167, 139, 250, 0.2);
+      color: var(--purple);
+    }
+
+    .diag-location {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+      flex-shrink: 0;
+      min-width: 48px;
+    }
+
+    .diag-message {
+      color: var(--text-secondary);
+      flex: 1;
+    }
+
+    .diag-empty {
+      padding: 20px 16px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+
+    .diag-empty .check {
+      display: inline-block;
+      width: 32px;
+      height: 32px;
+      background: rgba(34, 197, 94, 0.12);
+      border-radius: 50%;
+      line-height: 32px;
+      font-size: 16px;
+      margin-bottom: 6px;
+    }
+
+    /* ────────────────── Right panel — tabs ────────────────── */
+    .tabs {
+      display: flex;
+      gap: 0;
+    }
+
+    .tab {
+      padding: 8px 16px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all var(--transition);
+    }
+
+    .tab:hover {
+      color: var(--text-secondary);
+    }
+
+    .tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    .tab-content {
+      display: none;
+      height: 100%;
+      overflow: auto;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    /* ────────────────── Diagram view ────────────────── */
+    .diagram-container {
+      position: relative;
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg-deep);
+    }
+
+    .diagram-view {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100%;
+      padding: 24px;
+      transform-origin: 0 0;
+      transition: transform 0.15s ease-out;
+      cursor: grab;
+    }
+
+    .diagram-view.panning {
+      cursor: grabbing;
+      transition: none;
+    }
+
+    .diagram-view svg {
+      max-width: none;
+      height: auto;
+    }
+
+    .diagram-placeholder {
+      text-align: center;
+      color: var(--text-muted);
+      padding: 40px;
+    }
+
+    .diagram-placeholder .icon {
+      font-size: 48px;
+      margin-bottom: 12px;
+      opacity: 0.4;
+    }
+
+    /* ── Zoom toolbar ── */
+    .zoom-toolbar {
+      position: absolute;
+      bottom: 12px;
+      right: 12px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      z-index: 10;
+      user-select: none;
+    }
+
+    .zoom-btn {
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: none;
+      border-radius: 4px;
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: 15px;
+      font-family: var(--font-mono);
+      cursor: pointer;
+      transition: all var(--transition);
+    }
+
+    .zoom-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .zoom-level {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+      min-width: 38px;
+      text-align: center;
+    }
+
+    /* ────────────────── Symbol tree ────────────────── */
+    .symbol-tree {
+      padding: 8px 0;
+    }
+
+    .sym-node {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 16px;
+      font-size: 13px;
+      cursor: default;
+      transition: background var(--transition);
+    }
+
+    .sym-node:hover {
+      background: var(--bg-hover);
+    }
+
+    .sym-indent {
+      flex-shrink: 0;
+    }
+
+    .sym-kind {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 600;
+      padding: 1px 6px;
+      border-radius: 3px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      flex-shrink: 0;
+    }
+
+    .kind-package {
+      background: rgba(59, 130, 246, 0.15);
+      color: var(--accent);
+    }
+
+    .kind-part {
+      background: rgba(6, 182, 212, 0.15);
+      color: var(--cyan);
+    }
+
+    .kind-attribute {
+      background: rgba(167, 139, 250, 0.15);
+      color: var(--purple);
+    }
+
+    .kind-port {
+      background: rgba(245, 158, 11, 0.15);
+      color: var(--amber);
+    }
+
+    .kind-enum {
+      background: rgba(34, 197, 94, 0.15);
+      color: var(--green);
+    }
+
+    .kind-interface {
+      background: rgba(244, 114, 182, 0.15);
+      color: #f472b6;
+    }
+
+    .kind-action {
+      background: rgba(251, 146, 60, 0.15);
+      color: #fb923c;
+    }
+
+    .kind-req {
+      background: rgba(239, 68, 68, 0.15);
+      color: var(--red);
+    }
+
+    .kind-default {
+      background: rgba(139, 152, 180, 0.1);
+      color: var(--text-secondary);
+    }
+
+    .sym-name {
+      color: var(--text-primary);
+    }
+
+    .sym-type {
+      color: var(--text-muted);
+      font-size: 12px;
+    }
+
+    /* ────────────────── Status bar ────────────────── */
+    .status-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 4px 16px;
+      background: var(--accent);
+      color: white;
+      font-size: 11.5px;
+      font-weight: 500;
+    }
+
+    .status-bar.error {
+      background: var(--red);
+    }
+
+    .status-bar.idle {
+      background: var(--bg-panel);
+      color: var(--text-muted);
+      border-top: 1px solid var(--border);
+    }
+
+    .pulse {
+      display: inline-block;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+      margin-right: 6px;
+      animation: pulse 1.2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.3;
+      }
+    }
+
+    /* ────────────────── Loading overlay ────────────────── */
+    .loading-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(10, 14, 23, 0.85);
+      z-index: 100;
+      transition: opacity 0.3s;
+    }
+
+    .loading-overlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .spinner {
+      width: 28px;
+      height: 28px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    /* ────────────────── Responsive ────────────────── */
+    @media (max-width: 900px) {
+      .workspace {
+        grid-template-columns: 1fr;
+        grid-template-rows: 1fr 1fr;
+      }
+
+      .panel {
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+      }
+    }
+
+    /* ────────────────── Review full-page mode ────────────────── */
+    .review-mode .workspace {
+      display: none;
+    }
+
+    .review-mode .review-page {
+      display: grid;
+    }
+
+    .review-page {
+      display: none;
+      grid-template-columns: 340px 1fr;
+      grid-template-rows: 1fr auto;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    /* ── Left sidebar: config + criteria + file picker ── */
+    .review-sidebar {
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-panel);
+      border-right: 1px solid var(--border);
+      overflow: hidden;
+    }
+
+    .review-sidebar-header {
+      padding: 14px 16px 10px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .review-sidebar-header h2 {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .review-status-banner {
+      padding: 8px 12px;
+      border-radius: var(--radius-sm);
+      font-size: 11.5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .review-status-banner.not-configured {
+      background: rgba(245, 158, 11, 0.1);
+      border: 1px solid rgba(245, 158, 11, 0.25);
+      color: var(--amber);
+    }
+
+    .review-status-banner.configured {
+      background: rgba(34, 197, 94, 0.08);
+      border: 1px solid rgba(34, 197, 94, 0.2);
+      color: var(--green);
+    }
+
+    .review-sidebar-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 16px;
+    }
+
+    .review-section-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      margin-top: 12px;
+    }
+
+    .review-section-label:first-child {
+      margin-top: 0;
+    }
+
+    /* ── File picker (multi-select) ── */
+    .file-picker {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      margin-bottom: 4px;
+    }
+
+    .file-picker-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 8px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: background var(--transition);
+      font-size: 12.5px;
+      color: var(--text-secondary);
+    }
+
+    .file-picker-item:hover {
+      background: var(--bg-hover);
+    }
+
+    .file-picker-item input[type="checkbox"] {
+      accent-color: var(--cyan);
+      flex-shrink: 0;
+    }
+
+    .file-picker-item .file-icon {
+      font-size: 13px;
+      opacity: 0.6;
+      flex-shrink: 0;
+    }
+
+    .file-picker-item label {
+      cursor: pointer;
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .file-picker-item.editor-file {
+      border: 1px solid rgba(59, 130, 246, 0.25);
+      background: rgba(59, 130, 246, 0.06);
+    }
+
+    /* ── Criteria list for review ── */
+    .criteria-actions {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 6px;
+      align-items: center;
+    }
+
+    .criteria-actions .link-btn {
+      background: none;
+      border: none;
+      color: var(--accent);
+      font-size: 11px;
+      cursor: pointer;
+      text-decoration: underline;
+      font-family: var(--font-ui);
+      padding: 0;
+    }
+
+    .criteria-actions .link-btn:hover {
+      color: var(--text-primary);
+    }
+
+    .saved-run-toolbar .link-btn {
+      background: none;
+      border: none;
+      color: var(--accent);
+      font-size: 11px;
+      cursor: pointer;
+      text-decoration: underline;
+      font-family: var(--font-ui);
+      padding: 0;
+    }
+
+    .saved-run-toolbar .link-btn:hover {
+      color: var(--text-primary);
+    }
+
+    .criteria-list {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .saved-runs-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 4px;
+    }
+
+    .saved-run-empty {
+      padding: 10px;
+      border: 1px dashed var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text-muted);
+      font-size: 11px;
+    }
+
+    .saved-run-item {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--bg-surface);
+      padding: 8px 10px;
+    }
+
+    .saved-run-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .saved-run-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .saved-run-score {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: rgba(59, 130, 246, 0.12);
+      color: var(--accent);
+      flex-shrink: 0;
+    }
+
+    .saved-run-meta {
+      font-size: 10.5px;
+      color: var(--text-muted);
+      line-height: 1.5;
+      margin-bottom: 8px;
+    }
+
+    .saved-run-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .saved-run-btn {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      padding: 5px 9px;
+      border-radius: var(--radius-sm);
+      font-family: var(--font-ui);
+      font-size: 11px;
+      cursor: pointer;
+      transition: all var(--transition);
+    }
+
+    .saved-run-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+      border-color: var(--border-glow);
+    }
+
+    .saved-run-toolbar {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 6px;
+    }
+
+    .criteria-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 10px;
+      border-radius: var(--radius-sm);
+      transition: all var(--transition);
+      cursor: pointer;
+      border: 1px solid transparent;
+      position: relative;
+    }
+
+    .criteria-item:hover {
+      background: var(--bg-hover);
+    }
+
+    .criteria-item input[type="checkbox"] {
+      accent-color: var(--accent);
+      flex-shrink: 0;
+    }
+
+    .criteria-item-text {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .criteria-item-name {
+      font-size: 12.5px;
+      font-weight: 500;
+      color: var(--text-primary);
+      display: block;
+    }
+
+    .criteria-item-desc {
+      font-size: 10.5px;
+      color: var(--text-muted);
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .criteria-item-status {
+      flex-shrink: 0;
+      width: 20px;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+    }
+
+    /* Criterion states */
+    .criteria-item.state-pending .criteria-item-status {
+      color: var(--text-muted);
+    }
+
+    .criteria-item.state-running {
+      background: rgba(245, 158, 11, 0.06);
+      border-color: rgba(245, 158, 11, 0.25);
+    }
+
+    .criteria-item.state-running .criteria-item-status {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid var(--border);
+      border-top-color: var(--amber);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    .criteria-item.state-done {
+      background: rgba(34, 197, 94, 0.05);
+      border-color: rgba(34, 197, 94, 0.15);
+    }
+
+    .criteria-item.state-done .criteria-item-status {
+      color: var(--green);
+    }
+
+    .criteria-item.state-error {
+      background: rgba(239, 68, 68, 0.05);
+      border-color: rgba(239, 68, 68, 0.15);
+    }
+
+    .criteria-item.state-error .criteria-item-status {
+      color: var(--red);
+    }
+
+    /* Score pill on criteria item */
+    .criteria-item-score {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 600;
+      padding: 1px 6px;
+      border-radius: 8px;
+      flex-shrink: 0;
+    }
+
+    /* ── Sidebar footer: start/stop ── */
+    .review-sidebar-footer {
+      padding: 12px 16px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .btn-review {
+      background: linear-gradient(135deg, #8b5cf6, var(--accent));
+      border: none;
+      color: white;
+      padding: 9px 20px;
+      border-radius: var(--radius-sm);
+      font-family: var(--font-ui);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all var(--transition);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex: 1;
+      justify-content: center;
+    }
+
+    .btn-review:hover:not(:disabled) {
+      box-shadow: 0 0 24px rgba(139, 92, 246, 0.35);
+      transform: translateY(-1px);
+    }
+
+    .btn-review:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .btn-review:active:not(:disabled) {
+      transform: scale(0.97);
+    }
+
+    .btn-stop-review {
+      background: var(--red);
+      border: none;
+      color: white;
+      padding: 9px 16px;
+      border-radius: var(--radius-sm);
+      font-family: var(--font-ui);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all var(--transition);
+      flex: 1;
+      text-align: center;
+    }
+
+    .btn-stop-review:hover {
+      background: #dc2626;
+    }
+
+    .btn-back {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      padding: 9px 14px;
+      border-radius: var(--radius-sm);
+      font-family: var(--font-ui);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all var(--transition);
+    }
+
+    .btn-back:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    /* ── Right: report area ── */
+    .review-report-area {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .review-report-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px;
+      background: var(--bg-panel);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .review-report-title {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+    }
+
+    .review-progress-text {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-style: italic;
+    }
+
+    .review-report-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 20px;
+    }
+
+    .review-empty {
+      text-align: center;
+      padding: 60px 16px;
+      color: var(--text-muted);
+    }
+
+    .review-empty .icon {
+      font-size: 48px;
+      opacity: 0.4;
+      margin-bottom: 12px;
+    }
+
+    /* ── Criterion report sections ── */
+    .criterion-section {
+      margin-bottom: 20px;
+    }
+
+    .criterion-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 14px;
+      background: var(--bg-surface);
+      border-radius: var(--radius-sm);
+      margin-bottom: 8px;
+      border-left: 3px solid var(--accent);
+      cursor: pointer;
+      user-select: none;
+      transition: background var(--transition);
+    }
+
+    .criterion-header:hover {
+      background: var(--bg-hover);
+    }
+
+    .criterion-header.running {
+      border-left-color: var(--amber);
+    }
+
+    .criterion-header.done {
+      border-left-color: var(--green);
+    }
+
+    .criterion-header.error {
+      border-left-color: var(--red);
+    }
+
+    .criterion-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+      flex: 1;
+    }
+
+    .criterion-chevron {
+      color: var(--text-muted);
+      font-size: 12px;
+      transition: transform var(--transition);
+    }
+
+    .criterion-header.collapsed .criterion-chevron {
+      transform: rotate(-90deg);
+    }
+
+    .criterion-score-badge {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+
+    .score-good {
+      background: rgba(34, 197, 94, 0.15);
+      color: var(--green);
+    }
+
+    .score-notable {
+      background: rgba(245, 158, 11, 0.15);
+      color: var(--amber);
+    }
+
+    .score-significant {
+      background: rgba(239, 68, 68, 0.15);
+      color: var(--red);
+    }
+
+    .score-critical {
+      background: rgba(239, 68, 68, 0.25);
+      color: #fca5a5;
+    }
+
+    .criterion-stream {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.65;
+      color: var(--text-secondary);
+      white-space: pre-wrap;
+      word-break: break-word;
+      padding: 0 8px;
+      max-height: 600px;
+      overflow-y: auto;
+      transition: max-height 0.3s ease;
+    }
+
+    .criterion-stream.collapsed {
+      max-height: 0;
+      overflow: hidden;
+      padding: 0;
+    }
+
+    .criterion-spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid var(--border);
+      border-top-color: var(--amber);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      flex-shrink: 0;
+    }
+
+    /* ── Review summary ── */
+    .review-summary {
+      padding: 16px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 20px;
+    }
+
+    .review-summary-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 10px;
+    }
+
+    .review-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 8px;
+    }
+
+    .summary-card {
+      padding: 10px 12px;
+      background: var(--bg-panel);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+    }
+
+    .summary-card-label {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    .summary-card-value {
+      font-family: var(--font-mono);
+      font-size: 20px;
+      font-weight: 600;
+    }
+
+    /* ── Fix issues footer bar ── */
+    .review-footer-bar {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 16px;
+      background: var(--bg-panel);
+      border-top: 1px solid var(--border);
+    }
+
+    .review-footer-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .review-footer-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-download-json {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 6px 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--bg-surface);
+      color: var(--text-secondary);
+      font-family: var(--font-ui);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all var(--transition);
+    }
+
+    .btn-download-json:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .btn-fix-issues {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border: 1px solid rgba(34, 197, 94, 0.3);
+      border-radius: var(--radius-sm);
+      background: rgba(34, 197, 94, 0.1);
+      color: var(--green);
+      font-family: var(--font-ui);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all var(--transition);
+    }
+
+    .btn-fix-issues:hover {
+      background: rgba(34, 197, 94, 0.18);
+      border-color: rgba(34, 197, 94, 0.5);
+      box-shadow: 0 0 16px rgba(34, 197, 94, 0.15);
+    }
+
+    .btn-fix-issues:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    /* ────────────────── Fix Issues Interface Modal ────────────────── */
+    .fix-interface-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      backdrop-filter: blur(2px);
+    }
+
+    .fix-interface-container {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      display: grid;
+      grid-template-rows: auto minmax(0, 0.95fr) minmax(320px, 1.15fr) auto;
+      width: 95vw;
+      height: 90vh;
+      max-width: 1600px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+      overflow: hidden;
+    }
+
+    .fix-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(to right, var(--bg-surface), var(--bg-panel));
+    }
+
+    .fix-header h2 {
+      font-size: 18px;
+      font-weight: 600;
+      margin: 0;
+    }
+
+    .fix-progress {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .fix-close-btn {
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 20px;
+      cursor: pointer;
+      padding: 0 8px;
+      transition: color var(--transition);
+    }
+
+    .fix-close-btn:hover {
+      color: var(--text-primary);
+    }
+
+    /* 3-pane content layout */
+    .fix-content {
+      display: grid;
+      grid-template-columns: 1fr 1.4fr 1.2fr;
+      gap: 1px;
+      background: var(--border);
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    .fix-pane {
+      background: var(--bg-panel);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .fix-list-header,
+    .fix-pane-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      background: var(--bg-surface);
+    }
+
+    /* Issues list */
+    .fix-issues-list {
+      background: var(--bg-deep);
+    }
+
+    .fix-list-items {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 0;
+    }
+
+    .fix-item {
+      padding: 10px 12px;
+      border-left: 3px solid transparent;
+      cursor: pointer;
+      transition: background var(--transition);
+      border-bottom: 1px solid var(--border-glow);
+      font-size: 13px;
+    }
+
+    .fix-item:hover {
+      background: var(--bg-hover);
+    }
+
+    .fix-item.selected {
+      background: var(--accent-soft);
+      border-left-color: var(--accent);
+    }
+
+    .fix-item-severity {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 10px;
+      font-weight: 600;
+      margin-right: 8px;
+      text-transform: uppercase;
+    }
+
+    .fix-item-severity.error {
+      background: rgba(239, 68, 68, 0.2);
+      color: var(--red);
+    }
+
+    .fix-item-severity.warning {
+      background: rgba(245, 158, 11, 0.2);
+      color: var(--amber);
+    }
+
+    .fix-item-severity.info,
+    .fix-item-severity.hint {
+      background: rgba(59, 130, 246, 0.2);
+      color: var(--accent);
+    }
+
+    .fix-item-message {
+      display: block;
+      color: var(--text-primary);
+      margin-top: 4px;
+      word-wrap: break-word;
+    }
+
+    .fix-item-code {
+      display: block;
+      color: var(--text-secondary);
+      font-size: 11px;
+      font-family: var(--font-mono);
+      margin-top: 2px;
+    }
+
+    /* Code pane */
+    .fix-code-pane {
+      background: var(--bg-deep);
+    }
+
+    .fix-code-container {
+      flex: 1;
+      overflow: auto;
+      padding: 12px 16px;
+      margin: 0;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 1.5;
+      border: none;
+    }
+
+    .fix-code-container code {
+      background: none;
+      color: inherit;
+      padding: 0;
+    }
+
+    .fix-code-highlight {
+      display: block;
+      background: rgba(245, 158, 11, 0.22);
+      padding: 2px 4px;
+      border-left: 2px solid var(--amber);
+      border-radius: 2px;
+    }
+
+    /* Diagram pane */
+    .fix-diagram-pane {
+      background: var(--bg-deep);
+    }
+
+    .fix-diagram-container {
+      flex: 1;
+      overflow: auto;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .fix-diagram-container svg {
+      max-width: 100%;
+      max-height: 100%;
+    }
+
+    /* Proposals section */
+    .fix-proposals-section {
+      padding: 16px 20px 12px;
+      border-top: 1px solid var(--border);
+      background: var(--bg-surface);
+      min-height: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .fix-issue-description {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-bottom: 12px;
+      line-height: 1.5;
+    }
+
+    .fix-option-label,
+    .fix-changes-label,
+    .fix-proposal-editor-label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin: 8px 0 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .fix-changes-summary {
+      margin-bottom: 12px;
+      padding: 10px 12px;
+      background: rgba(17, 24, 39, 0.85);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: auto;
+      max-height: 220px;
+    }
+
+    .fix-change-item {
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(75, 92, 124, 0.25);
+    }
+
+    .fix-change-item:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+
+    .fix-change-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .fix-change-type {
+      padding: 2px 6px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      font-family: var(--font-ui);
+    }
+
+    .fix-change-type.add {
+      color: var(--green);
+      background: rgba(34, 197, 94, 0.12);
+    }
+
+    .fix-change-type.delete {
+      color: var(--red);
+      background: rgba(239, 68, 68, 0.12);
+    }
+
+    .fix-change-type.alter {
+      color: var(--amber);
+      background: rgba(245, 158, 11, 0.14);
+    }
+
+    .fix-change-desc {
+      color: var(--text-primary);
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .fix-change-blocks {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .fix-change-snippet-label {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--text-muted);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .fix-change-snippet {
+      margin: 0;
+      padding: 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: var(--font-mono);
+      border: 1px solid rgba(75, 92, 124, 0.24);
+      background: rgba(10, 14, 23, 0.9);
+      color: var(--text-secondary);
+    }
+
+    .fix-change-snippet.before {
+      border-left: 2px solid var(--red);
+    }
+
+    .fix-change-snippet.after {
+      border-left: 2px solid var(--green);
+    }
+
+    .fix-options-container {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .fix-proposal-summary {
+      margin-bottom: 12px;
+      padding: 12px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: rgba(17, 24, 39, 0.9);
+      box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.08);
+    }
+
+    .fix-proposal-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+
+    .fix-proposal-description {
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    .fix-proposal-editor {
+      width: 100%;
+      flex: 1;
+      padding: 10px 12px;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.6;
+      border-radius: 6px;
+      resize: vertical;
+      min-height: 220px;
+      margin-bottom: 12px;
+      transition: border-color var(--transition);
+    }
+
+    .fix-proposal-editor:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 8px rgba(59, 130, 246, 0.3);
+    }
+
+    .fix-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 0;
+      padding-top: 4px;
+      flex-shrink: 0;
+    }
+
+    .fix-btn-primary {
+      background: linear-gradient(135deg, var(--accent), #2563eb);
+      border: none;
+      color: white;
+      padding: 10px 18px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all var(--transition);
+    }
+
+    .fix-btn-primary:hover {
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+    }
+
+    .fix-btn-primary:active {
+      transform: scale(0.98);
+    }
+
+    .fix-btn-secondary {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      padding: 10px 16px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all var(--transition);
+    }
+
+    .fix-btn-secondary:hover {
+      border-color: var(--border-glow);
+      background: var(--bg-hover);
+    }
+
+    .fix-footer {
+      padding: 12px 20px;
+      border-top: 1px solid var(--border);
+      background: var(--bg-deep);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+    }
+
+    @media (max-width: 1100px) {
+      .fix-interface-container {
+        grid-template-rows: auto minmax(0, 1fr) minmax(280px, 1fr) auto;
+        width: 98vw;
+        height: 94vh;
+      }
+
+      .fix-content {
+        grid-template-columns: 0.9fr 1.1fr;
+        grid-template-rows: minmax(0, 1fr) minmax(220px, 0.9fr);
+      }
+
+      .fix-issues-list {
+        grid-row: 1 / span 2;
+      }
+
+      .fix-code-pane {
+        grid-column: 2;
+        grid-row: 1;
+      }
+
+      .fix-diagram-pane {
+        grid-column: 2;
+        grid-row: 2;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .fix-interface-container {
+        grid-template-rows: auto minmax(0, 1.1fr) minmax(320px, 1fr) auto;
+        width: 100vw;
+        height: 100vh;
+        border-radius: 0;
+      }
+
+      .fix-header,
+      .fix-proposals-section,
+      .fix-footer {
+        padding-left: 14px;
+        padding-right: 14px;
+      }
+
+      .fix-content {
+        grid-template-columns: 1fr;
+        grid-template-rows: 180px minmax(180px, 1fr) minmax(180px, 1fr);
+      }
+
+      .fix-issues-list,
+      .fix-code-pane,
+      .fix-diagram-pane {
+        grid-column: auto;
+        grid-row: auto;
+      }
+
+      .fix-proposal-editor {
+        min-height: 220px;
+      }
+
+      .fix-actions {
+        position: static;
+        background: none;
+      }
+
+      .fix-change-blocks {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
 </head>
 
 <body>
-<div class="app">
+  <div class="app">
 
-  <!-- ═══ Header ═══ -->
-  <header class="header">
-    <div class="header-left">
-      <div class="logo">
-        <div class="logo-mark">S2</div>
-        SysML v2 <span>Explorer</span>
-      </div>
-      <select class="example-select" id="exampleSelect">
-        <option value="">Load example…</option>
-      </select>
-    </div>
-    <div class="header-actions">
-      <button class="btn btn-primary" id="analyseBtn" onclick="analyse()">
-        ▶ Analyse <kbd>⌘↵</kbd>
-      </button>
-      <button class="btn btn-primary" id="reviewModeBtn" onclick="enterReviewMode()" style="background: linear-gradient(135deg, #8b5cf6, var(--accent));">
-        📋 Review
-      </button>
-    </div>
-  </header>
-
-  <!-- ═══ Workspace ═══ -->
-  <div class="workspace">
-
-    <!-- Left: Editor + Diagnostics -->
-    <div class="panel">
-      <div class="panel-header">
-        <span>Editor</span>
-        <span class="badge" id="diagBadge"></span>
-      </div>
-      <div class="panel-body editor-container">
-        <div class="editor-area">
-          <div class="line-numbers" id="lineNumbers"></div>
-          <textarea id="editor" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
+    <!-- ═══ Header ═══ -->
+    <header class="header">
+      <div class="header-left">
+        <div class="logo">
+          <div class="logo-mark">S2</div>
+          SysML v2 <span>Explorer</span>
         </div>
-        <div class="diagnostics-strip" id="diagnosticsPanel">
-          <div class="diag-empty">
-            <div class="check">✓</div>
-            <div>Press <strong>Analyse</strong> to check your model</div>
+        <select class="example-select" id="exampleSelect">
+          <option value="">Load example…</option>
+        </select>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-primary" id="analyseBtn" onclick="analyse()">
+          ▶ Analyse <kbd>⌘↵</kbd>
+        </button>
+        <button class="btn btn-primary" id="reviewModeBtn" onclick="enterReviewMode()"
+          style="background: linear-gradient(135deg, #8b5cf6, var(--accent));">
+          📋 Review
+        </button>
+      </div>
+    </header>
+
+    <!-- ═══ Workspace ═══ -->
+    <div class="workspace">
+
+      <!-- Left: Editor + Diagnostics -->
+      <div class="panel">
+        <div class="panel-header">
+          <span>Editor</span>
+          <span class="badge" id="diagBadge"></span>
+        </div>
+        <div class="panel-body editor-container">
+          <div class="editor-area">
+            <div class="line-numbers" id="lineNumbers"></div>
+            <textarea id="editor" spellcheck="false" autocomplete="off" autocorrect="off"
+              autocapitalize="off"></textarea>
+          </div>
+          <div class="diagnostics-strip" id="diagnosticsPanel">
+            <div class="diag-empty">
+              <div class="check">✓</div>
+              <div>Press <strong>Analyse</strong> to check your model</div>
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- Right: Diagram / Symbols -->
-    <div class="panel">
-      <div class="panel-header">
-        <div class="tabs">
-          <div class="tab active" data-tab="diagram" onclick="switchTab('diagram')">Diagram</div>
-          <div class="tab" data-tab="symbols" onclick="switchTab('symbols')">Symbols</div>
+      <!-- Right: Diagram / Symbols -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="tabs">
+            <div class="tab active" data-tab="diagram" onclick="switchTab('diagram')">Diagram</div>
+            <div class="tab" data-tab="symbols" onclick="switchTab('symbols')">Symbols</div>
+          </div>
         </div>
-      </div>
-      <div class="panel-body" style="position: relative;">
-        <div class="loading-overlay hidden" id="loadingOverlay">
-          <div class="spinner"></div>
-        </div>
+        <div class="panel-body" style="position: relative;">
+          <div class="loading-overlay hidden" id="loadingOverlay">
+            <div class="spinner"></div>
+          </div>
 
-        <div class="tab-content active" id="tab-diagram">
-          <div class="diagram-container" id="diagramContainer">
-            <div class="diagram-view" id="diagramView">
-              <div class="diagram-placeholder">
-                <div class="icon">◇</div>
-                <div>Your diagram will appear here</div>
-                <div style="margin-top:4px; font-size:12px;">Write SysML and click Analyse</div>
+          <div class="tab-content active" id="tab-diagram">
+            <div class="diagram-container" id="diagramContainer">
+              <div class="diagram-view" id="diagramView">
+                <div class="diagram-placeholder">
+                  <div class="icon">◇</div>
+                  <div>Your diagram will appear here</div>
+                  <div style="margin-top:4px; font-size:12px;">Write SysML and click Analyse</div>
+                </div>
+              </div>
+              <div class="zoom-toolbar">
+                <button class="zoom-btn" onclick="zoomDiagram(-1)" title="Zoom out">−</button>
+                <span class="zoom-level" id="zoomLevel">100%</span>
+                <button class="zoom-btn" onclick="zoomDiagram(1)" title="Zoom in">+</button>
+                <button class="zoom-btn" onclick="zoomDiagram(0)" title="Reset zoom" style="font-size:12px;">⊙</button>
               </div>
             </div>
-            <div class="zoom-toolbar">
-              <button class="zoom-btn" onclick="zoomDiagram(-1)" title="Zoom out">−</button>
-              <span class="zoom-level" id="zoomLevel">100%</span>
-              <button class="zoom-btn" onclick="zoomDiagram(1)" title="Zoom in">+</button>
-              <button class="zoom-btn" onclick="zoomDiagram(0)" title="Reset zoom" style="font-size:12px;">⊙</button>
+          </div>
+
+          <div class="tab-content" id="tab-symbols">
+            <div class="symbol-tree" id="symbolTree">
+              <div class="diagram-placeholder">
+                <div class="icon">⊞</div>
+                <div>Symbol outline will appear here</div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ═══ Review Full-Page Mode ═══ -->
+    <div class="review-page" id="reviewPage">
+
+      <!-- Left: sidebar with config, file picker, criteria -->
+      <div class="review-sidebar">
+        <div class="review-sidebar-header">
+          <h2>📋 Model Quality Review</h2>
+          <div class="review-status-banner not-configured" id="reviewStatusBanner">
+            <span>⚙</span>
+            <span>Checking LLM configuration…</span>
+          </div>
+        </div>
+        <div class="review-sidebar-body">
+
+          <!-- File picker -->
+          <div class="review-section-label">SysML Files</div>
+          <div class="file-picker" id="filePicker">
+            <div class="file-picker-item editor-file">
+              <input type="checkbox" id="fileEditor" checked>
+              <span class="file-icon">📝</span>
+              <label for="fileEditor">Current editor</label>
+            </div>
+          </div>
+
+          <!-- Criteria -->
+          <div class="review-section-label">Assessment Criteria</div>
+          <div class="criteria-actions">
+            <button class="link-btn" onclick="toggleAllCriteria(true)">Select all</button>
+            <button class="link-btn" onclick="toggleAllCriteria(false)">Deselect all</button>
+          </div>
+          <div class="criteria-list" id="criteriaList">
+            <div style="color:var(--text-muted); font-size:12px; padding:8px;">Loading criteria…</div>
+          </div>
+
+          <div class="review-section-label">Saved Review Runs</div>
+          <div class="saved-run-toolbar">
+            <button class="link-btn" onclick="loadSavedReviewRuns()">Refresh</button>
+          </div>
+          <div class="saved-runs-list" id="savedRunsList">
+            <div class="saved-run-empty">No saved reviews yet.</div>
+          </div>
+        </div>
+
+        <!-- Sidebar footer: run / stop / back -->
+        <div class="review-sidebar-footer">
+          <button class="btn-back" onclick="exitReviewMode()">← Back</button>
+          <button class="btn-review" id="reviewRunBtn" onclick="runReview()" disabled>
+            ⚡ Run Review
+          </button>
+          <button class="btn-stop-review" id="reviewStopBtn" onclick="stopReview()" style="display:none;">
+            ⏹ Stop
+          </button>
+        </div>
+      </div>
+
+      <!-- Right: report stream -->
+      <div class="review-report-area">
+        <div class="review-report-header">
+          <span class="review-report-title">Review Report</span>
+          <span class="review-progress-text" id="reviewProgressText"></span>
+        </div>
+        <div class="review-report-body" id="reviewReport">
+          <div class="review-empty">
+            <div class="icon">📋</div>
+            <div>Select files &amp; criteria, then run a review</div>
+            <div style="margin-top:4px; font-size:12px;">The LLM will assess your SysML model against each selected
+              quality criterion</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer bar -->
+      <div class="review-footer-bar">
+        <div class="review-footer-left" id="reviewFooterStatus"></div>
+        <div class="review-footer-right">
+          <button class="btn-download-json" id="downloadJsonBtn" onclick="downloadReviewJson()" style="display:none;">
+            ⬇ Download JSON
+          </button>
+          <button class="btn-fix-issues" id="fixIssuesBtn" onclick="openFixInterface()" disabled>
+            🔧 Fix Issues →
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ Fix Issues Interface Modal ═══ -->
+    <div class="fix-interface-modal" id="fixInterfaceModal" style="display: none;">
+      <div class="fix-interface-container">
+        <!-- Header -->
+        <div class="fix-header">
+          <h2>🔧 Fix Issues</h2>
+          <div class="fix-progress">
+            <span id="fixProgressText">Issue 1 of 0</span>
+          </div>
+          <button class="fix-close-btn" onclick="exitFixInterface()">✕</button>
+        </div>
+
+        <!-- Main content: 3-pane layout -->
+        <div class="fix-content">
+          <!-- Left pane: Issues list -->
+          <div class="fix-pane fix-issues-list" id="fixIssuesList">
+            <div class="fix-list-header">Issues</div>
+            <div class="fix-list-items" id="fixListItems">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+
+          <!-- Middle pane: Code context -->
+          <div class="fix-pane fix-code-pane">
+            <div class="fix-pane-header">SysML Code</div>
+            <pre class="fix-code-container" id="fixCodeContainer"><code id="fixCode"></code></pre>
+          </div>
+
+          <!-- Right pane: Diagram -->
+          <div class="fix-pane fix-diagram-pane">
+            <div class="fix-pane-header">Diagram Preview</div>
+            <div class="fix-diagram-container" id="fixDiagramContainer">
+              <div
+                style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-muted);">
+                <div>Select an issue to preview</div>
+              </div>
             </div>
           </div>
         </div>
 
-        <div class="tab-content" id="tab-symbols">
-          <div class="symbol-tree" id="symbolTree">
-            <div class="diagram-placeholder">
-              <div class="icon">⊞</div>
-              <div>Symbol outline will appear here</div>
+        <!-- Fix proposals section -->
+        <div class="fix-proposals-section">
+          <div class="fix-issue-description" id="fixIssueDescription">
+            Select an issue to see details and propose fixes.
+          </div>
+
+          <div class="fix-options-container" id="fixOptionsContainer" style="display: none;">
+            <div class="fix-option-label">Proposed Fix</div>
+            <div class="fix-proposal-summary">
+              <div class="fix-proposal-title" id="fixProposalTitle">No fix generated yet</div>
+              <div class="fix-proposal-description" id="fixProposalDescription">Select an issue to request an actionable
+                fix derived from the review run.</div>
+            </div>
+
+            <div class="fix-changes-label">Proposed Changes</div>
+            <div class="fix-changes-summary" id="fixChangesSummary">
+              <div style="color: var(--text-muted);">No proposed changes available yet.</div>
+            </div>
+
+            <div class="fix-proposal-editor-label">Editable Resolved SysML Draft</div>
+            <textarea id="fixProposalText" class="fix-proposal-editor" placeholder="Edit the proposed fix…"
+              oninput="onFixProposalEdit()"></textarea>
+
+            <div class="fix-actions">
+              <button class="btn fix-btn-secondary" onclick="skipCurrentIssue()" id="fixSkipBtn">Skip</button>
+              <button class="btn fix-btn-secondary" onclick="showPreviousFix()" id="fixPrevBtn" style="display: none;">←
+                Previous</button>
+              <button class="btn fix-btn-primary" onclick="implementCurrentFix()" id="fixImplementBtn">
+                ✓ Implement Fix
+              </button>
+              <button class="btn fix-btn-secondary" onclick="showNextFix()" id="fixNextBtn" style="display: none;">Next
+                →</button>
             </div>
           </div>
         </div>
 
-      </div>
-    </div>
-
-  </div>
-
-  <!-- ═══ Review Full-Page Mode ═══ -->
-  <div class="review-page" id="reviewPage">
-
-    <!-- Left: sidebar with config, file picker, criteria -->
-    <div class="review-sidebar">
-      <div class="review-sidebar-header">
-        <h2>📋 Model Quality Review</h2>
-        <div class="review-status-banner not-configured" id="reviewStatusBanner">
-          <span>⚙</span>
-          <span>Checking LLM configuration…</span>
-        </div>
-      </div>
-      <div class="review-sidebar-body">
-
-        <!-- File picker -->
-        <div class="review-section-label">SysML Files</div>
-        <div class="file-picker" id="filePicker">
-          <div class="file-picker-item editor-file">
-            <input type="checkbox" id="fileEditor" checked>
-            <span class="file-icon">📝</span>
-            <label for="fileEditor">Current editor</label>
+        <!-- Undo/bottom actions -->
+        <div class="fix-footer">
+          <span id="fixStatusText" style="color: var(--text-secondary); font-size: 12px;"></span>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn fix-btn-secondary" onclick="undoLastFix()" id="fixUndoBtn" style="display: none;">↶ Undo
+              Last Fix</button>
+            <button class="btn fix-btn-secondary" onclick="exitFixInterface()">Done</button>
           </div>
         </div>
-
-        <!-- Criteria -->
-        <div class="review-section-label">Assessment Criteria</div>
-        <div class="criteria-actions">
-          <button class="link-btn" onclick="toggleAllCriteria(true)">Select all</button>
-          <button class="link-btn" onclick="toggleAllCriteria(false)">Deselect all</button>
-        </div>
-        <div class="criteria-list" id="criteriaList">
-          <div style="color:var(--text-muted); font-size:12px; padding:8px;">Loading criteria…</div>
-        </div>
-      </div>
-
-      <!-- Sidebar footer: run / stop / back -->
-      <div class="review-sidebar-footer">
-        <button class="btn-back" onclick="exitReviewMode()">← Back</button>
-        <button class="btn-review" id="reviewRunBtn" onclick="runReview()" disabled>
-          ⚡ Run Review
-        </button>
-        <button class="btn-stop-review" id="reviewStopBtn" onclick="stopReview()" style="display:none;">
-          ⏹ Stop
-        </button>
       </div>
     </div>
 
-    <!-- Right: report stream -->
-    <div class="review-report-area">
-      <div class="review-report-header">
-        <span class="review-report-title">Review Report</span>
-        <span class="review-progress-text" id="reviewProgressText"></span>
-      </div>
-      <div class="review-report-body" id="reviewReport">
-        <div class="review-empty">
-          <div class="icon">📋</div>
-          <div>Select files &amp; criteria, then run a review</div>
-          <div style="margin-top:4px; font-size:12px;">The LLM will assess your SysML model against each selected quality criterion</div>
-        </div>
-      </div>
+    <!-- ═══ Status bar ═══ -->
+    <div class="status-bar idle" id="statusBar">
+      <span>Ready</span>
+      <span class="status-right" id="statusRight">SysML v2 LSP</span>
     </div>
 
-    <!-- Footer bar -->
-    <div class="review-footer-bar">
-      <div class="review-footer-left" id="reviewFooterStatus"></div>
-      <div class="review-footer-right">
-        <button class="btn-download-json" id="downloadJsonBtn" onclick="downloadReviewJson()" style="display:none;">
-          ⬇ Download JSON
-        </button>
-        <button class="btn-fix-issues" id="fixIssuesBtn" onclick="alert('This feature is coming soon — your colleague is working on it!')" disabled>
-          🔧 Fix Issues →
-        </button>
-      </div>
-    </div>
   </div>
 
-  <!-- ═══ Status bar ═══ -->
-  <div class="status-bar idle" id="statusBar">
-    <span>Ready</span>
-    <span class="status-right" id="statusRight">SysML v2 LSP</span>
-  </div>
+  <script>
+    // ═══════════════════════════════════════════════════════════════
+    // SysML v2 Web Client — Frontend Logic
+    // ═══════════════════════════════════════════════════════════════
 
-</div>
+    const editor = document.getElementById('editor');
+    const lineNumbers = document.getElementById('lineNumbers');
+    const diagnosticsPanel = document.getElementById('diagnosticsPanel');
+    const diagBadge = document.getElementById('diagBadge');
+    const diagramView = document.getElementById('diagramView');
+    const symbolTree = document.getElementById('symbolTree');
+    const statusBar = document.getElementById('statusBar');
+    const statusRight = document.getElementById('statusRight');
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    const exampleSelect = document.getElementById('exampleSelect');
 
-<script>
-// ═══════════════════════════════════════════════════════════════
-// SysML v2 Web Client — Frontend Logic
-// ═══════════════════════════════════════════════════════════════
+    // ─── Fix Issues Interface State ───
+    let _lastDiagnostics = [];
+    let _lastSymbols = [];
+    let _lastModel = null;
+    let _reviewSourceFiles = [];
+    let _reviewFixIssues = [];
+    let _reviewPrimaryCode = '';
+    let _fixInterfaceState = {
+      currentIssueIndex: 0,
+      appliedFixes: [],
+      undoStack: [],
+    };
+    let _fixProposals = {}; // Keyed by diagnostic index
+    let _fixDiagramRenderTimer = null;
 
-const editor = document.getElementById('editor');
-const lineNumbers = document.getElementById('lineNumbers');
-const diagnosticsPanel = document.getElementById('diagnosticsPanel');
-const diagBadge = document.getElementById('diagBadge');
-const diagramView = document.getElementById('diagramView');
-const symbolTree = document.getElementById('symbolTree');
-const statusBar = document.getElementById('statusBar');
-const statusRight = document.getElementById('statusRight');
-const loadingOverlay = document.getElementById('loadingOverlay');
-const exampleSelect = document.getElementById('exampleSelect');
-
-// ─── Mermaid init ───
-mermaid.initialize({
-    startOnLoad: false,
-    theme: 'dark',
-    themeVariables: {
+    // ─── Mermaid init ───
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'dark',
+      themeVariables: {
         darkMode: true,
         primaryColor: '#1e3a5f',
         primaryTextColor: '#e2e8f0',
@@ -1297,13 +2261,13 @@ mermaid.initialize({
         tertiaryColor: '#111827',
         fontFamily: 'DM Sans, sans-serif',
         fontSize: '13px',
-    },
-    flowchart: { curve: 'basis', padding: 16 },
-    sequence: { mirrorActors: false },
-});
+      },
+      flowchart: { curve: 'basis', padding: 16 },
+      sequence: { mirrorActors: false },
+    });
 
-// ─── Default SysML ───
-const DEFAULT_SYSML = `package SmartHome {
+    // ─── Default SysML ───
+    const DEFAULT_SYSML = `package SmartHome {
 
     // ─── Attribute Definitions ───
     attribute def Temperature;
@@ -1359,131 +2323,138 @@ const DEFAULT_SYSML = `package SmartHome {
 }
 `;
 
-editor.value = DEFAULT_SYSML;
-updateLineNumbers();
-
-// ─── Line numbers ───
-function updateLineNumbers() {
-    const lines = editor.value.split('\n').length;
-    lineNumbers.innerHTML = Array.from({ length: lines }, (_, i) =>
-        `<div>${i + 1}</div>`
-    ).join('');
-}
-
-// ─── Auto-analyse on edit (debounced) ───
-let _analyseTimer = null;
-function scheduleAnalyse(delay = 800) {
-    clearTimeout(_analyseTimer);
-    _analyseTimer = setTimeout(analyse, delay);
-}
-
-editor.addEventListener('input', () => {
+    editor.value = DEFAULT_SYSML;
     updateLineNumbers();
-    scheduleAnalyse();
-});
-editor.addEventListener('scroll', () => {
-    lineNumbers.style.transform = `translateY(-${editor.scrollTop}px)`;
-});
 
-// ─── Tab handling ───
-editor.addEventListener('keydown', (e) => {
-    if (e.key === 'Tab') {
+    // ─── Line numbers ───
+    function updateLineNumbers() {
+      const lines = editor.value.split('\n').length;
+      lineNumbers.innerHTML = Array.from({ length: lines }, (_, i) =>
+        `<div>${i + 1}</div>`
+      ).join('');
+    }
+
+    // ─── Auto-analyse on edit (debounced) ───
+    let _analyseTimer = null;
+    function scheduleAnalyse(delay = 800) {
+      clearTimeout(_analyseTimer);
+      _analyseTimer = setTimeout(analyse, delay);
+    }
+
+    editor.addEventListener('input', () => {
+      updateLineNumbers();
+      scheduleAnalyse();
+    });
+    editor.addEventListener('scroll', () => {
+      lineNumbers.style.transform = `translateY(-${editor.scrollTop}px)`;
+    });
+
+    // ─── Tab handling ───
+    editor.addEventListener('keydown', (e) => {
+      if (e.key === 'Tab') {
         e.preventDefault();
         const start = editor.selectionStart;
         editor.value = editor.value.substring(0, start) + '    ' + editor.value.substring(editor.selectionEnd);
         editor.selectionStart = editor.selectionEnd = start + 4;
         updateLineNumbers();
         scheduleAnalyse();
-    }
-    // Cmd/Ctrl + Enter to analyse
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      }
+      // Cmd/Ctrl + Enter to analyse
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
         analyse();
-    }
-});
+      }
+    });
 
-// ─── Load examples ───
-async function loadExamples() {
-    try {
+    // ─── Load examples ───
+    async function loadExamples() {
+      try {
         const res = await fetch('/api/examples');
         const examples = await res.json();
         examples.forEach(ex => {
-            const opt = document.createElement('option');
-            opt.value = ex.code;
-            opt.textContent = ex.name;
-            exampleSelect.appendChild(opt);
+          const opt = document.createElement('option');
+          opt.value = ex.code;
+          opt.textContent = ex.name;
+          exampleSelect.appendChild(opt);
         });
-    } catch { /* silently handle if API not ready */ }
-}
+      } catch { /* silently handle if API not ready */ }
+    }
 
-exampleSelect.addEventListener('change', () => {
-    if (exampleSelect.value) {
+    exampleSelect.addEventListener('change', () => {
+      if (exampleSelect.value) {
         editor.value = exampleSelect.value;
         updateLineNumbers();
         analyse();
-    }
-});
+      }
+    });
 
-// ─── Tab switching ───
-function switchTab(name) {
-    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
-    document.querySelectorAll('.tab-content').forEach(t =>
+    // ─── Tab switching ───
+    function switchTab(name) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+      document.querySelectorAll('.tab-content').forEach(t =>
         t.classList.toggle('active', t.id === `tab-${name}`)
-    );
-}
+      );
+    }
 
-// ─── Analyse ───
-let analyseTimeout;
+    // ─── Analyse ───
+    let analyseTimeout;
 
-async function analyse() {
-    const code = editor.value;
-    if (!code.trim()) return;
+    async function analyse() {
+      const code = editor.value;
+      if (!code.trim()) return;
 
-    // Show loading
-    loadingOverlay.classList.remove('hidden');
-    statusBar.className = 'status-bar';
-    statusBar.querySelector('span').innerHTML = '<span class="pulse"></span>Analysing…';
-    diagBadge.textContent = '';
-    diagBadge.className = 'badge';
+      // Show loading
+      loadingOverlay.classList.remove('hidden');
+      statusBar.className = 'status-bar';
+      statusBar.querySelector('span').innerHTML = '<span class="pulse"></span>Analysing…';
+      diagBadge.textContent = '';
+      diagBadge.className = 'badge';
 
-    try {
+      try {
         const res = await fetch('/api/analyse', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code }),
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code }),
         });
 
         if (!res.ok) throw new Error(`Server error: ${res.status}`);
         const data = await res.json();
 
-        renderDiagnostics(data.diagnostics ?? []);
-        renderSymbols(data.symbols ?? []);
-        await renderDiagram(data.symbols ?? [], data.model);
+        // Store diagnostics and metadata for fix interface
+        _lastDiagnostics = data.diagnostics ?? [];
+        _lastSymbols = data.symbols ?? [];
+        _lastModel = data.model ?? null;
+        _fixInterfaceState = { currentIssueIndex: 0, appliedFixes: [], undoStack: [] };
+        _fixProposals = {};
 
-        const errCount = (data.diagnostics ?? []).filter(d => d.severity === 1).length;
-        const warnCount = (data.diagnostics ?? []).filter(d => d.severity === 2).length;
-        const total = (data.diagnostics ?? []).length;
+        renderDiagnostics(_lastDiagnostics);
+        renderSymbols(_lastSymbols);
+        await renderDiagram(_lastSymbols, _lastModel);
+
+        const errCount = _lastDiagnostics.filter(d => d.severity === 1).length;
+        const warnCount = _lastDiagnostics.filter(d => d.severity === 2).length;
+        const total = _lastDiagnostics.length;
 
         statusBar.className = 'status-bar idle';
         statusBar.querySelector('span').textContent =
-            total === 0 ? '✓ No issues' :
+          total === 0 ? '✓ No issues' :
             `${errCount} error${errCount !== 1 ? 's' : ''}, ${warnCount} warning${warnCount !== 1 ? 's' : ''}, ${total - errCount - warnCount} info/hint`;
-        statusRight.textContent = `${(data.symbols ?? []).length} symbols`;
+        statusRight.textContent = `${_lastSymbols.length} symbols`;
 
-    } catch (err) {
+      } catch (err) {
         statusBar.className = 'status-bar error';
         statusBar.querySelector('span').textContent = `✗ ${err.message}`;
-    } finally {
+      } finally {
         loadingOverlay.classList.add('hidden');
+      }
     }
-}
 
-// ─── Render diagnostics ───
-const SEV_MAP = { 1: 'error', 2: 'warning', 3: 'info', 4: 'hint' };
-const SEV_ICON = { error: '✕', warning: '!', info: 'i', hint: '?' };
+    // ─── Render diagnostics ───
+    const SEV_MAP = { 1: 'error', 2: 'warning', 3: 'info', 4: 'hint' };
+    const SEV_ICON = { error: '✕', warning: '!', info: 'i', hint: '?' };
 
-function renderDiagnostics(diags) {
-    if (!diags.length) {
+    function renderDiagnostics(diags) {
+      if (!diags.length) {
         diagnosticsPanel.innerHTML = `
             <div class="diag-empty">
                 <div class="check">✓</div>
@@ -1492,23 +2463,23 @@ function renderDiagnostics(diags) {
         diagBadge.textContent = '0 issues';
         diagBadge.className = 'badge badge-ok';
         return;
-    }
+      }
 
-    const errors = diags.filter(d => d.severity === 1).length;
-    const warns = diags.filter(d => d.severity === 2).length;
+      const errors = diags.filter(d => d.severity === 1).length;
+      const warns = diags.filter(d => d.severity === 2).length;
 
-    if (errors > 0) {
+      if (errors > 0) {
         diagBadge.textContent = `${errors} error${errors > 1 ? 's' : ''}`;
         diagBadge.className = 'badge badge-error';
-    } else if (warns > 0) {
+      } else if (warns > 0) {
         diagBadge.textContent = `${warns} warning${warns > 1 ? 's' : ''}`;
         diagBadge.className = 'badge badge-warn';
-    } else {
+      } else {
         diagBadge.textContent = `${diags.length} hint${diags.length > 1 ? 's' : ''}`;
         diagBadge.className = 'badge badge-ok';
-    }
+      }
 
-    diagnosticsPanel.innerHTML = diags.map(d => {
+      diagnosticsPanel.innerHTML = diags.map(d => {
         const sev = SEV_MAP[d.severity] ?? 'info';
         const line = (d.range?.start?.line ?? 0) + 1;
         const col = (d.range?.start?.character ?? 0) + 1;
@@ -1517,33 +2488,33 @@ function renderDiagnostics(diags) {
             <div class="diag-location">L${line}:${col}</div>
             <div class="diag-message">${escHtml(d.message)}${d.code ? ` <span style="color:var(--text-muted)">[${escHtml(String(d.code))}]</span>` : ''}</div>
         </div>`;
-    }).join('');
-}
+      }).join('');
+    }
 
-// ─── Render symbols ───
-const KIND_MAP = {
-    4: 'package', 5: 'part', 7: 'attribute', 8: 'port',
-    10: 'enum', 11: 'interface', 6: 'action', 12: 'req',
-};
+    // ─── Render symbols ───
+    const KIND_MAP = {
+      4: 'package', 5: 'part', 7: 'attribute', 8: 'port',
+      10: 'enum', 11: 'interface', 6: 'action', 12: 'req',
+    };
 
-const KIND_LABEL = {
-    4: 'PKG', 5: 'PART', 7: 'ATTR', 8: 'PORT',
-    10: 'ENUM', 11: 'INTF', 6: 'ACT', 12: 'REQ',
-};
+    const KIND_LABEL = {
+      4: 'PKG', 5: 'PART', 7: 'ATTR', 8: 'PORT',
+      10: 'ENUM', 11: 'INTF', 6: 'ACT', 12: 'REQ',
+    };
 
-function renderSymbols(symbols, depth = 0) {
-    if (!symbols.length && depth === 0) {
+    function renderSymbols(symbols, depth = 0) {
+      if (!symbols.length && depth === 0) {
         symbolTree.innerHTML = `
             <div class="diagram-placeholder">
                 <div class="icon">⊞</div>
                 <div>No symbols found</div>
             </div>`;
         return;
-    }
+      }
 
-    if (depth === 0) symbolTree.innerHTML = '';
+      if (depth === 0) symbolTree.innerHTML = '';
 
-    symbols.forEach(sym => {
+      symbols.forEach(sym => {
         const kind = KIND_MAP[sym.kind] ?? 'default';
         const label = KIND_LABEL[sym.kind] ?? 'SYM';
         const node = document.createElement('div');
@@ -1556,247 +2527,831 @@ function renderSymbols(symbols, depth = 0) {
         symbolTree.appendChild(node);
 
         if (sym.children?.length) {
-            renderSymbols(sym.children, depth + 1);
+          renderSymbols(sym.children, depth + 1);
         }
-    });
-}
+      });
+    }
 
-// ─── Render mermaid diagram ───
-async function renderDiagram(symbols, model) {
-    // Reset zoom/pan for the fresh diagram
-    _zoom = 1; _panX = 0; _panY = 0;
-    applyDiagramTransform();
+    // ─── Render mermaid diagram ───
+    async function renderDiagram(symbols, model) {
+      // Reset zoom/pan for the fresh diagram
+      _zoom = 1; _panX = 0; _panY = 0;
+      applyDiagramTransform();
 
-    // Build a class diagram from the symbols
-    const diagram = buildMermaidFromSymbols(symbols);
+      // Build a class diagram from the symbols
+      const diagram = buildMermaidFromSymbols(symbols);
 
-    if (!diagram) {
+      if (!diagram) {
         diagramView.innerHTML = `
             <div class="diagram-placeholder">
                 <div class="icon">◇</div>
                 <div>No structural elements to diagram</div>
             </div>`;
         return;
-    }
+      }
 
-    try {
+      try {
         const { svg } = await mermaid.render('mermaid-output', diagram);
         diagramView.innerHTML = svg;
-    } catch (err) {
+      } catch (err) {
         diagramView.innerHTML = `
             <div class="diagram-placeholder">
                 <div class="icon" style="color:var(--amber)">⚠</div>
                 <div>Diagram rendering failed</div>
                 <div style="font-size:11px; margin-top:4px; color:var(--text-muted)">${escHtml(err.message)}</div>
             </div>`;
+      }
     }
-}
 
-function buildMermaidFromSymbols(symbols) {
-    const lines = ['classDiagram'];
-    let hasContent = false;
+    function buildMermaidFromSymbols(symbols) {
+      const lines = ['classDiagram'];
+      let hasContent = false;
 
-    function walk(syms, parent) {
+      function walk(syms, parent) {
         for (const sym of syms) {
-            const name = safeMermaidId(sym.name);
-            const kind = sym.kind;
+          const name = safeMermaidId(sym.name);
+          const kind = sym.kind;
 
-            // Definitions: class-like (kind 5=Class used for part def, 10=Enum, etc.)
-            if ([4, 5, 10, 11].includes(kind) || sym.children?.length > 0) {
-                lines.push(`    class ${name} {`);
+          // Definitions: class-like (kind 5=Class used for part def, 10=Enum, etc.)
+          if ([4, 5, 10, 11].includes(kind) || sym.children?.length > 0) {
+            lines.push(`    class ${name} {`);
 
-                if (sym.children) {
-                    for (const child of sym.children) {
-                        const childKind = KIND_LABEL[child.kind] ?? '';
-                        const childName = child.name || '?';
-                        if (child.children?.length > 0) continue; // skip nested defs here
-                        lines.push(`        +${childKind.toLowerCase()} ${childName}`);
-                    }
-                }
-
-                lines.push('    }');
-
-                // Stereotype annotation
-                if (kind === 4) lines.push(`    <<Package>> ${name}`);
-                else if (kind === 10) lines.push(`    <<Enumeration>> ${name}`);
-                else if (kind === 11) lines.push(`    <<Interface>> ${name}`);
-
-                hasContent = true;
-
-                // Add composition relationships for child definitions
-                if (sym.children) {
-                    for (const child of sym.children) {
-                        if (child.children?.length > 0) {
-                            const childId = safeMermaidId(child.name);
-                            lines.push(`    ${name} *-- ${childId}`);
-                            walk([child], name);
-                        }
-                    }
-                }
+            if (sym.children) {
+              for (const child of sym.children) {
+                const childKind = KIND_LABEL[child.kind] ?? '';
+                const childName = child.name || '?';
+                if (child.children?.length > 0) continue; // skip nested defs here
+                lines.push(`        +${childKind.toLowerCase()} ${childName}`);
+              }
             }
+
+            lines.push('    }');
+
+            // Stereotype annotation
+            if (kind === 4) lines.push(`    <<Package>> ${name}`);
+            else if (kind === 10) lines.push(`    <<Enumeration>> ${name}`);
+            else if (kind === 11) lines.push(`    <<Interface>> ${name}`);
+
+            hasContent = true;
+
+            // Add composition relationships for child definitions
+            if (sym.children) {
+              for (const child of sym.children) {
+                if (child.children?.length > 0) {
+                  const childId = safeMermaidId(child.name);
+                  lines.push(`    ${name} *-- ${childId}`);
+                  walk([child], name);
+                }
+              }
+            }
+          }
         }
+      }
+
+      walk(symbols, null);
+
+      return hasContent ? lines.join('\n') : null;
     }
 
-    walk(symbols, null);
+    function safeMermaidId(name) {
+      return (name || 'unknown').replace(/[^a-zA-Z0-9_]/g, '_');
+    }
 
-    return hasContent ? lines.join('\n') : null;
-}
+    function escHtml(str) {
+      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
 
-function safeMermaidId(name) {
-    return (name || 'unknown').replace(/[^a-zA-Z0-9_]/g, '_');
-}
+    // ─── Diagram zoom / pan ───
+    let _zoom = 1;
+    let _panX = 0, _panY = 0;
+    const ZOOM_MIN = 0.25, ZOOM_MAX = 4, ZOOM_STEP = 0.15;
 
-function escHtml(str) {
-    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
+    function applyDiagramTransform(smooth = true) {
+      if (!smooth) diagramView.classList.add('panning');
+      else diagramView.classList.remove('panning');
+      diagramView.style.transform = `translate(${_panX}px, ${_panY}px) scale(${_zoom})`;
+      document.getElementById('zoomLevel').textContent = `${Math.round(_zoom * 100)}%`;
+    }
 
-// ─── Diagram zoom / pan ───
-let _zoom = 1;
-let _panX = 0, _panY = 0;
-const ZOOM_MIN = 0.25, ZOOM_MAX = 4, ZOOM_STEP = 0.15;
+    function zoomDiagram(dir) {
+      if (dir === 0) { _zoom = 1; _panX = 0; _panY = 0; }
+      else { _zoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, _zoom + dir * ZOOM_STEP)); }
+      applyDiagramTransform();
+    }
 
-function applyDiagramTransform(smooth = true) {
-    if (!smooth) diagramView.classList.add('panning');
-    else diagramView.classList.remove('panning');
-    diagramView.style.transform = `translate(${_panX}px, ${_panY}px) scale(${_zoom})`;
-    document.getElementById('zoomLevel').textContent = `${Math.round(_zoom * 100)}%`;
-}
+    // Scroll-wheel zoom
+    document.getElementById('diagramContainer')?.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -1 : 1;
+      const oldZoom = _zoom;
+      _zoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, _zoom + delta * ZOOM_STEP));
+      // Zoom toward cursor
+      const rect = diagramView.parentElement.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      const scale = _zoom / oldZoom;
+      _panX = mx - scale * (mx - _panX);
+      _panY = my - scale * (my - _panY);
+      applyDiagramTransform(false);
+    }, { passive: false });
 
-function zoomDiagram(dir) {
-    if (dir === 0) { _zoom = 1; _panX = 0; _panY = 0; }
-    else { _zoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, _zoom + dir * ZOOM_STEP)); }
-    applyDiagramTransform();
-}
-
-// Scroll-wheel zoom
-document.getElementById('diagramContainer')?.addEventListener('wheel', (e) => {
-    e.preventDefault();
-    const delta = e.deltaY > 0 ? -1 : 1;
-    const oldZoom = _zoom;
-    _zoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, _zoom + delta * ZOOM_STEP));
-    // Zoom toward cursor
-    const rect = diagramView.parentElement.getBoundingClientRect();
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
-    const scale = _zoom / oldZoom;
-    _panX = mx - scale * (mx - _panX);
-    _panY = my - scale * (my - _panY);
-    applyDiagramTransform(false);
-}, { passive: false });
-
-// Mouse drag to pan
-(function initPan() {
-    const container = document.getElementById('diagramContainer');
-    if (!container) return;
-    let dragging = false, startX, startY, origPanX, origPanY;
-    container.addEventListener('mousedown', (e) => {
+    // Mouse drag to pan
+    (function initPan() {
+      const container = document.getElementById('diagramContainer');
+      if (!container) return;
+      let dragging = false, startX, startY, origPanX, origPanY;
+      container.addEventListener('mousedown', (e) => {
         if (e.button !== 0) return;
         dragging = true;
         startX = e.clientX; startY = e.clientY;
         origPanX = _panX; origPanY = _panY;
         diagramView.classList.add('panning');
-    });
-    window.addEventListener('mousemove', (e) => {
+      });
+      window.addEventListener('mousemove', (e) => {
         if (!dragging) return;
         _panX = origPanX + (e.clientX - startX);
         _panY = origPanY + (e.clientY - startY);
         applyDiagramTransform(false);
-    });
-    window.addEventListener('mouseup', () => {
+      });
+      window.addEventListener('mouseup', () => {
         if (dragging) { dragging = false; diagramView.classList.remove('panning'); }
-    });
-})();
+      });
+    })();
 
-// ─── Init ───
-loadExamples();
-// Analyse the default content on first load
-window.addEventListener('DOMContentLoaded', () => setTimeout(analyse, 300));
+    // ─── Init ───
+    loadExamples();
+    // Analyse the default content on first load
+    window.addEventListener('DOMContentLoaded', () => setTimeout(analyse, 300));
 
-// ═══════════════════════════════════════════════════════════════
-// Review Mode — LLM-powered model quality assessment (full page)
-// ═══════════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════
+    // Review Mode — LLM-powered model quality assessment (full page)
+    // ═══════════════════════════════════════════════════════════════
 
-const reviewPage = document.getElementById('reviewPage');
-const reviewReport = document.getElementById('reviewReport');
-const reviewRunBtn = document.getElementById('reviewRunBtn');
-const reviewStopBtn = document.getElementById('reviewStopBtn');
-const reviewProgressText = document.getElementById('reviewProgressText');
-const reviewStatusBanner = document.getElementById('reviewStatusBanner');
-const criteriaList = document.getElementById('criteriaList');
-const filePicker = document.getElementById('filePicker');
-const downloadJsonBtn = document.getElementById('downloadJsonBtn');
-const fixIssuesBtn = document.getElementById('fixIssuesBtn');
-const reviewFooterStatus = document.getElementById('reviewFooterStatus');
+    const reviewPage = document.getElementById('reviewPage');
+    const reviewReport = document.getElementById('reviewReport');
+    const reviewRunBtn = document.getElementById('reviewRunBtn');
+    const reviewStopBtn = document.getElementById('reviewStopBtn');
+    const reviewProgressText = document.getElementById('reviewProgressText');
+    const reviewStatusBanner = document.getElementById('reviewStatusBanner');
+    const criteriaList = document.getElementById('criteriaList');
+    const filePicker = document.getElementById('filePicker');
+    const savedRunsList = document.getElementById('savedRunsList');
+    const downloadJsonBtn = document.getElementById('downloadJsonBtn');
+    const fixIssuesBtn = document.getElementById('fixIssuesBtn');
+    const reviewFooterStatus = document.getElementById('reviewFooterStatus');
 
-let _reviewAbortController = null;
-let _criteriaData = [];
-let _llmConfigured = false;
-let _exampleFiles = [];  // cached {name, code}
-let _reviewJsonReport = null;
+    let _reviewAbortController = null;
+    let _criteriaData = [];
+    let _llmConfigured = false;
+    let _exampleFiles = [];  // cached {name, code}
+    let _reviewJsonReport = null;
+    let _savedReviewRuns = [];
 
-// ─── Enter / Exit review mode ───
-function enterReviewMode() {
-    document.querySelector('.app').classList.add('review-mode');
-    updateReviewBtnState();
-}
+    // ─── Enter / Exit review mode ───
+    function enterReviewMode() {
+      document.querySelector('.app').classList.add('review-mode');
+      updateReviewBtnState();
+    }
 
-function exitReviewMode() {
-    if (_reviewAbortController) stopReview();
-    document.querySelector('.app').classList.remove('review-mode');
-}
+    function exitReviewMode() {
+      if (_reviewAbortController) stopReview();
+      document.querySelector('.app').classList.remove('review-mode');
+    }
 
-// ─── Load review config + criteria + example files on startup ───
-async function initReview() {
-    // Check LLM config
-    try {
+    // ─── Fix Issues Interface ───
+    function openFixInterface() {
+      if (!_reviewJsonReport || !_reviewJsonReport.results?.length) {
+        alert('No review output found. Run a review first.');
+        return;
+      }
+
+      _reviewPrimaryCode =
+        _reviewSourceFiles.find(f => f.name === 'editor (current)')?.code
+        ?? _reviewSourceFiles[0]?.code
+        ?? editor.value;
+
+      _reviewFixIssues = buildFixIssuesFromReview(_reviewJsonReport);
+      if (_reviewFixIssues.length === 0) {
+        alert('No actionable issues were found in the review output.');
+        return;
+      }
+
+      _reviewFixIssues.sort((a, b) => a.severity - b.severity);
+
+      _fixInterfaceState = {
+        currentIssueIndex: 0,
+        appliedFixes: [],
+        undoStack: [],
+      };
+      _fixProposals = {};
+
+      document.getElementById('fixInterfaceModal').style.display = 'flex';
+      renderFixIssuesList();
+      selectFixIssue(0);
+    }
+
+    function exitFixInterface() {
+      document.getElementById('fixInterfaceModal').style.display = 'none';
+    }
+
+    function renderFixIssuesList() {
+      const listContainer = document.getElementById('fixListItems');
+      listContainer.innerHTML = '';
+
+      _reviewFixIssues.forEach((issue, idx) => {
+        const item = document.createElement('div');
+        item.className = 'fix-item';
+        if (idx === _fixInterfaceState.currentIssueIndex) {
+          item.classList.add('selected');
+        }
+        item.onclick = () => selectFixIssue(idx);
+
+        const sevMap = { 1: 'error', 2: 'warning', 3: 'info', 4: 'hint' };
+        const severity = sevMap[issue.severity] || 'info';
+
+        item.innerHTML = `
+            <span class="fix-item-severity ${severity}">${severity}</span>
+      <span class="fix-item-message">${escHtml(issue.message)}</span>
+      <span class="fix-item-code">${escHtml(issue.criterionName || issue.criterionId || 'review finding')}</span>
+        `;
+        listContainer.appendChild(item);
+      });
+
+      updateFixProgress();
+    }
+
+    function selectFixIssue(idx) {
+      _fixInterfaceState.currentIssueIndex = idx;
+      document.querySelectorAll('.fix-item').forEach(i => i.classList.remove('selected'));
+      document.querySelectorAll('.fix-item')[idx]?.classList.add('selected');
+
+      const issue = _reviewFixIssues[idx];
+      const range = issue.range;
+
+      // Display issue description
+      const sevMap = { 1: 'Error', 2: 'Warning', 3: 'Info', 4: 'Hint' };
+      const severity = sevMap[issue.severity] || 'Issue';
+      const description = `
+    <strong>${severity}</strong>${range ? ` at line ${range.start.line + 1}` : ''}
+    <br><strong>Criterion:</strong> ${escHtml(issue.criterionName || issue.criterionId || 'Unknown')}
+    <br><strong>Issue:</strong> ${escHtml(issue.message)}
+    <br><strong>Review Text:</strong> ${escHtml(issue.rawText.slice(0, 300))}${issue.rawText.length > 300 ? '…' : ''}
+    `;
+      document.getElementById('fixIssueDescription').innerHTML = description;
+
+      // Show options container
+      document.getElementById('fixOptionsContainer').style.display = 'block';
+
+      // Display code context
+      displayCodeContext(issue);
+
+      // Display diagram
+      displayFixDiagram(_reviewPrimaryCode);
+
+      // Load or generate fix proposals
+      loadFixProposals(idx);
+
+      updateFixProgress();
+    }
+
+    function displayCodeContext(issue) {
+      const code = _reviewPrimaryCode || editor.value;
+      const lines = code.split('\n');
+      const range = issue.range;
+
+      const problemStartLine = range ? range.start.line : -1;
+      const problemEndLine = range ? range.end.line : -1;
+
+      const highlighted = lines.map((line, i) => {
+        if (problemStartLine >= 0 && i >= problemStartLine && i <= problemEndLine) {
+          return `<span class="fix-code-highlight" data-fix-highlight="true">${escHtml(line)}</span>`;
+        }
+        return escHtml(line);
+      }).join('\n');
+
+      const codeEl = document.getElementById('fixCode');
+      const containerEl = document.getElementById('fixCodeContainer');
+      codeEl.innerHTML = highlighted;
+
+      if (problemStartLine >= 0) {
+        requestAnimationFrame(() => {
+          const firstHighlight = codeEl.querySelector('[data-fix-highlight="true"]');
+          if (!firstHighlight || !containerEl) return;
+
+          const targetTop = firstHighlight.offsetTop - Math.max(containerEl.clientHeight * 0.3, 48);
+          containerEl.scrollTop = Math.max(0, targetTop);
+        });
+      } else if (containerEl) {
+        containerEl.scrollTop = 0;
+      }
+    }
+
+    async function displayFixDiagram(code) {
+      const container = document.getElementById('fixDiagramContainer');
+      if (!code?.trim()) {
+        container.innerHTML = '<div style="color: var(--text-muted);">No code to render</div>';
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/analyse', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code }),
+        });
+        const data = await res.json();
+        const diagram = buildMermaidFromSymbols(data.symbols ?? []);
+        if (!diagram) {
+          container.innerHTML = '<div style="color: var(--text-muted);">No structural elements to diagram</div>';
+          return;
+        }
+        const renderId = `fix-mermaid-${Date.now()}`;
+        const { svg } = await mermaid.render(renderId, diagram);
+        container.innerHTML = svg;
+      } catch (err) {
+        container.innerHTML = `<div style="color: var(--amber);">Diagram preview unavailable: ${escHtml(err.message || 'error')}</div>`;
+      }
+    }
+
+    async function loadFixProposals(idx) {
+      const issue = _reviewFixIssues[idx];
+
+      // Check if we already have proposals for this issue
+      if (_fixProposals[idx]) {
+        displayFixProposals(idx);
+        return;
+      }
+
+      // Show loading state
+      const textarea = document.getElementById('fixProposalText');
+      const titleEl = document.getElementById('fixProposalTitle');
+      const descEl = document.getElementById('fixProposalDescription');
+      const implementBtn = document.getElementById('fixImplementBtn');
+      const skipBtn = document.getElementById('fixSkipBtn');
+      textarea.placeholder = 'Loading fix proposal from the LLM…';
+      textarea.disabled = true;
+      implementBtn.disabled = true;
+      if (skipBtn) skipBtn.disabled = true;
+      titleEl.textContent = 'Generating fix…';
+      descEl.textContent = 'Deriving SysML changes using the review finding and criterion guidance.';
+
+      try {
+        const response = await fetch('/api/fix-proposals', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            code: _reviewPrimaryCode,
+            reviewIssue: issue,
+          }),
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data?.error || `Server error: ${response.status}`);
+        }
+
+        const payload = data?.proposals?.[0];
+        if (!payload) {
+          throw new Error('No fix proposal returned.');
+        }
+
+        _fixProposals[idx] = {
+          fix: {
+            title: payload.title || 'Proposed Fix',
+            description: payload.description || 'Generated fix based on the selected review finding.',
+            code: payload.code || _reviewPrimaryCode,
+            changes: Array.isArray(payload.changes) ? payload.changes : [],
+          },
+        };
+      } catch (err) {
+        console.error('Failed to load fix proposals:', err);
+        _fixProposals[idx] = {
+          fix: {
+            title: 'Manual Review Required',
+            description: err.message || 'Unable to generate automatic fix. Please edit the SysML manually.',
+            code: _reviewPrimaryCode,
+            changes: [],
+          },
+        };
+      } finally {
+        textarea.placeholder = 'Edit the proposed fix…';
+        textarea.disabled = false;
+        implementBtn.disabled = false;
+        if (skipBtn) skipBtn.disabled = false;
+        displayFixProposals(idx);
+      }
+    }
+
+    function displayFixProposals(idx) {
+      const proposal = _fixProposals[idx];
+      const textarea = document.getElementById('fixProposalText');
+      const changesSummary = document.getElementById('fixChangesSummary');
+      const titleEl = document.getElementById('fixProposalTitle');
+      const descEl = document.getElementById('fixProposalDescription');
+
+      if (!proposal?.fix) {
+        titleEl.textContent = 'No fix available';
+        descEl.textContent = 'Unable to derive a fix for this issue. Please update the SysML manually.';
+        changesSummary.innerHTML = `<div style="color: var(--text-muted);">No proposed changes available yet.</div>`;
+        textarea.value = _reviewPrimaryCode;
+        return;
+      }
+
+      const fix = proposal.fix;
+      titleEl.textContent = fix.title || 'Proposed Fix';
+      descEl.textContent = fix.description || 'Review and edit the generated SysML changes.';
+      const resolvedChanges = (fix.changes && fix.changes.length)
+        ? fix.changes
+        : deriveProposalChanges(_reviewPrimaryCode, fix.code);
+      fix.changes = resolvedChanges;
+      changesSummary.innerHTML = renderProposalChanges(resolvedChanges, fix.description);
+      textarea.value = fix.code || _reviewPrimaryCode;
+      focusProposalDraft(textarea, _reviewPrimaryCode, fix.code || _reviewPrimaryCode);
+    }
+
+    function onFixProposalEdit() {
+      const idx = _fixInterfaceState.currentIssueIndex;
+      const proposal = _fixProposals[idx];
+      const editedCode = document.getElementById('fixProposalText').value;
+      if (!proposal?.fix) return;
+      proposal.fix.code = editedCode;
+      proposal.fix.changes = deriveProposalChanges(_reviewPrimaryCode, editedCode);
+      document.getElementById('fixChangesSummary').innerHTML = renderProposalChanges(
+        proposal.fix.changes,
+        proposal.fix.description
+      );
+
+      if (_fixDiagramRenderTimer) clearTimeout(_fixDiagramRenderTimer);
+      _fixDiagramRenderTimer = setTimeout(() => {
+        displayFixDiagram(editedCode);
+      }, 350);
+    }
+
+    function implementCurrentFix() {
+      const idx = _fixInterfaceState.currentIssueIndex;
+      const proposal = _fixProposals[idx];
+      if (!proposal?.fix) {
+        alert('No fix proposal is available for this issue yet.');
+        return;
+      }
+      const fixedCode = proposal.fix.code;
+
+      // Save to undo stack
+      _fixInterfaceState.undoStack.push(editor.value);
+      _fixInterfaceState.appliedFixes.push({ idx, code: fixedCode });
+
+      // Apply the fix
+      editor.value = fixedCode;
+      _reviewPrimaryCode = fixedCode;
+      updateLineNumbers();
+
+      // Update undo button state
+      document.getElementById('fixUndoBtn').style.display = 'inline-block';
+
+      // Show summary
+      showFixSummary(idx);
+
+      // Move to next issue
+      if (_fixInterfaceState.currentIssueIndex < _reviewFixIssues.length - 1) {
+        setTimeout(() => {
+          selectFixIssue(_fixInterfaceState.currentIssueIndex + 1);
+        }, 500);
+      }
+    }
+
+    function showFixSummary(idx) {
+      const issue = _reviewFixIssues[idx];
+      const status = document.getElementById('fixStatusText');
+      status.textContent = issue ? `✓ Fixed: ${escHtml(issue.message)}` : '✓ Last fix reverted';
+      setTimeout(() => {
+        status.textContent = '';
+      }, 3000);
+    }
+
+    function skipCurrentIssue() {
+      if (_fixInterfaceState.currentIssueIndex < _reviewFixIssues.length - 1) {
+        selectFixIssue(_fixInterfaceState.currentIssueIndex + 1);
+      }
+    }
+
+    function showPreviousFix() {
+      if (_fixInterfaceState.currentIssueIndex > 0) {
+        selectFixIssue(_fixInterfaceState.currentIssueIndex - 1);
+      }
+    }
+
+    function showNextFix() {
+      if (_fixInterfaceState.currentIssueIndex < _reviewFixIssues.length - 1) {
+        selectFixIssue(_fixInterfaceState.currentIssueIndex + 1);
+      }
+    }
+
+    function undoLastFix() {
+      if (_fixInterfaceState.undoStack.length === 0) return;
+
+      const previousCode = _fixInterfaceState.undoStack.pop();
+      editor.value = previousCode;
+      _reviewPrimaryCode = previousCode;
+      updateLineNumbers();
+
+      _fixInterfaceState.appliedFixes.pop();
+
+      if (_fixInterfaceState.undoStack.length === 0) {
+        document.getElementById('fixUndoBtn').style.display = 'none';
+      }
+
+      showFixSummary(-1); // Show generic "Undo" message
+    }
+
+    function updateFixProgress() {
+      const total = _reviewFixIssues.length;
+      const current = _fixInterfaceState.currentIssueIndex + 1;
+      document.getElementById('fixProgressText').textContent = `Issue ${current} of ${total}`;
+    }
+
+    function buildFixIssuesFromReview(report) {
+      const issues = [];
+      for (const result of report.results || []) {
+        const raw = result.rawText || '';
+        const blocks = splitReviewIssues(raw);
+        if (blocks.length === 0) continue;
+
+        blocks.forEach((block, index) => {
+          const message = getIssueTitle(block) || `Issue ${index + 1}`;
+          const range = findIssueRangeInCode(block, _reviewPrimaryCode || editor.value);
+          issues.push({
+            criterionId: result.criterionId,
+            criterionName: result.name,
+            message,
+            rawText: block,
+            range,
+            severity: inferIssueSeverity(block, result.score),
+          });
+        });
+      }
+      return issues;
+    }
+
+    function splitReviewIssues(rawText) {
+      if (!rawText) return [];
+      const normalized = rawText.replace(/\r\n/g, '\n');
+      const issueHeader = '(?:#{1,3}\\s*)?ISSUE\\s*(?:\\[[^\\]\n]+\\]|\\d+)?(?:\\s*[:\\-].*)?';
+      const issueRegex = new RegExp(`(?:^|\\n)(${issueHeader}[\\s\\S]*?)(?=(?:\\n${issueHeader})|(?:\\n#{1,3}\\s*Overall\\s+(?:Assessment\\s+)?Score)|(?:\\nOverall\\s+(?:Assessment\\s+)?Score)|$)`, 'gi');
+      const matches = Array.from(normalized.matchAll(issueRegex));
+      if (matches.length) {
+        return matches.map(m => m[1].trim()).filter(Boolean);
+      }
+
+      if (/Finding:\s+/i.test(normalized) && /Recommendation:\s+/i.test(normalized)) {
+        return [normalized.trim()];
+      }
+
+      return [];
+    }
+
+    function getIssueTitle(issueBlock) {
+      const findingMatch = issueBlock.match(/Finding:\s*(.+)/i);
+      if (findingMatch?.[1]) {
+        return findingMatch[1].trim().slice(0, 180);
+      }
+
+      const recommendationMatch = issueBlock.match(/Recommendation:\s*(.+)/i);
+      if (recommendationMatch?.[1]) {
+        return recommendationMatch[1].trim().slice(0, 180);
+      }
+
+      const first = issueBlock.split('\n').find(line => line.trim());
+      return (first || '').replace(/^#{1,3}\s*/, '').slice(0, 180).trim();
+    }
+
+    function inferIssueSeverity(issueBlock, score) {
+      const txt = (issueBlock || '').toLowerCase();
+      if (/critical|severe|blocker|must\s+fix/.test(txt)) return 1;
+      if (/warning|major|should\s+fix|recommended/.test(txt)) return 2;
+      if (typeof score === 'number' && score < 0.5) return 1;
+      if (typeof score === 'number' && score < 0.75) return 2;
+      return 3;
+    }
+
+    function findIssueRangeInCode(issueText, code) {
+      if (!code) return null;
+      const lines = code.split('\n');
+      const backtickTokens = Array.from(issueText.matchAll(/`([^`]{2,80})`/g)).map(m => m[1]);
+      const wordTokens = Array.from(issueText.matchAll(/\b[A-Za-z_][A-Za-z0-9_]{2,}\b/g)).map(m => m[0]);
+      const tokens = [...new Set([...backtickTokens, ...wordTokens])].filter(t => t.length >= 3).slice(0, 40);
+
+      for (const token of tokens) {
+        const lineIndex = lines.findIndex(line => line.includes(token));
+        if (lineIndex >= 0) {
+          return {
+            start: { line: lineIndex, character: 0 },
+            end: { line: lineIndex, character: Math.max(lines[lineIndex].length - 1, 0) },
+          };
+        }
+      }
+      return null;
+    }
+
+    function getBlockRange(lines, anchorLine) {
+      let start = anchorLine;
+      let end = anchorLine + 1;
+      while (start > 0 && lines[start - 1].trim() !== '') start -= 1;
+      while (end < lines.length && lines[end].trim() !== '') end += 1;
+      return { start, end };
+    }
+
+    function deriveProposalChanges(originalCode, proposedCode) {
+      if (!originalCode || !proposedCode || originalCode === proposedCode) {
+        return [];
+      }
+
+      const originalLines = originalCode.split('\n');
+      const proposedLines = proposedCode.split('\n');
+
+      let start = 0;
+      while (
+        start < originalLines.length &&
+        start < proposedLines.length &&
+        originalLines[start] === proposedLines[start]
+      ) {
+        start += 1;
+      }
+
+      let originalEnd = originalLines.length - 1;
+      let proposedEnd = proposedLines.length - 1;
+      while (
+        originalEnd >= start &&
+        proposedEnd >= start &&
+        originalLines[originalEnd] === proposedLines[proposedEnd]
+      ) {
+        originalEnd -= 1;
+        proposedEnd -= 1;
+      }
+
+      const before = originalLines.slice(start, originalEnd + 1).join('\n').trim();
+      const after = proposedLines.slice(start, proposedEnd + 1).join('\n').trim();
+
+      let type = 'alter';
+      if (!before && after) type = 'add';
+      else if (before && !after) type = 'delete';
+
+      return [{
+        type,
+        description:
+          type === 'add' ? 'Add new SysML content to resolve the selected issue.' :
+            type === 'delete' ? 'Remove SysML content that is causing the selected issue.' :
+              'Alter existing SysML content to resolve the selected issue.',
+        before,
+        after,
+      }];
+    }
+
+    function renderProposalChanges(changes, description) {
+      if (!changes?.length) {
+        return `<div style="color: var(--text-muted);">${escHtml(description || 'No explicit additions, deletions, or alterations were derived for this proposal.')}</div>`;
+      }
+
+      return changes.map((change, index) => `
+        <div class="fix-change-item">
+          <div class="fix-change-head">
+            <span class="fix-change-type ${escHtml(change.type || 'alter')}">${escHtml(change.type || 'alter')}</span>
+            <span class="fix-change-desc">${escHtml(change.description || `Change ${index + 1}`)}</span>
+          </div>
+          <div class="fix-change-blocks">
+            <div>
+              <span class="fix-change-snippet-label">Current SysML</span>
+              <pre class="fix-change-snippet before">${escHtml(change.before || '(no existing text)')}</pre>
+            </div>
+            <div>
+              <span class="fix-change-snippet-label">Proposed SysML</span>
+              <pre class="fix-change-snippet after">${escHtml(change.after || '(remove this text)')}</pre>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function focusProposalDraft(textarea, originalCode, proposedCode) {
+      if (!textarea) return;
+
+      const diffIndex = firstDiffIndex(originalCode || '', proposedCode || '');
+      const targetIndex = diffIndex >= 0 ? diffIndex : 0;
+      textarea.setSelectionRange(targetIndex, targetIndex);
+
+      const lineHeight = parseFloat(getComputedStyle(textarea).lineHeight) || 19;
+      const lineCount = (proposedCode.slice(0, targetIndex).match(/\n/g) || []).length;
+      textarea.scrollTop = Math.max(0, (lineCount - 3) * lineHeight);
+    }
+
+    function firstDiffIndex(originalText, proposedText) {
+      const limit = Math.min(originalText.length, proposedText.length);
+      for (let index = 0; index < limit; index += 1) {
+        if (originalText[index] !== proposedText[index]) return index;
+      }
+      return originalText.length === proposedText.length ? -1 : limit;
+    }
+
+    // ─── Load review config + criteria + example files on startup ───
+    async function initReview() {
+      // Check LLM config
+      try {
         const cfgRes = await fetch('/api/review/config');
         const cfg = await cfgRes.json();
         _llmConfigured = cfg.configured;
         if (cfg.configured) {
-            reviewStatusBanner.className = 'review-status-banner configured';
-            reviewStatusBanner.innerHTML = `<span>✓</span><span>LLM configured — model: <strong>${escHtml(cfg.model)}</strong></span>`;
+          reviewStatusBanner.className = 'review-status-banner configured';
+          reviewStatusBanner.innerHTML = `<span>✓</span><span>LLM configured — model: <strong>${escHtml(cfg.model)}</strong></span>`;
         } else {
-            reviewStatusBanner.className = 'review-status-banner not-configured';
-            reviewStatusBanner.innerHTML = `<span>⚠</span><span>LLM not configured. Set <code style="font-family:var(--font-mono);background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:3px;">LLM_API_KEY</code> and <code style="font-family:var(--font-mono);background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:3px;">LLM_MODEL</code>.</span>`;
+          reviewStatusBanner.className = 'review-status-banner not-configured';
+          reviewStatusBanner.innerHTML = `<span>⚠</span><span>LLM not configured. Set <code style="font-family:var(--font-mono);background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:3px;">LLM_API_KEY</code> and <code style="font-family:var(--font-mono);background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:3px;">LLM_MODEL</code>.</span>`;
         }
-    } catch {
+      } catch {
         reviewStatusBanner.className = 'review-status-banner not-configured';
         reviewStatusBanner.innerHTML = `<span>✗</span><span>Could not check LLM configuration</span>`;
-    }
+      }
 
-    // Load criteria
-    try {
+      // Load criteria
+      try {
         const res = await fetch('/api/criteria');
         _criteriaData = await res.json();
         renderCriteriaList();
-    } catch {
+      } catch {
         criteriaList.innerHTML = '<div style="color:var(--red); font-size:12px; padding:8px;">Failed to load criteria</div>';
-    }
+      }
 
-    // Load example files for the file picker
-    try {
+      // Load example files for the file picker
+      try {
         const res = await fetch('/api/examples');
         const names = await res.json();
         _exampleFiles = [];
         for (const name of names) {
-            const r = await fetch(`/examples/${encodeURIComponent(name)}`);
-            const code = await r.text();
-            _exampleFiles.push({ name, code });
+          const r = await fetch(`/examples/${encodeURIComponent(name)}`);
+          const code = await r.text();
+          _exampleFiles.push({ name, code });
         }
         renderFilePicker();
-    } catch { /* examples not available */ }
+      } catch { /* examples not available */ }
 
-    updateReviewBtnState();
-}
+      loadSavedReviewRuns();
 
-// ─── File picker (multi-select) ───
-function renderFilePicker() {
-    // Keep the "Current editor" item, add example files
-    const editorItem = filePicker.querySelector('.editor-file');
-    filePicker.innerHTML = '';
-    filePicker.appendChild(editorItem);
+      updateReviewBtnState();
+    }
 
-    for (const f of _exampleFiles) {
+    async function loadSavedReviewRuns() {
+      try {
+        const res = await fetch('/api/review-runs');
+        if (!res.ok) throw new Error(`Failed to load saved reviews (${res.status})`);
+        _savedReviewRuns = await res.json();
+        renderSavedReviewRuns();
+      } catch (err) {
+        savedRunsList.innerHTML = `<div class="saved-run-empty">Failed to load saved reviews: ${escHtml(err.message)}</div>`;
+      }
+    }
+
+    function renderSavedReviewRuns() {
+      if (!_savedReviewRuns.length) {
+        savedRunsList.innerHTML = '<div class="saved-run-empty">No saved reviews yet.</div>';
+        return;
+      }
+
+      savedRunsList.innerHTML = _savedReviewRuns.map(run => {
+        const timestamp = formatSavedRunDate(run.timestamp || run.savedAt);
+        const score = typeof run.overallScore === 'number'
+          ? `<span class="saved-run-score">${run.overallScore.toFixed(2)}</span>`
+          : '<span class="saved-run-score">n/a</span>';
+        return `
+          <div class="saved-run-item">
+            <div class="saved-run-top">
+              <div class="saved-run-title">${escHtml(timestamp)}</div>
+              ${score}
+            </div>
+            <div class="saved-run-meta">
+              ${run.resultCount} criteria result${run.resultCount === 1 ? '' : 's'}<br>
+              ${escHtml((run.files || []).join(', ') || 'No files recorded')}
+            </div>
+            <div class="saved-run-actions">
+              <button class="saved-run-btn" onclick="loadSavedReviewRun('${escHtml(run.id)}')">Load</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function formatSavedRunDate(value) {
+      if (!value) return 'Unknown time';
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return value;
+      return date.toLocaleString();
+    }
+
+    // ─── File picker (multi-select) ───
+    function renderFilePicker() {
+      // Keep the "Current editor" item, add example files
+      const editorItem = filePicker.querySelector('.editor-file');
+      filePicker.innerHTML = '';
+      filePicker.appendChild(editorItem);
+
+      for (const f of _exampleFiles) {
         const id = 'file-' + f.name.replace(/[^a-zA-Z0-9]/g, '_');
         const item = document.createElement('div');
         item.className = 'file-picker-item';
@@ -1806,29 +3361,29 @@ function renderFilePicker() {
             <label for="${id}" onclick="event.stopPropagation()">${escHtml(f.name)}</label>
         `;
         item.addEventListener('click', (e) => {
-            if (e.target.tagName !== 'INPUT') item.querySelector('input').click();
+          if (e.target.tagName !== 'INPUT') item.querySelector('input').click();
         });
         filePicker.appendChild(item);
+      }
     }
-}
 
-function getSelectedFiles() {
-    const files = [];
-    const editorCb = document.getElementById('fileEditor');
-    if (editorCb?.checked) {
+    function getSelectedFiles() {
+      const files = [];
+      const editorCb = document.getElementById('fileEditor');
+      if (editorCb?.checked) {
         const code = editor.value.trim();
         if (code) files.push({ name: 'editor (current)', code });
-    }
-    filePicker.querySelectorAll('input[type="checkbox"]:not(#fileEditor):checked').forEach(cb => {
+      }
+      filePicker.querySelectorAll('input[type="checkbox"]:not(#fileEditor):checked').forEach(cb => {
         const ef = _exampleFiles.find(f => f.name === cb.value);
         if (ef) files.push({ name: ef.name, code: ef.code });
-    });
-    return files;
-}
+      });
+      return files;
+    }
 
-// ─── Criteria list with status indicators ───
-function renderCriteriaList() {
-    criteriaList.innerHTML = _criteriaData.map(c => `
+    // ─── Criteria list with status indicators ───
+    function renderCriteriaList() {
+      criteriaList.innerHTML = _criteriaData.map(c => `
         <div class="criteria-item state-pending" id="criteria-item-${c.id}" onclick="const cb=this.querySelector('input');cb.checked=!cb.checked;updateReviewBtnState();">
             <input type="checkbox" id="crit-${c.id}" value="${c.id}" checked onchange="updateReviewBtnState()" onclick="event.stopPropagation()">
             <div class="criteria-item-text">
@@ -1838,84 +3393,89 @@ function renderCriteriaList() {
             <div class="criteria-item-status"></div>
         </div>
     `).join('');
-}
+    }
 
-function setCriterionState(id, state, score) {
-    const el = document.getElementById(`criteria-item-${id}`);
-    if (!el) return;
-    el.className = `criteria-item state-${state}`;
-    const statusEl = el.querySelector('.criteria-item-status');
-    if (state === 'pending') statusEl.innerHTML = '';
-    else if (state === 'running') statusEl.innerHTML = ''; // CSS spinner via border
-    else if (state === 'done') statusEl.innerHTML = '✓';
-    else if (state === 'error') statusEl.innerHTML = '✗';
+    function setCriterionState(id, state, score) {
+      const el = document.getElementById(`criteria-item-${id}`);
+      if (!el) return;
+      el.className = `criteria-item state-${state}`;
+      const statusEl = el.querySelector('.criteria-item-status');
+      if (state === 'pending') statusEl.innerHTML = '';
+      else if (state === 'running') statusEl.innerHTML = ''; // CSS spinner via border
+      else if (state === 'done') statusEl.innerHTML = '✓';
+      else if (state === 'error') statusEl.innerHTML = '✗';
 
-    // Remove old score pill if any
-    el.querySelector('.criteria-item-score')?.remove();
-    if (score !== null && score !== undefined && state === 'done') {
+      // Remove old score pill if any
+      el.querySelector('.criteria-item-score')?.remove();
+      if (score !== null && score !== undefined && state === 'done') {
         const pill = document.createElement('span');
         pill.className = `criteria-item-score ${getScoreClass(score)}`;
         pill.textContent = score.toFixed(2);
         el.insertBefore(pill, statusEl);
+      }
     }
-}
 
-function toggleAllCriteria(checked) {
-    criteriaList.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = checked);
-    updateReviewBtnState();
-}
+    function toggleAllCriteria(checked) {
+      criteriaList.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = checked);
+      updateReviewBtnState();
+    }
 
-function getSelectedCriteria() {
-    return Array.from(criteriaList.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
-}
+    function getSelectedCriteria() {
+      return Array.from(criteriaList.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+    }
 
-function updateReviewBtnState() {
-    const hasFiles = getSelectedFiles().length > 0;
-    const hasCriteria = getSelectedCriteria().length > 0;
-    reviewRunBtn.disabled = !_llmConfigured || !hasFiles || !hasCriteria;
-}
+    function updateReviewBtnState() {
+      const hasFiles = getSelectedFiles().length > 0;
+      const hasCriteria = getSelectedCriteria().length > 0;
+      reviewRunBtn.disabled = !_llmConfigured || !hasFiles || !hasCriteria;
+    }
 
-// ─── Run Review (SSE streaming, multi-file) ───
-async function runReview() {
-    const files = getSelectedFiles();
-    const criteria = getSelectedCriteria();
-    if (!files.length || !criteria.length) return;
+    // ─── Run Review (SSE streaming, multi-file) ───
+    async function runReview() {
+      const files = getSelectedFiles();
+      const criteria = getSelectedCriteria();
+      if (!files.length || !criteria.length) return;
 
-    // Reset UI
-    reviewRunBtn.style.display = 'none';
-    reviewStopBtn.style.display = '';
-    reviewProgressText.textContent = 'Starting review…';
-    reviewReport.innerHTML = '';
-    downloadJsonBtn.style.display = 'none';
-    fixIssuesBtn.disabled = true;
-    reviewFooterStatus.textContent = '';
+      _reviewSourceFiles = files.map(f => ({ ...f }));
+      _reviewFixIssues = [];
 
-    // Reset criteria states
-    _criteriaData.forEach(c => setCriterionState(c.id, 'pending', null));
+      // Reset UI
+      reviewRunBtn.style.display = 'none';
+      reviewStopBtn.style.display = '';
+      reviewProgressText.textContent = 'Starting review…';
+      reviewReport.innerHTML = '';
+      downloadJsonBtn.style.display = 'none';
+      fixIssuesBtn.disabled = true;
+      reviewFooterStatus.textContent = '';
 
-    _reviewAbortController = new AbortController();
-    const sectionElements = {};
-    const criterionTexts = {};
+      // Reset criteria states
+      _criteriaData.forEach(c => setCriterionState(c.id, 'pending', null));
 
-    // Prepare JSON report skeleton
-    _reviewJsonReport = {
+      _reviewAbortController = new AbortController();
+      const sectionElements = {};
+      const criterionTexts = {};
+
+      // Prepare JSON report skeleton
+      _reviewJsonReport = {
+        id: `review-${new Date().toISOString().replace(/[:.]/g, '-')}`,
         timestamp: new Date().toISOString(),
         files: files.map(f => f.name),
+        sourceFiles: files.map(f => ({ ...f })),
         criteria: criteria,
         results: [],
-    };
+      };
 
-    try {
+      try {
         const res = await fetch('/api/review', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ files, criteria }),
-            signal: _reviewAbortController.signal,
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ files, criteria }),
+          signal: _reviewAbortController.signal,
         });
 
         if (!res.ok) {
-            const err = await res.json().catch(() => ({ error: res.statusText }));
-            throw new Error(err.error || `HTTP ${res.status}`);
+          const err = await res.json().catch(() => ({ error: res.statusText }));
+          throw new Error(err.error || `HTTP ${res.status}`);
         }
 
         // Parse SSE stream
@@ -1924,234 +3484,353 @@ async function runReview() {
         let buffer = '';
 
         while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            buffer += decoder.decode(value, { stream: true });
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
 
-            const lines = buffer.split('\n');
-            buffer = lines.pop();
+          const lines = buffer.split('\n');
+          buffer = lines.pop();
 
-            let eventType = '';
-            for (const line of lines) {
-                if (line.startsWith('event: ')) {
-                    eventType = line.slice(7).trim();
-                } else if (line.startsWith('data: ')) {
-                    const dataStr = line.slice(6);
-                    try {
-                        const data = JSON.parse(dataStr);
-                        handleReviewEvent(eventType, data, sectionElements, criterionTexts);
-                    } catch { /* skip malformed */ }
-                    eventType = '';
-                }
+          let eventType = '';
+          for (const line of lines) {
+            if (line.startsWith('event: ')) {
+              eventType = line.slice(7).trim();
+            } else if (line.startsWith('data: ')) {
+              const dataStr = line.slice(6);
+              try {
+                const data = JSON.parse(dataStr);
+                handleReviewEvent(eventType, data, sectionElements, criterionTexts);
+              } catch { /* skip malformed */ }
+              eventType = '';
             }
+          }
         }
-    } catch (err) {
+      } catch (err) {
         if (err.name !== 'AbortError') {
-            reviewReport.innerHTML += `
+          reviewReport.innerHTML += `
                 <div style="padding:16px;color:var(--red);font-size:13px;">
                     ✗ Review failed: ${escHtml(err.message)}
                     <br><button class="btn" style="margin-top:8px;" onclick="runReview()">Retry</button>
                 </div>`;
         }
-    } finally {
+      } finally {
         reviewRunBtn.style.display = '';
         reviewStopBtn.style.display = 'none';
         _reviewAbortController = null;
+      }
     }
-}
 
-function stopReview() {
-    if (_reviewAbortController) {
+    function stopReview() {
+      if (_reviewAbortController) {
         _reviewAbortController.abort();
         reviewProgressText.textContent = 'Review stopped.';
+      }
     }
-}
 
-function handleReviewEvent(event, data, sections, texts) {
-    switch (event) {
+    function handleReviewEvent(event, data, sections, texts) {
+      switch (event) {
         case 'start':
-            reviewProgressText.textContent = `Reviewing with ${data.model}… (${data.criteria.length} criteria)`;
-            break;
+          reviewProgressText.textContent = `Reviewing with ${data.model}… (${data.criteria.length} criteria)`;
+          break;
 
         case 'criterion-start': {
-            setCriterionState(data.id, 'running', null);
+          setCriterionState(data.id, 'running', null);
 
-            const section = document.createElement('div');
-            section.className = 'criterion-section';
-            section.id = `review-section-${data.id}`;
+          const section = document.createElement('div');
+          section.className = 'criterion-section';
+          section.id = `review-section-${data.id}`;
 
-            const header = document.createElement('div');
-            header.className = 'criterion-header running';
-            header.innerHTML = `
+          const header = document.createElement('div');
+          header.className = 'criterion-header running';
+          header.innerHTML = `
                 <div class="criterion-spinner"></div>
                 <div class="criterion-title">${escHtml(data.name)}</div>
                 <span class="criterion-chevron">▼</span>
             `;
-            header.addEventListener('click', () => {
-                header.classList.toggle('collapsed');
-                const stream = section.querySelector('.criterion-stream');
-                stream?.classList.toggle('collapsed');
-            });
+          header.addEventListener('click', () => {
+            header.classList.toggle('collapsed');
+            const stream = section.querySelector('.criterion-stream');
+            stream?.classList.toggle('collapsed');
+          });
 
-            const stream = document.createElement('div');
-            stream.className = 'criterion-stream';
-            stream.id = `review-stream-${data.id}`;
+          const stream = document.createElement('div');
+          stream.className = 'criterion-stream';
+          stream.id = `review-stream-${data.id}`;
 
-            section.appendChild(header);
-            section.appendChild(stream);
-            reviewReport.appendChild(section);
-            sections[data.id] = section;
-            texts[data.id] = '';
-            reviewProgressText.textContent = `Assessing: ${data.name}…`;
-            section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            break;
+          section.appendChild(header);
+          section.appendChild(stream);
+          reviewReport.appendChild(section);
+          sections[data.id] = section;
+          texts[data.id] = '';
+          reviewProgressText.textContent = `Assessing: ${data.name}…`;
+          section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          break;
         }
 
         case 'chunk': {
-            const stream = document.getElementById(`review-stream-${data.id}`);
-            if (stream) {
-                texts[data.id] = (texts[data.id] || '') + data.text;
-                stream.innerHTML = formatReviewMarkdown(texts[data.id]);
-                stream.scrollTop = stream.scrollHeight;
-            }
-            break;
+          const stream = document.getElementById(`review-stream-${data.id}`);
+          if (stream) {
+            texts[data.id] = (texts[data.id] || '') + data.text;
+            stream.innerHTML = formatReviewMarkdown(texts[data.id]);
+            stream.scrollTop = stream.scrollHeight;
+          }
+          break;
         }
 
         case 'criterion-end': {
-            const section = sections[data.id];
-            if (section) {
-                const header = section.querySelector('.criterion-header');
-                header.classList.remove('running');
-                header.classList.add('done');
-                header.querySelector('.criterion-spinner')?.remove();
+          const section = sections[data.id];
+          if (section) {
+            const header = section.querySelector('.criterion-header');
+            header.classList.remove('running');
+            header.classList.add('done');
+            header.querySelector('.criterion-spinner')?.remove();
 
-                const score = extractOverallScore(texts[data.id] || '');
+            const score = extractOverallScore(texts[data.id] || '');
 
-                if (score !== null) {
-                    const badge = document.createElement('span');
-                    badge.className = `criterion-score-badge ${getScoreClass(score)}`;
-                    badge.textContent = score.toFixed(2);
-                    header.insertBefore(badge, header.querySelector('.criterion-chevron'));
-                }
-
-                setCriterionState(data.id, 'done', score);
-
-                // Add to JSON report
-                const criterion = _criteriaData.find(c => c.id === data.id);
-                _reviewJsonReport.results.push({
-                    criterionId: data.id,
-                    name: criterion?.name ?? data.id,
-                    score: score,
-                    rawText: texts[data.id] || '',
-                });
+            if (score !== null) {
+              const badge = document.createElement('span');
+              badge.className = `criterion-score-badge ${getScoreClass(score)}`;
+              badge.textContent = score.toFixed(2);
+              header.insertBefore(badge, header.querySelector('.criterion-chevron'));
             }
-            break;
+
+            setCriterionState(data.id, 'done', score);
+
+            // Add to JSON report
+            const criterion = _criteriaData.find(c => c.id === data.id);
+            _reviewJsonReport.results.push({
+              criterionId: data.id,
+              name: criterion?.name ?? data.id,
+              score: score,
+              rawText: texts[data.id] || '',
+            });
+          }
+          break;
         }
 
         case 'criterion-error': {
-            const section = sections[data.id];
-            if (section) {
-                const header = section.querySelector('.criterion-header');
-                header.classList.remove('running');
-                header.classList.add('error');
-                header.querySelector('.criterion-spinner')?.remove();
-                const stream = document.getElementById(`review-stream-${data.id}`);
-                if (stream) {
-                    stream.innerHTML = `<div style="color:var(--red);padding:8px;">Error: ${escHtml(data.error)}</div>`;
-                }
+          const section = sections[data.id];
+          if (section) {
+            const header = section.querySelector('.criterion-header');
+            header.classList.remove('running');
+            header.classList.add('error');
+            header.querySelector('.criterion-spinner')?.remove();
+            const stream = document.getElementById(`review-stream-${data.id}`);
+            if (stream) {
+              stream.innerHTML = `<div style="color:var(--red);padding:8px;">Error: ${escHtml(data.error)}</div>`;
             }
-            setCriterionState(data.id, 'error', null);
+          }
+          setCriterionState(data.id, 'error', null);
 
-            // Still record in JSON
-            _reviewJsonReport.results.push({
-                criterionId: data.id,
-                name: data.name || data.id,
-                score: null,
-                error: data.error,
-                rawText: texts[data.id] || '',
-            });
-            break;
+          // Still record in JSON
+          _reviewJsonReport.results.push({
+            criterionId: data.id,
+            name: data.name || data.id,
+            score: null,
+            error: data.error,
+            rawText: texts[data.id] || '',
+          });
+          break;
         }
 
         case 'done': {
-            reviewProgressText.textContent = 'Review complete.';
-            buildReviewSummary(texts);
+          reviewProgressText.textContent = 'Review complete.';
+          buildReviewSummary(texts);
 
-            // Enable downloads and fix-issues link
-            downloadJsonBtn.style.display = '';
-            fixIssuesBtn.disabled = false;
+          // Enable downloads and fix-issues link
+          downloadJsonBtn.style.display = '';
+          fixIssuesBtn.disabled = false;
 
-            const total = _reviewJsonReport.results.length;
-            const avgScore = _reviewJsonReport.results.reduce((s, r) => s + (r.score ?? 0), 0) / (total || 1);
-            reviewFooterStatus.textContent = `${total} criteria assessed · avg score ${avgScore.toFixed(2)}`;
-            break;
+          const total = _reviewJsonReport.results.length;
+          const avgScore = _reviewJsonReport.results.reduce((s, r) => s + (r.score ?? 0), 0) / (total || 1);
+          reviewFooterStatus.textContent = `${total} criteria assessed · avg score ${avgScore.toFixed(2)}`;
+          persistCurrentReviewRun();
+          break;
         }
+      }
     }
-}
 
-// ─── Download JSON report ───
-function downloadReviewJson() {
-    if (!_reviewJsonReport) return;
-    const blob = new Blob([JSON.stringify(_reviewJsonReport, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `sysml-review-${new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-}
+    async function persistCurrentReviewRun() {
+      if (!_reviewJsonReport?.results?.length) return;
 
-// ─── Extract overall assessment score from LLM output ───
-function extractOverallScore(text) {
-    const patterns = [
+      try {
+        const res = await fetch('/api/review-runs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            report: {
+              ..._reviewJsonReport,
+              sourceFiles: _reviewSourceFiles.map(f => ({ ...f })),
+            },
+          }),
+        });
+
+        if (!res.ok) {
+          throw new Error(`Failed to save review (${res.status})`);
+        }
+
+        const data = await res.json();
+        if (data.run) {
+          _reviewJsonReport.id = data.run.id;
+        }
+        loadSavedReviewRuns();
+      } catch (err) {
+        console.error('Failed to save review run:', err);
+      }
+    }
+
+    async function loadSavedReviewRun(runId) {
+      try {
+        const res = await fetch(`/api/review-runs/${encodeURIComponent(runId)}`);
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: res.statusText }));
+          throw new Error(err.error || `HTTP ${res.status}`);
+        }
+
+        const report = await res.json();
+        restoreSavedReviewRun(report);
+      } catch (err) {
+        reviewFooterStatus.textContent = `Failed to load saved review: ${err.message}`;
+      }
+    }
+
+    function restoreSavedReviewRun(report) {
+      _reviewJsonReport = report;
+      _reviewSourceFiles = (report.sourceFiles || []).map(f => ({ ...f }));
+      _reviewFixIssues = [];
+
+      const restoredCode = _reviewSourceFiles.find(f => f.name === 'editor (current)')?.code
+        ?? _reviewSourceFiles[0]?.code;
+      if (restoredCode) {
+        editor.value = restoredCode;
+        updateLineNumbers();
+      }
+
+      reviewReport.innerHTML = '';
+      reviewProgressText.textContent = 'Loaded saved review.';
+      downloadJsonBtn.style.display = '';
+      fixIssuesBtn.disabled = !(report.results || []).length;
+
+      _criteriaData.forEach(c => setCriterionState(c.id, 'pending', null));
+      restoreSelectedCriteria(report.criteria || []);
+
+      const texts = {};
+      for (const result of report.results || []) {
+        texts[result.criterionId] = result.rawText || '';
+        renderSavedReviewSection(result);
+        if (result.error) setCriterionState(result.criterionId, 'error', null);
+        else setCriterionState(result.criterionId, 'done', result.score ?? null);
+      }
+
+      buildReviewSummary(texts);
+
+      const total = report.results?.length || 0;
+      const avgScore = typeof report.overallScore === 'number'
+        ? report.overallScore
+        : (total ? report.results.reduce((sum, r) => sum + (r.score ?? 0), 0) / total : 0);
+      reviewFooterStatus.textContent = `Loaded saved review from ${formatSavedRunDate(report.timestamp)} · ${total} criteria assessed · avg score ${avgScore.toFixed(2)}`;
+    }
+
+    function restoreSelectedCriteria(criteria) {
+      const selected = new Set(criteria);
+      criteriaList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+        cb.checked = selected.has(cb.value);
+      });
+    }
+
+    function renderSavedReviewSection(result) {
+      const section = document.createElement('div');
+      section.className = 'criterion-section';
+      section.id = `review-section-${result.criterionId}`;
+
+      const header = document.createElement('div');
+      header.className = `criterion-header ${result.error ? 'error' : 'done'}`;
+      header.innerHTML = `
+        <div class="criterion-title">${escHtml(result.name || result.criterionId)}</div>
+        ${typeof result.score === 'number' ? `<span class="criterion-score-badge ${getScoreClass(result.score)}">${result.score.toFixed(2)}</span>` : ''}
+        <span class="criterion-chevron">▼</span>
+      `;
+      header.addEventListener('click', () => {
+        header.classList.toggle('collapsed');
+        stream.classList.toggle('collapsed');
+      });
+
+      const stream = document.createElement('div');
+      stream.className = 'criterion-stream';
+      if (result.error) {
+        stream.innerHTML = `<div style="color:var(--red);padding:8px;">Error: ${escHtml(result.error)}</div>`;
+      } else {
+        stream.innerHTML = formatReviewMarkdown(result.rawText || '');
+      }
+
+      section.appendChild(header);
+      section.appendChild(stream);
+      reviewReport.appendChild(section);
+    }
+
+    // ─── Download JSON report ───
+    function downloadReviewJson() {
+      if (!_reviewJsonReport) return;
+      const blob = new Blob([JSON.stringify(_reviewJsonReport, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `sysml-review-${new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // ─── Extract overall assessment score from LLM output ───
+    function extractOverallScore(text) {
+      const patterns = [
         /Overall\s+(?:Assessment\s+)?Score\s*[=:]\s*([\d.]+)/i,
         /Overall\s+Score\s*[=:]\s*([\d.]+)/i,
         /\*\*Overall.*?Score.*?\*\*.*?([\d.]+)/i,
-    ];
-    for (const p of patterns) {
+      ];
+      for (const p of patterns) {
         const m = text.match(p);
         if (m) {
-            const val = parseFloat(m[1]);
-            if (val >= 0 && val <= 1) return val;
+          const val = parseFloat(m[1]);
+          if (val >= 0 && val <= 1) return val;
         }
+      }
+      return null;
     }
-    return null;
-}
 
-function getScoreClass(score) {
-    if (score >= 0.9) return 'score-good';
-    if (score >= 0.7) return 'score-notable';
-    if (score >= 0.5) return 'score-significant';
-    return 'score-critical';
-}
+    function getScoreClass(score) {
+      if (score >= 0.9) return 'score-good';
+      if (score >= 0.7) return 'score-notable';
+      if (score >= 0.5) return 'score-significant';
+      return 'score-critical';
+    }
 
-function getScoreColor(score) {
-    if (score >= 0.9) return 'var(--green)';
-    if (score >= 0.7) return 'var(--amber)';
-    if (score >= 0.5) return '#f97316';
-    return 'var(--red)';
-}
+    function getScoreColor(score) {
+      if (score >= 0.9) return 'var(--green)';
+      if (score >= 0.7) return 'var(--amber)';
+      if (score >= 0.5) return '#f97316';
+      return 'var(--red)';
+    }
 
-// ─── Build summary bar at top of report ───
-function buildReviewSummary(texts) {
-    const scores = [];
-    for (const [id, text] of Object.entries(texts)) {
+    // ─── Build summary bar at top of report ───
+    function buildReviewSummary(texts) {
+      const scores = [];
+      for (const [id, text] of Object.entries(texts)) {
         const score = extractOverallScore(text);
         const criterion = _criteriaData.find(c => c.id === id);
         if (score !== null) {
-            scores.push({ id, name: criterion?.name ?? id, score });
+          scores.push({ id, name: criterion?.name ?? id, score });
         }
-    }
-    if (!scores.length) return;
+      }
+      if (!scores.length) return;
 
-    const avg = scores.reduce((s, c) => s + c.score, 0) / scores.length;
+      const avg = scores.reduce((s, c) => s + c.score, 0) / scores.length;
 
-    // Store final overall in the JSON report
-    _reviewJsonReport.overallScore = avg;
+      // Store final overall in the JSON report
+      _reviewJsonReport.overallScore = avg;
 
-    const summaryEl = document.createElement('div');
-    summaryEl.className = 'review-summary';
-    summaryEl.innerHTML = `
+      const summaryEl = document.createElement('div');
+      summaryEl.className = 'review-summary';
+      summaryEl.innerHTML = `
         <div class="review-summary-title">Review Summary</div>
         <div class="review-summary-grid">
             <div class="summary-card">
@@ -2170,64 +3849,65 @@ function buildReviewSummary(texts) {
             `).join('')}
         </div>
     `;
-    reviewReport.insertBefore(summaryEl, reviewReport.firstChild);
-}
+      reviewReport.insertBefore(summaryEl, reviewReport.firstChild);
+    }
 
-// ─── Simple markdown-like formatting for LLM output ───
-function formatReviewMarkdown(text) {
-    let html = escHtml(text);
+    // ─── Simple markdown-like formatting for LLM output ───
+    function formatReviewMarkdown(text) {
+      let html = escHtml(text);
 
-    html = html.replace(
+      html = html.replace(
         /^(ISSUE \[[\w-]+\])$/gm,
         '<div style="font-weight:600;color:var(--accent);margin-top:12px;">$1</div>'
-    );
+      );
 
-    html = html.replace(
+      html = html.replace(
         /^((?:Element|Check|Finding|Evidence|Score|Confidence|Impact|Recommendation):)\s*/gm,
         '<span style="color:var(--text-muted);font-weight:500;">$1</span> '
-    );
+      );
 
-    html = html.replace(
+      html = html.replace(
         /^(CHECK PASSED:.*$)/gm,
         '<span style="color:var(--green);">$1</span>'
-    );
+      );
 
-    html = html.replace(
+      html = html.replace(
         /(Overall\s+(?:Assessment\s+)?Score\s*[=:]\s*)([\d.]+)/gi,
         (match, prefix, scoreStr) => {
-            const s = parseFloat(scoreStr);
-            const color = getScoreColor(s);
-            return `<span style="font-weight:600;">${prefix}<span style="color:${color};font-size:14px;">${scoreStr}</span></span>`;
+          const s = parseFloat(scoreStr);
+          const color = getScoreColor(s);
+          return `<span style="font-weight:600;">${prefix}<span style="color:${color};font-size:14px;">${scoreStr}</span></span>`;
         }
-    );
+      );
 
-    html = html.replace(/\*\*(.+?)\*\*/g, '<strong style="color:var(--text-primary);">$1</strong>');
+      html = html.replace(/\*\*(.+?)\*\*/g, '<strong style="color:var(--text-primary);">$1</strong>');
 
-    html = html.replace(/^### (.+)$/gm, '<div style="font-size:13px;font-weight:600;color:var(--text-primary);margin:10px 0 4px;">$1</div>');
-    html = html.replace(/^## (.+)$/gm, '<div style="font-size:14px;font-weight:600;color:var(--text-primary);margin:12px 0 6px;">$1</div>');
+      html = html.replace(/^### (.+)$/gm, '<div style="font-size:13px;font-weight:600;color:var(--text-primary);margin:10px 0 4px;">$1</div>');
+      html = html.replace(/^## (.+)$/gm, '<div style="font-size:14px;font-weight:600;color:var(--text-primary);margin:12px 0 6px;">$1</div>');
 
-    html = html.replace(/^---+$/gm, '<hr style="border:none;border-top:1px solid var(--border);margin:8px 0;">');
+      html = html.replace(/^---+$/gm, '<hr style="border:none;border-top:1px solid var(--border);margin:8px 0;">');
 
-    html = html.replace(
+      html = html.replace(
         /^\|(.+)\|$/gm,
         (match, inner) => {
-            if (inner.match(/^[\s\-|]+$/)) return '';
-            const cells = inner.split('|').map(c => c.trim());
-            return '<div style="display:flex;gap:8px;padding:2px 0;">' + cells.map(c =>
-                `<span style="flex:1;min-width:0;">${c}</span>`
-            ).join('') + '</div>';
+          if (inner.match(/^[\s\-|]+$/)) return '';
+          const cells = inner.split('|').map(c => c.trim());
+          return '<div style="display:flex;gap:8px;padding:2px 0;">' + cells.map(c =>
+            `<span style="flex:1;min-width:0;">${c}</span>`
+          ).join('') + '</div>';
         }
-    );
+      );
 
-    return html;
-}
+      return html;
+    }
 
-// Listen for editor changes to update review button state
-editor.addEventListener('input', updateReviewBtnState);
+    // Listen for editor changes to update review button state
+    editor.addEventListener('input', updateReviewBtnState);
 
-// Initialize review on load
-initReview();
-</script>
+    // Initialize review on load
+    initReview();
+  </script>
 
 </body>
+
 </html>
