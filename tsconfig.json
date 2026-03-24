@@ -3,7 +3,9 @@
     "module": "Node16",
     "moduleResolution": "Node16",
     "target": "ES2022",
-    "lib": ["ES2022"],
+    "lib": [
+      "ES2022"
+    ],
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -13,8 +15,12 @@
     "sourceMap": true
   },
   "references": [
-    { "path": "./client" },
-    { "path": "./server" }
+    {
+      "path": "./clients/vscode"
+    },
+    {
+      "path": "./server"
+    }
   ],
   "files": []
 }
