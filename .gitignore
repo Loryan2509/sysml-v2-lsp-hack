@@ -1,6 +1,7 @@
 node_modules/
 dist/
 client/out/
+clients/vscode/out/
 server/out/
 *.vsix
 .vscode-test/

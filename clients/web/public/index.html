@@ -678,6 +678,50 @@
     background: rgba(59,130,246,0.06);
   }
 
+  .file-picker-item.uploaded-file {
+    border: 1px solid rgba(16,185,129,0.25);
+    background: rgba(16,185,129,0.04);
+  }
+
+  .file-actions {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 6px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .file-actions .link-btn {
+    background: none;
+    border: none;
+    color: var(--accent);
+    font-size: 11px;
+    cursor: pointer;
+    text-decoration: underline;
+    font-family: var(--font-ui);
+    padding: 0;
+  }
+
+  .file-actions .link-btn:hover { color: var(--text-primary); }
+
+  .file-actions .upload-btn {
+    background: none;
+    border: 1px solid rgba(255,255,255,0.15);
+    color: var(--text-secondary);
+    font-size: 11px;
+    cursor: pointer;
+    font-family: var(--font-ui);
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    transition: background var(--transition), color var(--transition);
+    margin-left: auto;
+  }
+
+  .file-actions .upload-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+  }
+
   /* ── Criteria list for review ── */
   .criteria-actions {
     display: flex;
@@ -1199,9 +1243,15 @@
 
         <!-- File picker -->
         <div class="review-section-label">SysML Files</div>
+        <div class="file-actions">
+          <button class="link-btn" onclick="toggleAllFiles(true)">Select all</button>
+          <button class="link-btn" onclick="toggleAllFiles(false)">Deselect all</button>
+          <button class="upload-btn" onclick="document.getElementById('fileUploadInput').click()">📂 Upload…</button>
+          <input type="file" id="fileUploadInput" multiple accept=".sysml" style="display:none" onchange="handleFileUpload(this.files)">
+        </div>
         <div class="file-picker" id="filePicker">
           <div class="file-picker-item editor-file">
-            <input type="checkbox" id="fileEditor" checked>
+            <input type="checkbox" id="fileEditor" checked onchange="updateReviewBtnState()">
             <span class="file-icon">📝</span>
             <label for="fileEditor">Current editor</label>
           </div>
@@ -1284,23 +1334,25 @@ const loadingOverlay = document.getElementById('loadingOverlay');
 const exampleSelect = document.getElementById('exampleSelect');
 
 // ─── Mermaid init ───
-mermaid.initialize({
-    startOnLoad: false,
-    theme: 'dark',
-    themeVariables: {
-        darkMode: true,
-        primaryColor: '#1e3a5f',
-        primaryTextColor: '#e2e8f0',
-        primaryBorderColor: '#3b82f6',
-        lineColor: '#4b5c7c',
-        secondaryColor: '#1a2236',
-        tertiaryColor: '#111827',
-        fontFamily: 'DM Sans, sans-serif',
-        fontSize: '13px',
-    },
-    flowchart: { curve: 'basis', padding: 16 },
-    sequence: { mirrorActors: false },
-});
+try {
+    mermaid.initialize({
+        startOnLoad: false,
+        theme: 'dark',
+        themeVariables: {
+            darkMode: true,
+            primaryColor: '#1e3a5f',
+            primaryTextColor: '#e2e8f0',
+            primaryBorderColor: '#3b82f6',
+            lineColor: '#4b5c7c',
+            secondaryColor: '#1a2236',
+            tertiaryColor: '#111827',
+            fontFamily: 'DM Sans, sans-serif',
+            fontSize: '13px',
+        },
+        flowchart: { curve: 'basis', padding: 16 },
+        sequence: { mirrorActors: false },
+    });
+} catch { /* mermaid unavailable (e.g. CDN blocked) — diagram features disabled */ }
 
 // ─── Default SysML ───
 const DEFAULT_SYSML = `package SmartHome {
@@ -1732,6 +1784,7 @@ let _reviewAbortController = null;
 let _criteriaData = [];
 let _llmConfigured = false;
 let _exampleFiles = [];  // cached {name, code}
+let _uploadedFiles = []; // user-uploaded {name, code}
 let _reviewJsonReport = null;
 
 // ─── Enter / Exit review mode ───
@@ -1776,13 +1829,7 @@ async function initReview() {
     // Load example files for the file picker
     try {
         const res = await fetch('/api/examples');
-        const names = await res.json();
-        _exampleFiles = [];
-        for (const name of names) {
-            const r = await fetch(`/examples/${encodeURIComponent(name)}`);
-            const code = await r.text();
-            _exampleFiles.push({ name, code });
-        }
+        _exampleFiles = await res.json(); // [{name, code}] objects
         renderFilePicker();
     } catch { /* examples not available */ }
 
@@ -1791,25 +1838,59 @@ async function initReview() {
 
 // ─── File picker (multi-select) ───
 function renderFilePicker() {
-    // Keep the "Current editor" item, add example files
+    // Keep the "Current editor" item, add example + uploaded files
     const editorItem = filePicker.querySelector('.editor-file');
     filePicker.innerHTML = '';
     filePicker.appendChild(editorItem);
 
     for (const f of _exampleFiles) {
-        const id = 'file-' + f.name.replace(/[^a-zA-Z0-9]/g, '_');
-        const item = document.createElement('div');
-        item.className = 'file-picker-item';
-        item.innerHTML = `
-            <input type="checkbox" id="${id}" value="${escHtml(f.name)}" onchange="updateReviewBtnState()" onclick="event.stopPropagation()">
-            <span class="file-icon">📄</span>
-            <label for="${id}" onclick="event.stopPropagation()">${escHtml(f.name)}</label>
-        `;
-        item.addEventListener('click', (e) => {
-            if (e.target.tagName !== 'INPUT') item.querySelector('input').click();
-        });
-        filePicker.appendChild(item);
+        filePicker.appendChild(makeFilePickerItem(f, 'file-ex-', '📄', ''));
     }
+    for (const f of _uploadedFiles) {
+        filePicker.appendChild(makeFilePickerItem(f, 'file-up-', '📂', 'uploaded-file'));
+    }
+}
+
+function makeFilePickerItem(f, idPrefix, icon, extraClass) {
+    const id = idPrefix + f.name.replace(/[^a-zA-Z0-9]/g, '_');
+    const item = document.createElement('div');
+    item.className = 'file-picker-item' + (extraClass ? ' ' + extraClass : '');
+    item.innerHTML = `
+        <input type="checkbox" id="${id}" value="${escHtml(f.name)}" data-source="${idPrefix === 'file-up-' ? 'upload' : 'example'}" onchange="updateReviewBtnState()" onclick="event.stopPropagation()">
+        <span class="file-icon">${icon}</span>
+        <label for="${id}" onclick="event.stopPropagation()">${escHtml(f.name)}</label>
+    `;
+    item.addEventListener('click', (e) => {
+        if (e.target.tagName !== 'INPUT') item.querySelector('input').click();
+    });
+    return item;
+}
+
+function toggleAllFiles(checked) {
+    filePicker.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = checked);
+    updateReviewBtnState();
+}
+
+function handleFileUpload(fileList) {
+    if (!fileList?.length) return;
+    let pending = fileList.length;
+    Array.from(fileList).forEach(file => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const name = file.name.replace(/\.sysml$/i, '');
+            // Replace if already uploaded with same name
+            const idx = _uploadedFiles.findIndex(f => f.name === name);
+            if (idx >= 0) _uploadedFiles[idx] = { name, code: e.target.result };
+            else _uploadedFiles.push({ name, code: e.target.result });
+            if (--pending === 0) {
+                renderFilePicker();
+                updateReviewBtnState();
+            }
+        };
+        reader.readAsText(file);
+    });
+    // Reset input so same files can be re-uploaded
+    document.getElementById('fileUploadInput').value = '';
 }
 
 function getSelectedFiles() {
@@ -1820,7 +1901,9 @@ function getSelectedFiles() {
         if (code) files.push({ name: 'editor (current)', code });
     }
     filePicker.querySelectorAll('input[type="checkbox"]:not(#fileEditor):checked').forEach(cb => {
-        const ef = _exampleFiles.find(f => f.name === cb.value);
+        const source = cb.dataset.source;
+        const pool = source === 'upload' ? _uploadedFiles : _exampleFiles;
+        const ef = pool.find(f => f.name === cb.value);
         if (ef) files.push({ name: ef.name, code: ef.code });
     });
     return files;
