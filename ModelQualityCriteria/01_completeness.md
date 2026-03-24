@@ -1,4 +1,4 @@
-# SysML v2 Model Assessment: Completeness
+﻿# SysML v2 Model Assessment: Completeness
 
 ## Purpose
 
@@ -8,17 +8,9 @@ Evaluate the model systematically against each check below. For every issue foun
 
 ---
 
-## Before You Begin: Model Characterisation
+## Before You Begin
 
-Before applying any checks, briefly summarise the following about the model under assessment. Use this characterisation as the basis for all subsequent judgements.
-
-- **System purpose**: What is the system designed to do, and for whom?
-- **Operational domain**: What environment does it operate in (e.g., aerospace, automotive, medical, industrial, defence)?
-- **Lifecycle phase**: What engineering phase does the model represent (concept, preliminary design, detailed design, verification)?
-- **Model scope**: Is this a complete system model, a fragment, a specific view, or one variant of a product family?
-- **Known scope limitations**: Note any areas intentionally excluded from this model; skip the relevant checks below with a documented rationale rather than raising false findings.
-
-> **Recommended execution order across all assessment files**: 01 -> 05 -> 03 -> 07 -> 02 -> 06 -> 04 -> 08 -> 09 -> 10
+Read [_shared_protocol.md](_shared_protocol.md) for the model characterisation procedure, scoring guide, confidence rating definitions, and overall score formula. Apply that protocol throughout this assessment.
 
 ---
 ## Conceptual Background
@@ -36,137 +28,87 @@ Incompleteness is one of the most common and most costly modelling defects. It i
 
 ## Checks to Perform
 
-> **How to apply these checks**: Each item below is a diagnostic question. Record a finding whenever the answer indicates a problem  -  answer **No** for checks asking whether something required is present, or **Yes** for checks asking whether a problem exists. Skip checks that are out of scope given your model characterisation, and note why.
+> **How to apply these checks**: Work through each item and record a finding for every problem identified. For items that do not apply given your model characterisation, state why and skip.
 ### 1. Requirements Coverage
 
-- [ ] Are all stakeholder-level requirements present in the model as `requirement` definitions?
-- [ ] Does every requirement have:
+- Verify that all stakeholder-level requirements are present in the model as `requirement` definitions.
+- Verify that every requirement has:
   - A non-empty `doc` or text body describing what is required?
   - A subject that identifies what part of the system it constrains?
   - At least one `satisfy` or `verify` relationship, or is it explicitly marked as pending/TBD?
-- [ ] Are there requirements referenced in documentation or external artefacts that do not appear in the model?
-- [ ] Are derived requirements present and linked to their parent via `derivedReq` or refinement?
-- [ ] Are non-functional requirements present — performance, safety, reliability, maintainability, interoperability?
+- Check whether there are requirements referenced in documentation or external artefacts that do not appear in the model.
+- Check that derived requirements are present and linked to their parent via `derivedReq` or refinement.
+- Check that non-functional requirements are present — performance, safety, reliability, maintainability, interoperability.
 
 ### 2. System Boundary
 
-- [ ] Is there a top-level block or part that represents the system under study?
-- [ ] Are external actors, systems, and environments identified and modelled as external elements (e.g., context-level parts outside the system boundary)?
-- [ ] Is there a context diagram or equivalent that makes the boundary explicit?
-- [ ] Are all external interfaces — everything crossing the system boundary — identified as ports or connections on that boundary element?
+- Verify that a top-level element representing the system under study is present (`part def` or top-level allocation block).
+- Check that external actors, systems, and environments are identified and modelled as external elements (e.g., context-level parts outside the system boundary).
+- Verify that the model text explicitly delimits the system boundary — for example via a top-level context block with clearly identified external `part` instances — rather than leaving it implicit.
+- Verify that all external interfaces — everything crossing the system are boundary — are identified as ports or connections on that boundary element.
 
 ### 3. Structural Decomposition
 
-- [ ] Is every subsystem or major function represented as a `part` or `item` definition?
-- [ ] Are all parts decomposed to a level appropriate for the current lifecycle phase?
-- [ ] Are any blocks defined but never instantiated as parts anywhere in a composition hierarchy?
-- [ ] Are all leaf-level components specified with enough attributes (mass, power draw, interfaces, etc.) to be usable in analysis?
-- [ ] Is every `part` typed by a `part def`? Are anonymous or untyped parts present?
+- Verify that every subsystem or major function is represented as a `part` or `item` definition.
+- Verify that all parts are decomposed to a level of detail appropriate for the model's current maturity and intended use.
+- Identify any blocks defined but never instantiated as parts anywhere in a composition hierarchy.
+- Verify that all leaf-level components are specified with enough attributes (mass, power draw, interfaces, etc.) to be usable in analysis.
+- Verify that every `part` is typed by a `part def`, with no anonymous or untyped parts.
 
 ### 4. Interface & Connection Completeness
 
-- [ ] Does every `port` on every block have a defined direction (`in`, `out`, `inout`) and a flow type?
-- [ ] Is every `port` connected to exactly one counterpart in the context where the owning block is used as a part? (Unconnected ports should be flagged.)
-- [ ] Are all connections (`connect`) between parts using compatible port types?
-- [ ] Are all flows (`flow`) typed with an `item def` or `attribute def`? Are untyped flows present?
-- [ ] Are interface definitions present for every significant system-to-system boundary crossing?
+- Verify that every `port` on every block has a defined direction (`in`, `out`, `inout`) and a flow type.
+- Verify that every `port` is connected to exactly one counterpart in the context where the owning block is used as a part. (Unconnected ports should be flagged.)
+- Verify that all connections (`connect`) between parts use compatible port types.
+- Verify that all flows (`flow`) are typed with an `item def` or `attribute def`, with no untyped flows.
+- Check that interface definitions are present for every significant system-to-system boundary crossing.
 
 ### 5. Behaviour Completeness
 
-- [ ] Is there at least one behavioural model (action, state machine, or sequence) for every operationally significant function?
-- [ ] Do all `action def` blocks have:
+- Check whether there is at least one behavioural model (action, state machine, or sequence) for every operationally significant function.
+- Verify that all `action def` blocks have:
   - Defined input and output parameters (typed)?
   - A body (`perform`, `succession`, or delegation to sub-actions) if they are not leaf-level?
-- [ ] Are all operational scenarios or modes represented in at least one behaviour model?
-- [ ] Are entry, exit, and `do` behaviours present on states where behaviour is expected to occur?
-- [ ] Are all state machine transitions fully specified with a trigger, guard (where applicable), and effect (where applicable)?
-- [ ] Is every state in a state machine reachable from the initial state?
-- [ ] Is there at least one terminal or final state in each state machine?
+- Verify that all operational scenarios or modes are represented in at least one behaviour model.
+- Check that entry, exit, and `do` behaviours are present on states where behaviour is expected to occur.
+- Verify that all state machine transitions are fully are specified with a trigger, guard (where applicable), and effect (where applicable).
+- Verify that every state in a state machine is reachable from the initial state.
+- Check whether there is at least one terminal or final state in each state machine.
 
 ### 6. Value & Constraint Completeness
 
-- [ ] Are all `attribute` definitions typed with an appropriate value type (including units)?
-- [ ] Are bounds (min, max, nominal) specified for all critical numerical attributes?
-- [ ] Are `constraint` blocks present for all quantitative requirements (performance budgets, timing limits, energy budgets)?
-- [ ] Are parametric models (`constraint def`) bound to actual attribute values in a usage context?
-- [ ] Are units consistent and explicit (e.g., SI units, not bare real numbers)?
+- Verify that all `attribute` definitions typed with an appropriate value type (including units).
+- Check that bounds (min, max, nominal) are specified for all critical numerical attributes.
+- Check that `constraint` blocks are present for all quantitative requirements (performance budgets, timing limits, energy budgets).
+- Check that parametric models (`constraint def`) are bound to actual attribute values in a usage context.
+- Check that units are consistent and explicit (e.g., SI units, not bare real numbers).
 
 ### 7. Allocation Completeness
 
-- [ ] Are all functional elements allocated to physical elements via `allocate`?
-- [ ] Are all software functions allocated to hardware execution platforms?
-- [ ] Are all physical components allocated to a logical or geographical zone where relevant?
-- [ ] Are all interfaces allocated to physical communication media?
-- [ ] Is every allocation relationship navigable in both directions — can you trace from function to physical host and back?
+- Verify that all functional elements are allocated to physical elements via `allocate`.
+- Verify that all software functions are allocated to hardware execution platforms.
+- Verify that all physical components are allocated to a logical or geographical zone where relevant.
+- Verify that all interfaces are allocated to physical communication media.
+- Verify that every allocation relationship is navigable in both directions — can you trace from function to physical host and back.
 
 ### 8. Scenario & Use Case Coverage
 
-- [ ] Is there a defined mission or operational scenario that exercises the full system?
-- [ ] Are all identified operational modes covered by at least one scenario?
-- [ ] Are startup, shutdown, and transition sequences explicitly modelled?
-- [ ] Are off-nominal scenarios (degraded operations, safe states) modelled, not just nominal scenarios?
+- Verify that a defined mission or operational scenario exists that exercises the full system.
+- Verify that all identified operational modes are covered by at least one scenario.
+- Check that startup, shutdown, and transition sequences are explicitly modelled.
+- Check that off-nominal scenarios (degraded operations, safe states) are modelled, not just nominal scenarios.
 
 ### 9. Verification Methods
 
-- [ ] Does every requirement have a defined verification method (test, analysis, demonstration, inspection)?
-- [ ] Are verification cases or test scenarios present and linked to requirements?
-- [ ] Is it clear which model elements serve as evidence for each verification activity?
+- Verify that every requirement has a is defined verification method (test, analysis, demonstration, inspection).
+- Check that verification cases or test scenarios are present and linked to requirements.
+- Confirm that it is clear which model elements serve as evidence for each verification activity.
 
 ---
 
-## Scoring
+## Scoring & Overall Score
 
-Each finding is assigned a **probability score from 0.0 to 1.0** representing the estimated likelihood that this issue, if left unresolved, will cause a harmful outcome  -  such as an incorrect design decision, safety gap, verification failure, or analytical error.
-
-| Score Range | Interpretation |
-|---|---|
-| **0.9 - 1.0** | Near-certain to cause analysis failure, incorrect decision, or unmitigated safety gap |
-| **0.7 - 0.89** | High likelihood of causing significant analytical error or blocking a key decision |
-| **0.5 - 0.69** | Moderate likelihood of harm; likely to surface as a problem under specific conditions |
-| **0.2 - 0.49** | Low-to-moderate likelihood; reduces model confidence but may not cause immediate failure |
-| **0.0 - 0.19** | Very low likelihood; an observation or minor inconsistency unlikely to cause harm in the current state |
-
-Use the following decision aid when assigning a score:
-- Is an analysis blocked entirely from being performed? -> Score >= 0.9
-- Will an analysis likely produce a wrong result? -> Score 0.7-0.89
-- Will a decision be made without necessary information? -> Score 0.5-0.69
-- Is the model weaker but not currently producing wrong results? -> Score 0.2-0.49
-- Is this a stylistic or minor cleanliness observation? -> Score 0.0-0.19
-
-### Confidence Level
-
-Each finding also carries a **Confidence** rating indicating how certain the assessment is that the finding is real and correctly characterised.
-
-| Confidence | Meaning |
-|---|---|
-| **HIGH** | The finding is directly supported by explicit evidence in the model text. No domain assumption is required. Any competent reviewer examining the same model would reach the same conclusion. |
-| **MEDIUM** | The finding is based on inference, partial evidence, or domain knowledge that may not be universally shared. A domain expert could reasonably disagree or request more context before accepting the finding. |
-| **LOW** | The finding is speculative or depends on information not present in the model (e.g., external requirements, domain-specific norms, or undisclosed design intent). Treat as a question to raise with the model author rather than a confirmed defect. |
-
-Use the following decision aid when assigning a confidence level:
-- Is the evidence a direct quote or explicit absence from the model? -> HIGH
-- Does the finding depend on an engineering assumption or domain norm that reasonable engineers might apply differently? -> MEDIUM
-- Would confirming the finding require external documents, domain expertise, or author intent not visible in the model? -> LOW
-
-For MEDIUM or LOW findings, the `Confidence` output field must explain what limits certainty.
-
-### Overall Assessment Score
-
-At the end of the assessment, compute an **overall model score** for this dimension:
-
-```
-Overall Score = 1.0  -  mean(all individual issue scores)
-```
-
-A score of **1.0** means no issues were found. A score of **0.0** means every issue found was near-certain to cause harm.
-
-| Overall Score | Model Status for this Dimension |
-|---|---|
-| 0.9 - 1.0 | Good  -  minor improvements only |
-| 0.7 - 0.89 | Notable gaps  -  address before finalising design decisions |
-| 0.5 - 0.69 | Significant issues  -  not suitable for baseline or verification activities |
-| 0.0 - 0.49 | Critical deficiencies  -  major rework required before this model can be used |
-
+Apply the scoring, confidence, and overall score protocol in [_shared_protocol.md](_shared_protocol.md).
 ---
 
 ## Output Format

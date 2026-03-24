@@ -290,7 +290,7 @@ const server = createServer(async (req, res) => {
     // --- API: GET /api/criteria ---
     if (url.pathname === "/api/criteria" && req.method === "GET") {
         try {
-            const files = readdirSync(CRITERIA_DIR).filter(f => f.endsWith(".md")).sort();
+            const files = readdirSync(CRITERIA_DIR).filter(f => f.endsWith(".md") && !f.startsWith("_")).sort();
             const criteria = files.map(f => {
                 const content = readFileSync(join(CRITERIA_DIR, f), "utf-8");
                 const titleMatch = content.match(/^#\s+SysML v2 Model Assessment:\s*(.+)/m);
@@ -343,9 +343,15 @@ const server = createServer(async (req, res) => {
                 return;
             }
 
-            // Validate criteria IDs — must match existing files
-            const allFiles = readdirSync(CRITERIA_DIR).filter(f => f.endsWith(".md")).map(f => f.replace(".md", ""));
+            // Validate criteria IDs — must match existing criterion files (exclude shared protocol)
+            const allFiles = readdirSync(CRITERIA_DIR).filter(f => f.endsWith(".md") && !f.startsWith("_")).map(f => f.replace(".md", ""));
             const invalid = criteria.filter(c => !allFiles.includes(c));
+
+            // Load the shared protocol once and embed it in the system message
+            const sharedProtocolPath = join(CRITERIA_DIR, "_shared_protocol.md");
+            const sharedProtocol = existsSync(sharedProtocolPath)
+                ? readFileSync(sharedProtocolPath, "utf-8")
+                : "";
             if (invalid.length) {
                 res.writeHead(400, { "Content-Type": "application/json" });
                 res.end(JSON.stringify({ error: `Unknown criteria: ${invalid.join(", ")}` }));
@@ -401,7 +407,7 @@ const server = createServer(async (req, res) => {
                             messages: [
                                 {
                                     role: "system",
-                                    content: "You are an expert SysML v2 model quality assessor. You will be given a quality assessment criterion and a SysML v2 model to review. Follow the assessment instructions precisely. Output findings in the exact ISSUE format specified in the criterion document. At the end, output the summary table and Overall Assessment Score.",
+                                    content: `You are an expert SysML v2 model quality assessor. You will be given a quality assessment criterion and a SysML v2 model to review. Follow the assessment instructions precisely. Output findings in the exact ISSUE format specified in the criterion document. At the end, output the summary table and Overall Assessment Score.${sharedProtocol ? `\n\n---\n\n${sharedProtocol}` : ""}`,
                                 },
                                 {
                                     role: "user",

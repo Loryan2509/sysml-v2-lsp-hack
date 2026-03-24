@@ -1,4 +1,4 @@
-# SysML v2 Model Assessment: Contextual Plausibility
+﻿# SysML v2 Model Assessment: Contextual Plausibility
 
 ## Purpose
 
@@ -10,17 +10,9 @@ Evaluate the model systematically against each check below. For every issue foun
 
 ---
 
-## Before You Begin: Model Characterisation
+## Before You Begin
 
-Before applying any checks, briefly summarise the following about the model under assessment. Use this characterisation as the basis for all subsequent judgements.
-
-- **System purpose**: What is the system designed to do, and for whom?
-- **Operational domain**: What environment does it operate in (e.g., aerospace, automotive, medical, industrial, defence)?
-- **Lifecycle phase**: What engineering phase does the model represent (concept, preliminary design, detailed design, verification)?
-- **Model scope**: Is this a complete system model, a fragment, a specific view, or one variant of a product family?
-- **Known scope limitations**: Note any areas intentionally excluded from this model; skip the relevant checks below with a documented rationale rather than raising false findings.
-
-> **Recommended execution order across all assessment files**: 01 -> 05 -> 03 -> 07 -> 02 -> 06 -> 04 -> 08 -> 09 -> 10
+Read [_shared_protocol.md](_shared_protocol.md) for the model characterisation procedure, scoring guide, confidence rating definitions, and overall score formula. Apply that protocol throughout this assessment.
 
 ---
 ## Conceptual Background
@@ -40,120 +32,70 @@ When assessing plausibility, the agent should flag concerns rather than make def
 
 ## Checks to Perform
 
-> **How to apply these checks**: Each item below is a diagnostic question. Record a finding whenever the answer indicates a problem  -  answer **No** for checks asking whether something required is present, or **Yes** for checks asking whether a problem exists. Skip checks that are out of scope given your model characterisation, and note why.
+> **How to apply these checks**: Work through each item and record a finding for every problem identified. For items that do not apply given your model characterisation, state why and skip.
 ### 1. Physical Plausibility
 
-- [ ] Do the specified values for physical quantities (mass, force, velocity, pressure, temperature, power, voltage, current) fall within ranges achievable by real engineering systems?
-- [ ] Is the energy budget closed — does the specified available energy/power supply cover all consuming elements at their specified maximum load, including margins?
-- [ ] Is the thermal budget closed — does the specified cooling capacity cover all heat-generating components at their maximum dissipation?
-- [ ] Does the structural design (if modelled) respect load limits and material constraints?
-- [ ] Are mass, volume, and centre-of-gravity constraints compatible with the physical envelope specified?
-- [ ] Do any specified efficiencies exceed 100%, or do component efficiencies, when compounded, produce an impossible system efficiency?
-- [ ] Are signal levels, impedances, or electrical parameters specified at values consistent with the interfaces and media claimed?
+- Verify that the specified values for physical quantities (mass, force, velocity, pressure, temperature, power, voltage, current) fall within ranges achievable by real engineering systems.
+- Check that the energy budget is closed — does the specified available energy/power supply cover all consuming elements at their specified maximum load, including margins.
+- Check that the thermal budget is closed — does the specified cooling capacity cover all heat-generating components at their maximum dissipation.
+- Check that the structural design (if modelled) respect load limits and material constraints.
+- Check that mass, volume, and centre-of-gravity constraints compatible with the physical envelope specified.
+- Identify any specified efficiencies exceed 100%, or do component efficiencies, when compounded, produce an impossible system efficiency.
+- Check that signal levels, impedances, or electrical parameters specified at values consistent with the interfaces and media claimed.
 
 ### 2. Timing & Sequencing Plausibility
 
-- [ ] Are all specified response times achievable given the processing capacity of the allocated computing hardware and the complexity of the required computation?
-- [ ] Are end-to-end latency budgets (sensor → processing → actuation) achievable when the latencies of each stage are summed?
-- [ ] Do communication latencies over the specified network or bus (including protocol overhead, arbitration, and retransmission) fit within the timing requirements?
-- [ ] Are human-in-the-loop response times specified at values consistent with known human reaction time distributions (typically > 150–200ms for trained operators, > 500ms for cognitive decisions)?
-- [ ] Are startup or initialisation sequences achievable before the system is required to enter its first operational state?
-- [ ] Are watchdog timeout values consistent with the specified maximum execution times of the monitored functions (i.e., timeout > max execution time with margin)?
-- [ ] Are any physical events specified to occur before their physical cause (causality violations)?
+- Verify that all specified response times achievable given the processing capacity of the are allocated computing hardware and the complexity of the required computation.
+- Check that end-to-end latency budgets (sensor → processing → actuation) achievable when the latencies of each stage are summed.
+- Verify that communication latencies over the specified network or bus (including protocol overhead, arbitration, and retransmission) fit within the timing requirements.
+- Check that human-in-the-loop response times specified at values consistent with known human reaction time distributions (typically > 150–200ms for trained operators, > 500ms for cognitive decisions).
+- Check that startup or initialisation sequences achievable before the system is required to enter its first operational state.
+- Check that watchdog timeout values consistent with the specified maximum execution times of the monitored functions (i.e., timeout > max execution time with margin).
+- Identify any physical events specified to occur before their physical cause (causality violations).
 
 ### 3. Environmental Plausibility
 
-- [ ] Are the specified operating temperature, pressure, humidity, vibration, and radiation environments consistent with the deployment scenario (e.g., altitude, geographic region, indoor/outdoor, space)?
-- [ ] Are components specified that cannot survive the environmental conditions in which they are stated to operate?
-- [ ] Are materials or substances specified that would degrade, react, or fail when exposed to the specified environment?
-- [ ] Are the electromagnetic compatibility (EMC) assumptions realistic — e.g., is a sensitive RF receiver assumed to operate adjacently to a high-power transmitter without adequate isolation?
-- [ ] Is the specified lifetime of components consistent with the environmental exposure (UV, humidity, thermal cycling, vibration fatigue)?
+- Check that the specified operating temperature, pressure, humidity, vibration, and radiation environments is consistent with the deployment scenario (e.g., altitude, geographic region, indoor/outdoor, space).
+- Check that components specified that cannot survive the environmental conditions in which they are stated to operate.
+- Check that materials or substances specified that would degrade, react, or fail when exposed to the specified environment.
+- Check that the electromagnetic compatibility (EMC) assumptions realistic — e.g., is a sensitive RF receiver assumed to operate adjacently to a high-power transmitter without adequate isolation.
+- Check that the specified lifetime of components is consistent with the environmental exposure (UV, humidity, thermal cycling, vibration fatigue).
 
 ### 4. Operational Plausibility
 
-- [ ] Is the specified operational concept achievable by the human operators given their cognitive load, training level, number of simultaneous monitors, and available decision time?
-- [ ] Are there operational sequences that require actions to be performed simultaneously by a single operator when they require physical presence at different locations?
-- [ ] Are operational availability figures (uptime, duty cycle, MTBF, MTTR) consistent with each other and with the maintenance concept — e.g., does the required MTTR assume a spare part replacement that takes longer than specified?
-- [ ] Is the required system availability achievable given the component reliabilities and the maintenance/repair concept (e.g., redundancy, repair rate)?
-- [ ] Are supply chain or logistics dependencies assumed (e.g., consumables, calibration gases, fuel) that are not plausible given the deployment location?
+- Check that the specified operational concept is achievable by the human operators given their cognitive load, training level, number of simultaneous monitors, and available decision time.
+- Check whether there are operational sequences that require actions to be performed simultaneously by a single operator when they require physical presence at different locations.
+- Check that operational availability figures (uptime, duty cycle, MTBF, MTTR) consistent with each other and with the maintenance concept — e.g., does the required MTTR assume a spare part replacement that takes longer than specified.
+- Check that the required system availability is achievable given the component reliabilities and the maintenance/repair concept (e.g., redundancy, repair rate).
+- Check that supply chain or logistics dependencies assumed (e.g., consumables, calibration gases, fuel) that are not plausible given the deployment location.
 
 ### 5. External System & Environment Assumptions
 
-- [ ] Does the model assume continuous availability of external services (GPS, network connectivity, grid power, data feeds) in an environment where such availability cannot be guaranteed?
-- [ ] Are the modelled external system behaviours (partner systems, infrastructure, regulatory systems) consistent with how those systems actually behave?
-- [ ] Are communication link budgets closed — does the specified data rate, range, and antenna configuration produce a received signal level above the noise floor with adequate link margin?
-- [ ] Are bandwidth or spectrum assumptions consistent with what is available or licensed in the deployment environment?
-- [ ] Is the assumed human behaviour of external users, operators, or adversaries realistic (e.g., assuming all users will follow nominal procedures perfectly)?
+- Check that the model assume continuous availability of external services (GPS, network connectivity, grid power, data feeds) in an environment where such availability cannot be guaranteed.
+- Check that the modelled external system behaviours (partner systems, infrastructure, regulatory systems) is consistent with how those systems actually behave.
+- Check that communication link budgets closed — does the specified data rate, range, and antenna configuration produce a received signal level above the noise floor with adequate link margin.
+- Check that bandwidth or spectrum assumptions consistent with what is available or licensed in the deployment environment.
+- Check that the assumed human behaviour of external users, operators, or adversaries realistic (e.g., assuming all users will follow nominal procedures perfectly).
 
 ### 6. Architectural Plausibility
 
-- [ ] Is the specified system achievable within the technology readiness level (TRL) available to the programme — are components or capabilities assumed that do not yet exist?
-- [ ] Are stated integration paths between subsystems physically achievable — are connectors, form factors, voltages, and protocols compatible?
-- [ ] Is the proposed software architecture for the real-time elements achievable on the specified hardware — does the worst-case execution time fit within the period?
-- [ ] Are specified reliability targets (MTBF, probability of failure on demand, safety integrity level) achievable with the specified component count, redundancy level, and maintenance philosophy?
+- Check that the specified system is achievable within the technology readiness level (TRL) available to the programme — are components or capabilities assumed that do not yet exist.
+- Check that stated integration paths between subsystems physically achievable — are connectors, form factors, voltages, and protocols compatible.
+- Check that the proposed software architecture for the real-time elements is achievable on the specified hardware — does the worst-case execution time fit within the period.
+- Check that specified reliability targets (MTBF, probability of failure on demand, safety integrity level) achievable with the specified component count, redundancy level, and maintenance philosophy.
 
 ### 7. Causal Plausibility
 
-- [ ] Do all specified control loops have a physically realisable feedback path — i.e., can the sensor observe the effect of the actuator, and is the loop gain and bandwidth achievable?
-- [ ] Are all information flows logically causal — does each consumer receive information only after it has been produced?
-- [ ] Are there any circular data dependencies in parametric models that would produce an unsolvable constraint system?
-- [ ] Are effects specifiedto propagate faster than physically possible (e.g., a mechanical response assumed instantaneous, an acoustic wave assumed to travel faster than the speed of sound)?
+- Verify that all specified control loops have a physically realisable feedback path — i.e., can the sensor observe the effect of the actuator, and is the loop gain and bandwidth achievable.
+- Verify that all information flows logically causal — does each consumer receive information only after it has been produced.
+- Identify any circular data dependencies in parametric models that would produce an unsolvable constraint system.
+- Check that effects specifiedto propagate faster than physically possible (e.g., a mechanical response assumed instantaneous, an acoustic wave assumed to travel faster than the speed of sound).
 
 ---
 
-## Scoring
+## Scoring & Overall Score
 
-Each finding is assigned a **probability score from 0.0 to 1.0** representing the estimated likelihood that this issue, if left unresolved, will cause a harmful outcome  -  such as an incorrect design decision, safety gap, verification failure, or analytical error.
-
-| Score Range | Interpretation |
-|---|---|
-| **0.9 - 1.0** | Near-certain to cause analysis failure, incorrect decision, or unmitigated safety gap |
-| **0.7 - 0.89** | High likelihood of causing significant analytical error or blocking a key decision |
-| **0.5 - 0.69** | Moderate likelihood of harm; likely to surface as a problem under specific conditions |
-| **0.2 - 0.49** | Low-to-moderate likelihood; reduces model confidence but may not cause immediate failure |
-| **0.0 - 0.19** | Very low likelihood; an observation or minor inconsistency unlikely to cause harm in the current state |
-
-Use the following decision aid when assigning a score:
-- Is an analysis blocked entirely from being performed? -> Score >= 0.9
-- Will an analysis likely produce a wrong result? -> Score 0.7-0.89
-- Will a decision be made without necessary information? -> Score 0.5-0.69
-- Is the model weaker but not currently producing wrong results? -> Score 0.2-0.49
-- Is this a stylistic or minor cleanliness observation? -> Score 0.0-0.19
-
-### Confidence Level
-
-Each finding also carries a **Confidence** rating indicating how certain the assessment is that the finding is real and correctly characterised.
-
-| Confidence | Meaning |
-|---|---|
-| **HIGH** | The finding is directly supported by explicit evidence in the model text. No domain assumption is required. Any competent reviewer examining the same model would reach the same conclusion. |
-| **MEDIUM** | The finding is based on inference, partial evidence, or domain knowledge that may not be universally shared. A domain expert could reasonably disagree or request more context before accepting the finding. |
-| **LOW** | The finding is speculative or depends on information not present in the model (e.g., external requirements, domain-specific norms, or undisclosed design intent). Treat as a question to raise with the model author rather than a confirmed defect. |
-
-Use the following decision aid when assigning a confidence level:
-- Is the evidence a direct quote or explicit absence from the model? -> HIGH
-- Does the finding depend on an engineering assumption or domain norm that reasonable engineers might apply differently? -> MEDIUM
-- Would confirming the finding require external documents, domain expertise, or author intent not visible in the model? -> LOW
-
-For MEDIUM or LOW findings, the `Confidence` output field must explain what limits certainty.
-
-### Overall Assessment Score
-
-At the end of the assessment, compute an **overall model score** for this dimension:
-
-```
-Overall Score = 1.0  -  mean(all individual issue scores)
-```
-
-A score of **1.0** means no issues were found. A score of **0.0** means every issue found was near-certain to cause harm.
-
-| Overall Score | Model Status for this Dimension |
-|---|---|
-| 0.9 - 1.0 | Good  -  minor improvements only |
-| 0.7 - 0.89 | Notable gaps  -  address before finalising design decisions |
-| 0.5 - 0.69 | Significant issues  -  not suitable for baseline or verification activities |
-| 0.0 - 0.49 | Critical deficiencies  -  major rework required before this model can be used |
-
+Apply the scoring, confidence, and overall score protocol in [_shared_protocol.md](_shared_protocol.md).
 ---
 
 ## Output Format
