@@ -221,7 +221,7 @@ def get_changed_sysml_files(base_sha: str, repo_root: Path) -> list[Path]:
 # LLM API helpers
 # ---------------------------------------------------------------------------
 
-def _call_llm(messages: list[dict[str, str]], max_tokens: int = 2000) -> str | None:
+def _call_llm(messages: list[dict[str, str]], max_tokens: int = 16000) -> str | None:
     """Call OpenAI or Azure OpenAI chat completions; return assistant text or None."""
     azure_endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT", "").strip().rstrip("/")
     azure_key = os.environ.get("AZURE_OPENAI_KEY", "").strip()
