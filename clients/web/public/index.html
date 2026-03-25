@@ -1432,24 +1432,21 @@
       left: 0;
       width: 100%;
       height: 100%;
-      background: rgba(0, 0, 0, 0.6);
+      background: var(--bg-deep);
       display: flex;
-      align-items: center;
-      justify-content: center;
       z-index: 1000;
-      backdrop-filter: blur(2px);
     }
 
     .fix-interface-container {
       background: var(--bg-panel);
-      border: 1px solid var(--border);
-      border-radius: 12px;
+      border: none;
+      border-radius: 0;
       display: grid;
-      grid-template-rows: auto minmax(0, 0.95fr) minmax(320px, 1.15fr) auto;
-      width: 95vw;
-      height: 90vh;
-      max-width: 1600px;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      width: 100vw;
+      height: 100vh;
+      max-width: none;
+      box-shadow: none;
       overflow: hidden;
     }
 
@@ -1487,21 +1484,66 @@
       color: var(--text-primary);
     }
 
-    /* 3-pane content layout */
+    /* 2-column content layout */
     .fix-content {
       display: grid;
-      grid-template-columns: 1fr 1.4fr 1.2fr;
+      grid-template-columns: minmax(360px, 0.95fr) minmax(520px, 1.45fr);
       gap: 1px;
       background: var(--border);
       overflow: hidden;
       min-height: 0;
     }
 
+    .fix-column,
     .fix-pane {
       background: var(--bg-panel);
       display: flex;
       flex-direction: column;
       overflow: hidden;
+    }
+
+    .fix-left-column {
+      display: grid;
+      grid-template-rows: minmax(0, 1.45fr) minmax(220px, 0.55fr);
+      gap: 1px;
+      background: var(--border);
+      min-height: 0;
+    }
+
+    .fix-list-head-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .fix-list-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      text-transform: none;
+      letter-spacing: normal;
+    }
+
+    .fix-list-action {
+      color: var(--accent);
+      background: transparent;
+      border: none;
+      font-size: 11px;
+      cursor: pointer;
+      padding: 0;
+    }
+
+    .fix-list-action:hover {
+      text-decoration: underline;
+    }
+
+    .fix-right-column {
+      display: grid;
+      grid-template-rows: minmax(280px, 0.65fr) minmax(240px, 0.35fr);
+      gap: 1px;
+      background: var(--border);
+      min-height: 0;
     }
 
     .fix-list-header,
@@ -1534,6 +1576,21 @@
       transition: background var(--transition);
       border-bottom: 1px solid var(--border-glow);
       font-size: 13px;
+    }
+
+    .fix-item-topline {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .fix-item-checkbox {
+      width: 14px;
+      height: 14px;
+      margin: 0;
+      accent-color: var(--accent);
+      cursor: pointer;
+      flex-shrink: 0;
     }
 
     .fix-item:hover {
@@ -1586,39 +1643,8 @@
       margin-top: 2px;
     }
 
-    /* Code pane */
-    .fix-code-pane {
-      background: var(--bg-deep);
-    }
-
-    .fix-code-container {
-      flex: 1;
-      overflow: auto;
-      padding: 12px 16px;
-      margin: 0;
-      background: var(--bg-deep);
-      color: var(--text-primary);
-      font-family: var(--font-mono);
-      font-size: 13px;
-      line-height: 1.5;
-      border: none;
-    }
-
-    .fix-code-container code {
-      background: none;
-      color: inherit;
-      padding: 0;
-    }
-
-    .fix-code-highlight {
-      display: block;
-      background: rgba(245, 158, 11, 0.22);
-      padding: 2px 4px;
-      border-left: 2px solid var(--amber);
-      border-radius: 2px;
-    }
-
     /* Diagram pane */
+    .fix-diff-pane,
     .fix-diagram-pane {
       background: var(--bg-deep);
     }
@@ -1639,8 +1665,8 @@
 
     /* Proposals section */
     .fix-proposals-section {
-      padding: 16px 20px 12px;
-      border-top: 1px solid var(--border);
+      padding: 14px 16px 12px;
+      border-top: none;
       background: var(--bg-surface);
       min-height: 0;
       overflow: hidden;
@@ -1656,8 +1682,7 @@
     }
 
     .fix-option-label,
-    .fix-changes-label,
-    .fix-proposal-editor-label {
+    .fix-changes-label {
       display: block;
       font-size: 12px;
       font-weight: 600;
@@ -1668,13 +1693,15 @@
     }
 
     .fix-changes-summary {
-      margin-bottom: 12px;
+      margin-bottom: 8px;
       padding: 10px 12px;
       background: rgba(17, 24, 39, 0.85);
       border: 1px solid var(--border);
       border-radius: 6px;
       overflow: auto;
-      max-height: 220px;
+      flex: 1;
+      min-height: 0;
+      max-height: none;
     }
 
     .fix-change-item {
@@ -1762,6 +1789,27 @@
       border-left: 2px solid var(--green);
     }
 
+    .fix-change-snippet-editor {
+      width: 100%;
+      min-height: 100px;
+      resize: vertical;
+      padding: 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      line-height: 1.45;
+      font-family: var(--font-mono);
+      border: 1px solid rgba(75, 92, 124, 0.24);
+      background: rgba(10, 14, 23, 0.9);
+      color: var(--text-secondary);
+      border-left: 2px solid var(--green);
+    }
+
+    .fix-change-snippet-editor:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.2);
+    }
+
     .fix-options-container {
       display: flex;
       flex-direction: column;
@@ -1791,34 +1839,11 @@
       line-height: 1.5;
     }
 
-    .fix-proposal-editor {
-      width: 100%;
-      flex: 1;
-      padding: 10px 12px;
-      background: var(--bg-panel);
-      border: 1px solid var(--border);
-      color: var(--text-primary);
-      font-family: var(--font-mono);
-      font-size: 12px;
-      line-height: 1.6;
-      border-radius: 6px;
-      resize: vertical;
-      min-height: 220px;
-      margin-bottom: 12px;
-      transition: border-color var(--transition);
-    }
-
-    .fix-proposal-editor:focus {
-      outline: none;
-      border-color: var(--accent);
-      box-shadow: 0 0 8px rgba(59, 130, 246, 0.3);
-    }
-
     .fix-actions {
       display: flex;
       gap: 8px;
       flex-wrap: wrap;
-      margin-top: 0;
+      margin-top: 10px;
       padding-top: 4px;
       flex-shrink: 0;
     }
@@ -1873,60 +1898,42 @@
 
     @media (max-width: 1100px) {
       .fix-interface-container {
-        grid-template-rows: auto minmax(0, 1fr) minmax(280px, 1fr) auto;
-        width: 98vw;
-        height: 94vh;
+        grid-template-rows: auto minmax(0, 1fr) auto;
+        width: 100vw;
+        height: 100vh;
       }
 
       .fix-content {
-        grid-template-columns: 0.9fr 1.1fr;
-        grid-template-rows: minmax(0, 1fr) minmax(220px, 0.9fr);
+        grid-template-columns: 1fr;
+        grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
       }
 
-      .fix-issues-list {
-        grid-row: 1 / span 2;
-      }
-
-      .fix-code-pane {
-        grid-column: 2;
-        grid-row: 1;
-      }
-
-      .fix-diagram-pane {
-        grid-column: 2;
-        grid-row: 2;
+      .fix-left-column,
+      .fix-right-column {
+        min-height: 0;
       }
     }
 
     @media (max-width: 760px) {
       .fix-interface-container {
-        grid-template-rows: auto minmax(0, 1.1fr) minmax(320px, 1fr) auto;
+        grid-template-rows: auto minmax(0, 1fr) auto;
         width: 100vw;
         height: 100vh;
         border-radius: 0;
       }
 
       .fix-header,
-      .fix-proposals-section,
       .fix-footer {
         padding-left: 14px;
         padding-right: 14px;
       }
 
-      .fix-content {
-        grid-template-columns: 1fr;
-        grid-template-rows: 180px minmax(180px, 1fr) minmax(180px, 1fr);
+      .fix-left-column {
+        grid-template-rows: minmax(200px, 1.3fr) minmax(180px, 0.7fr);
       }
 
-      .fix-issues-list,
-      .fix-code-pane,
-      .fix-diagram-pane {
-        grid-column: auto;
-        grid-row: auto;
-      }
-
-      .fix-proposal-editor {
-        min-height: 220px;
+      .fix-right-column {
+        grid-template-rows: minmax(220px, 0.7fr) minmax(180px, 0.3fr);
       }
 
       .fix-actions {
@@ -2132,66 +2139,74 @@
           <button class="fix-close-btn" onclick="exitFixInterface()">✕</button>
         </div>
 
-        <!-- Main content: 3-pane layout -->
+        <!-- Main content: left details + right diff/diagram -->
         <div class="fix-content">
-          <!-- Left pane: Issues list -->
-          <div class="fix-pane fix-issues-list" id="fixIssuesList">
-            <div class="fix-list-header">Issues</div>
-            <div class="fix-list-items" id="fixListItems">
-              <!-- Dynamically populated -->
+          <div class="fix-column fix-left-column">
+            <!-- Issues list (kept in place) -->
+            <div class="fix-pane fix-issues-list" id="fixIssuesList">
+              <div class="fix-list-header">
+                <div class="fix-list-head-row">
+                  <span>Issues</span>
+                  <div class="fix-list-actions">
+                    <button class="fix-list-action" onclick="setAllIssueSelections(true)">Select all</button>
+                    <button class="fix-list-action" onclick="setAllIssueSelections(false)">Deselect all</button>
+                  </div>
+                </div>
+              </div>
+              <div class="fix-list-items" id="fixListItems">
+                <!-- Dynamically populated -->
+              </div>
             </div>
-          </div>
 
-          <!-- Middle pane: Code context -->
-          <div class="fix-pane fix-code-pane">
-            <div class="fix-pane-header">SysML Code</div>
-            <pre class="fix-code-container" id="fixCodeContainer"><code id="fixCode"></code></pre>
-          </div>
+            <!-- Issue and proposed fix details moved below issues -->
+            <div class="fix-proposals-section">
+              <div class="fix-issue-description" id="fixIssueDescription">
+                Select an issue to see details and propose fixes.
+              </div>
 
-          <!-- Right pane: Diagram -->
-          <div class="fix-pane fix-diagram-pane">
-            <div class="fix-pane-header">Diagram Preview</div>
-            <div class="fix-diagram-container" id="fixDiagramContainer">
-              <div
-                style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-muted);">
-                <div>Select an issue to preview</div>
+              <div class="fix-options-container" id="fixOptionsContainer" style="display: none;">
+                <div class="fix-option-label">Proposed Fix</div>
+                <div class="fix-proposal-summary">
+                  <div class="fix-proposal-title" id="fixProposalTitle">No fix generated yet</div>
+                  <div class="fix-proposal-description" id="fixProposalDescription">Select an issue to request an
+                    actionable
+                    fix derived from the review run.</div>
+                </div>
+
+                <div class="fix-actions">
+                  <button class="btn fix-btn-secondary" onclick="skipCurrentIssue()" id="fixSkipBtn">Skip</button>
+                  <button class="btn fix-btn-secondary" onclick="showPreviousFix()" id="fixPrevBtn"
+                    style="display: none;">←
+                    Previous</button>
+                  <button class="btn fix-btn-primary" onclick="implementCurrentFix()" id="fixImplementBtn">
+                    ✓ Implement Fix
+                  </button>
+                  <button class="btn fix-btn-secondary" onclick="showNextFix()" id="fixNextBtn"
+                    style="display: none;">Next
+                    →</button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <!-- Fix proposals section -->
-        <div class="fix-proposals-section">
-          <div class="fix-issue-description" id="fixIssueDescription">
-            Select an issue to see details and propose fixes.
-          </div>
-
-          <div class="fix-options-container" id="fixOptionsContainer" style="display: none;">
-            <div class="fix-option-label">Proposed Fix</div>
-            <div class="fix-proposal-summary">
-              <div class="fix-proposal-title" id="fixProposalTitle">No fix generated yet</div>
-              <div class="fix-proposal-description" id="fixProposalDescription">Select an issue to request an actionable
-                fix derived from the review run.</div>
+          <div class="fix-column fix-right-column">
+            <!-- Proposed changes diff moved to main workspace area -->
+            <div class="fix-pane fix-diff-pane">
+              <div class="fix-pane-header">Proposed Changes</div>
+              <div class="fix-changes-summary" id="fixChangesSummary">
+                <div style="color: var(--text-muted);">No proposed changes available yet.</div>
+              </div>
             </div>
 
-            <div class="fix-changes-label">Proposed Changes</div>
-            <div class="fix-changes-summary" id="fixChangesSummary">
-              <div style="color: var(--text-muted);">No proposed changes available yet.</div>
-            </div>
-
-            <div class="fix-proposal-editor-label">Editable Resolved SysML Draft</div>
-            <textarea id="fixProposalText" class="fix-proposal-editor" placeholder="Edit the proposed fix…"
-              oninput="onFixProposalEdit()"></textarea>
-
-            <div class="fix-actions">
-              <button class="btn fix-btn-secondary" onclick="skipCurrentIssue()" id="fixSkipBtn">Skip</button>
-              <button class="btn fix-btn-secondary" onclick="showPreviousFix()" id="fixPrevBtn" style="display: none;">←
-                Previous</button>
-              <button class="btn fix-btn-primary" onclick="implementCurrentFix()" id="fixImplementBtn">
-                ✓ Implement Fix
-              </button>
-              <button class="btn fix-btn-secondary" onclick="showNextFix()" id="fixNextBtn" style="display: none;">Next
-                →</button>
+            <!-- Diagram preview moved below diff -->
+            <div class="fix-pane fix-diagram-pane">
+              <div class="fix-pane-header">Diagram Preview</div>
+              <div class="fix-diagram-container" id="fixDiagramContainer">
+                <div
+                  style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-muted);">
+                  <div>Select an issue to preview</div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -2200,6 +2215,9 @@
         <div class="fix-footer">
           <span id="fixStatusText" style="color: var(--text-secondary); font-size: 12px;"></span>
           <div style="display: flex; gap: 8px;">
+            <button class="btn fix-btn-primary" onclick="implementSelectedFixes()" id="fixImplementSelectedBtn">
+              ✓ Implement Selected
+            </button>
             <button class="btn fix-btn-secondary" onclick="undoLastFix()" id="fixUndoBtn" style="display: none;">↶ Undo
               Last Fix</button>
             <button class="btn fix-btn-secondary" onclick="exitFixInterface()">Done</button>
@@ -2371,13 +2389,31 @@
       try {
         const res = await fetch('/api/examples');
         const examples = await res.json();
-        examples.forEach(ex => {
-          const opt = document.createElement('option');
-          opt.value = ex.code;
-          opt.textContent = ex.name;
-          exampleSelect.appendChild(opt);
-        });
+        _exampleFiles = Array.isArray(examples) ? examples.map(ex => ({ name: ex.name, code: ex.code })) : [];
+        syncExampleSelectOptions();
       } catch { /* silently handle if API not ready */ }
+    }
+
+    function syncExampleSelectOptions() {
+      exampleSelect.innerHTML = '<option value="">Load example…</option>';
+      _exampleFiles.forEach(ex => {
+        const opt = document.createElement('option');
+        opt.value = ex.code;
+        opt.textContent = ex.name;
+        exampleSelect.appendChild(opt);
+      });
+    }
+
+    function upsertExampleFile(name, code) {
+      if (!name || !code) return;
+      const existingIndex = _exampleFiles.findIndex(item => item.name === name);
+      if (existingIndex >= 0) {
+        _exampleFiles[existingIndex] = { name, code };
+      } else {
+        _exampleFiles.unshift({ name, code });
+      }
+      syncExampleSelectOptions();
+      renderFilePicker();
     }
 
     exampleSelect.addEventListener('change', () => {
@@ -2744,6 +2780,7 @@
         undoStack: [],
       };
       _fixProposals = {};
+      hydrateFixProposalsFromReport();
 
       document.getElementById('fixInterfaceModal').style.display = 'flex';
       renderFixIssuesList();
@@ -2770,14 +2807,32 @@
         const severity = sevMap[issue.severity] || 'info';
 
         item.innerHTML = `
+          <div class="fix-item-topline">
+            <input type="checkbox" class="fix-item-checkbox" ${issue.selected !== false ? 'checked' : ''}
+              onclick="event.stopPropagation(); toggleIssueSelection(${idx}, this.checked)">
             <span class="fix-item-severity ${severity}">${severity}</span>
-      <span class="fix-item-message">${escHtml(issue.message)}</span>
-      <span class="fix-item-code">${escHtml(issue.criterionName || issue.criterionId || 'review finding')}</span>
+          </div>
+          <span class="fix-item-message">${escHtml(issue.message)}</span>
+          <span class="fix-item-code">${escHtml(issue.criterionName || issue.criterionId || 'review finding')}</span>
         `;
         listContainer.appendChild(item);
       });
 
       updateFixProgress();
+    }
+
+    function toggleIssueSelection(idx, selected) {
+      const issue = _reviewFixIssues[idx];
+      if (!issue) return;
+      issue.selected = !!selected;
+      updateFixProgress();
+    }
+
+    function setAllIssueSelections(selected) {
+      _reviewFixIssues.forEach((issue) => {
+        issue.selected = !!selected;
+      });
+      renderFixIssuesList();
     }
 
     function selectFixIssue(idx) {
@@ -2802,9 +2857,6 @@
       // Show options container
       document.getElementById('fixOptionsContainer').style.display = 'block';
 
-      // Display code context
-      displayCodeContext(issue);
-
       // Display diagram
       displayFixDiagram(_reviewPrimaryCode);
 
@@ -2812,38 +2864,6 @@
       loadFixProposals(idx);
 
       updateFixProgress();
-    }
-
-    function displayCodeContext(issue) {
-      const code = _reviewPrimaryCode || editor.value;
-      const lines = code.split('\n');
-      const range = issue.range;
-
-      const problemStartLine = range ? range.start.line : -1;
-      const problemEndLine = range ? range.end.line : -1;
-
-      const highlighted = lines.map((line, i) => {
-        if (problemStartLine >= 0 && i >= problemStartLine && i <= problemEndLine) {
-          return `<span class="fix-code-highlight" data-fix-highlight="true">${escHtml(line)}</span>`;
-        }
-        return escHtml(line);
-      }).join('\n');
-
-      const codeEl = document.getElementById('fixCode');
-      const containerEl = document.getElementById('fixCodeContainer');
-      codeEl.innerHTML = highlighted;
-
-      if (problemStartLine >= 0) {
-        requestAnimationFrame(() => {
-          const firstHighlight = codeEl.querySelector('[data-fix-highlight="true"]');
-          if (!firstHighlight || !containerEl) return;
-
-          const targetTop = firstHighlight.offsetTop - Math.max(containerEl.clientHeight * 0.3, 48);
-          containerEl.scrollTop = Math.max(0, targetTop);
-        });
-      } else if (containerEl) {
-        containerEl.scrollTop = 0;
-      }
     }
 
     async function displayFixDiagram(code) {
@@ -2883,13 +2903,10 @@
       }
 
       // Show loading state
-      const textarea = document.getElementById('fixProposalText');
       const titleEl = document.getElementById('fixProposalTitle');
       const descEl = document.getElementById('fixProposalDescription');
       const implementBtn = document.getElementById('fixImplementBtn');
       const skipBtn = document.getElementById('fixSkipBtn');
-      textarea.placeholder = 'Loading fix proposal from the LLM…';
-      textarea.disabled = true;
       implementBtn.disabled = true;
       if (skipBtn) skipBtn.disabled = true;
       titleEl.textContent = 'Generating fix…';
@@ -2923,19 +2940,20 @@
             changes: Array.isArray(payload.changes) ? payload.changes : [],
           },
         };
+        cacheFixProposalForReport(idx);
+        persistCurrentReviewRun();
       } catch (err) {
         console.error('Failed to load fix proposals:', err);
+        const friendlyMessage = mapFixProposalError(err?.message);
         _fixProposals[idx] = {
           fix: {
             title: 'Manual Review Required',
-            description: err.message || 'Unable to generate automatic fix. Please edit the SysML manually.',
+            description: friendlyMessage,
             code: _reviewPrimaryCode,
             changes: [],
           },
         };
       } finally {
-        textarea.placeholder = 'Edit the proposed fix…';
-        textarea.disabled = false;
         implementBtn.disabled = false;
         if (skipBtn) skipBtn.disabled = false;
         displayFixProposals(idx);
@@ -2944,7 +2962,6 @@
 
     function displayFixProposals(idx) {
       const proposal = _fixProposals[idx];
-      const textarea = document.getElementById('fixProposalText');
       const changesSummary = document.getElementById('fixChangesSummary');
       const titleEl = document.getElementById('fixProposalTitle');
       const descEl = document.getElementById('fixProposalDescription');
@@ -2953,7 +2970,6 @@
         titleEl.textContent = 'No fix available';
         descEl.textContent = 'Unable to derive a fix for this issue. Please update the SysML manually.';
         changesSummary.innerHTML = `<div style="color: var(--text-muted);">No proposed changes available yet.</div>`;
-        textarea.value = _reviewPrimaryCode;
         return;
       }
 
@@ -2963,38 +2979,20 @@
       const resolvedChanges = (fix.changes && fix.changes.length)
         ? fix.changes
         : deriveProposalChanges(_reviewPrimaryCode, fix.code);
-      fix.changes = resolvedChanges;
-      changesSummary.innerHTML = renderProposalChanges(resolvedChanges, fix.description);
-      textarea.value = fix.code || _reviewPrimaryCode;
-      focusProposalDraft(textarea, _reviewPrimaryCode, fix.code || _reviewPrimaryCode);
+      fix.changes = enrichProposalChanges(idx, resolvedChanges, fix.code || _reviewPrimaryCode);
+      changesSummary.innerHTML = renderProposalChanges(fix.changes, fix.description);
     }
 
-    function onFixProposalEdit() {
-      const idx = _fixInterfaceState.currentIssueIndex;
-      const proposal = _fixProposals[idx];
-      const editedCode = document.getElementById('fixProposalText').value;
-      if (!proposal?.fix) return;
-      proposal.fix.code = editedCode;
-      proposal.fix.changes = deriveProposalChanges(_reviewPrimaryCode, editedCode);
-      document.getElementById('fixChangesSummary').innerHTML = renderProposalChanges(
-        proposal.fix.changes,
-        proposal.fix.description
-      );
-
-      if (_fixDiagramRenderTimer) clearTimeout(_fixDiagramRenderTimer);
-      _fixDiagramRenderTimer = setTimeout(() => {
-        displayFixDiagram(editedCode);
-      }, 350);
-    }
-
-    function implementCurrentFix() {
+    async function implementCurrentFix() {
       const idx = _fixInterfaceState.currentIssueIndex;
       const proposal = _fixProposals[idx];
       if (!proposal?.fix) {
         alert('No fix proposal is available for this issue yet.');
         return;
       }
-      const fixedCode = proposal.fix.code;
+      const fixedCode = proposal.fix.changes?.length
+        ? applyChangeSet(_reviewPrimaryCode || editor.value, proposal.fix.changes)
+        : proposal.fix.code;
 
       // Save to undo stack
       _fixInterfaceState.undoStack.push(editor.value);
@@ -3004,6 +3002,7 @@
       editor.value = fixedCode;
       _reviewPrimaryCode = fixedCode;
       updateLineNumbers();
+      await saveImplementedFixOutput(fixedCode, `issue-${idx + 1}`);
 
       // Update undo button state
       document.getElementById('fixUndoBtn').style.display = 'inline-block';
@@ -3017,6 +3016,57 @@
           selectFixIssue(_fixInterfaceState.currentIssueIndex + 1);
         }, 500);
       }
+    }
+
+    async function implementSelectedFixes() {
+      const selectedIndexes = _reviewFixIssues
+        .map((issue, index) => ({ issue, index }))
+        .filter(item => item.issue.selected)
+        .map(item => item.index);
+
+      if (!selectedIndexes.length) {
+        alert('Select at least one issue to implement.');
+        return;
+      }
+
+      let mergedCode = _reviewPrimaryCode || editor.value;
+      let appliedCount = 0;
+      const missing = [];
+
+      selectedIndexes.forEach((idx) => {
+        const fix = _fixProposals[idx]?.fix;
+        if (!fix) {
+          missing.push(idx + 1);
+          return;
+        }
+
+        const changes = enrichProposalChanges(idx, fix.changes || [], fix.code || mergedCode);
+        if (changes.length) {
+          mergedCode = applyChangeSet(mergedCode, changes);
+        } else {
+          mergedCode = fix.code || mergedCode;
+        }
+        appliedCount += 1;
+      });
+
+      if (!appliedCount) {
+        alert('No generated fixes available for selected issues. Open each issue first to generate proposals.');
+        return;
+      }
+
+      _fixInterfaceState.undoStack.push(editor.value);
+      editor.value = mergedCode;
+      _reviewPrimaryCode = mergedCode;
+      updateLineNumbers();
+      document.getElementById('fixUndoBtn').style.display = 'inline-block';
+      displayFixDiagram(mergedCode);
+      await saveImplementedFixOutput(mergedCode, `selected-${selectedIndexes.length}-issues`);
+
+      const status = document.getElementById('fixStatusText');
+      status.textContent = `✓ Implemented ${appliedCount} selected fix${appliedCount === 1 ? '' : 'es'}${missing.length ? ` (${missing.length} missing proposals)` : ''}`;
+      setTimeout(() => {
+        status.textContent = '';
+      }, 3500);
     }
 
     function showFixSummary(idx) {
@@ -3066,7 +3116,8 @@
     function updateFixProgress() {
       const total = _reviewFixIssues.length;
       const current = _fixInterfaceState.currentIssueIndex + 1;
-      document.getElementById('fixProgressText').textContent = `Issue ${current} of ${total}`;
+      const selectedCount = _reviewFixIssues.filter(issue => issue.selected).length;
+      document.getElementById('fixProgressText').textContent = `Issue ${current} of ${total} · ${selectedCount} selected`;
     }
 
     function buildFixIssuesFromReview(report) {
@@ -3086,6 +3137,7 @@
             rawText: block,
             range,
             severity: inferIssueSeverity(block, result.score),
+            selected: true,
           });
         });
       }
@@ -3224,31 +3276,171 @@
             </div>
             <div>
               <span class="fix-change-snippet-label">Proposed SysML</span>
-              <pre class="fix-change-snippet after">${escHtml(change.after || '(remove this text)')}</pre>
+              <textarea class="fix-change-snippet-editor" oninput="onFixChangeAfterEdit(${index}, this.value)">${escHtml(change.after || '')}</textarea>
             </div>
           </div>
         </div>
       `).join('');
     }
 
-    function focusProposalDraft(textarea, originalCode, proposedCode) {
-      if (!textarea) return;
+    function onFixChangeAfterEdit(changeIndex, value) {
+      const idx = _fixInterfaceState.currentIssueIndex;
+      const fix = _fixProposals[idx]?.fix;
+      if (!fix?.changes?.[changeIndex]) return;
 
-      const diffIndex = firstDiffIndex(originalCode || '', proposedCode || '');
-      const targetIndex = diffIndex >= 0 ? diffIndex : 0;
-      textarea.setSelectionRange(targetIndex, targetIndex);
+      const change = fix.changes[changeIndex];
+      const previousAfter = change.after || '';
+      change.after = value;
 
-      const lineHeight = parseFloat(getComputedStyle(textarea).lineHeight) || 19;
-      const lineCount = (proposedCode.slice(0, targetIndex).match(/\n/g) || []).length;
-      textarea.scrollTop = Math.max(0, (lineCount - 3) * lineHeight);
+      if (previousAfter && fix.code.includes(previousAfter)) {
+        fix.code = fix.code.replace(previousAfter, value);
+      } else if (change.before && fix.code.includes(change.before)) {
+        fix.code = fix.code.replace(change.before, value);
+      }
+
+      cacheFixProposalForReport(idx);
+      persistCurrentReviewRun();
+
+      if (_fixDiagramRenderTimer) clearTimeout(_fixDiagramRenderTimer);
+      _fixDiagramRenderTimer = setTimeout(() => {
+        displayFixDiagram(fix.code);
+      }, 350);
     }
 
-    function firstDiffIndex(originalText, proposedText) {
-      const limit = Math.min(originalText.length, proposedText.length);
-      for (let index = 0; index < limit; index += 1) {
-        if (originalText[index] !== proposedText[index]) return index;
+    function enrichProposalChanges(issueIndex, changes, fallbackCode) {
+      const issue = _reviewFixIssues[issueIndex];
+      const issueBefore = buildIssueBeforeSnippet(issue, _reviewPrimaryCode || editor.value);
+
+      if (!changes?.length) {
+        return issueBefore
+          ? [{
+            type: 'alter',
+            description: 'Proposed update for the selected issue.',
+            before: issueBefore,
+            after: issueBefore,
+          }]
+          : [];
       }
-      return originalText.length === proposedText.length ? -1 : limit;
+
+      return changes.map((change) => {
+        const type = change?.type || 'alter';
+        const before = (change?.before || '').trim();
+        const after = (change?.after || '').trim();
+        return {
+          ...change,
+          type,
+          before: before || (type === 'add' ? issueBefore || '' : issueBefore || '(unable to locate original snippet)'),
+          after: after || (type === 'delete' ? '' : extractAfterSnippetFromCode(fallbackCode, before || issueBefore || '')),
+        };
+      });
+    }
+
+    function buildIssueBeforeSnippet(issue, code) {
+      if (!issue?.range || !code) return '';
+      const lines = code.split('\n');
+      const start = Math.max(0, issue.range.start.line - 1);
+      const end = Math.min(lines.length - 1, issue.range.end.line + 1);
+      return lines.slice(start, end + 1).join('\n').trim();
+    }
+
+    function extractAfterSnippetFromCode(code, anchorBefore) {
+      if (!code || !anchorBefore) return '';
+      if (code.includes(anchorBefore)) return anchorBefore;
+      return '';
+    }
+
+    function applyChangeSet(baseCode, changes) {
+      let updatedCode = baseCode;
+      changes.forEach((change) => {
+        const before = change.before || '';
+        const after = change.after || '';
+        const type = change.type || 'alter';
+
+        if (type === 'add') {
+          if (before && updatedCode.includes(before)) {
+            updatedCode = updatedCode.replace(before, `${before}\n${after}`.trim());
+          } else if (after) {
+            updatedCode = `${updatedCode}\n${after}`.trim();
+          }
+          return;
+        }
+
+        if (!before || !updatedCode.includes(before)) return;
+        updatedCode = updatedCode.replace(before, after);
+      });
+      return updatedCode;
+    }
+
+    function getFixIssueKey(issue) {
+      if (!issue) return '';
+      const startLine = issue.range?.start?.line ?? -1;
+      return [issue.criterionId || '', issue.message || '', startLine, (issue.rawText || '').slice(0, 120)].join('::');
+    }
+
+    function hydrateFixProposalsFromReport() {
+      const persisted = _reviewJsonReport?.fixProposals || {};
+      _reviewFixIssues.forEach((issue, idx) => {
+        const key = getFixIssueKey(issue);
+        if (key && persisted[key]?.fix) {
+          _fixProposals[idx] = JSON.parse(JSON.stringify(persisted[key]));
+        }
+      });
+    }
+
+    function cacheFixProposalForReport(idx) {
+      if (!_reviewJsonReport) return;
+      if (!_reviewJsonReport.fixProposals) _reviewJsonReport.fixProposals = {};
+      const issue = _reviewFixIssues[idx];
+      const key = getFixIssueKey(issue);
+      if (!key || !_fixProposals[idx]) return;
+      _reviewJsonReport.fixProposals[key] = JSON.parse(JSON.stringify(_fixProposals[idx]));
+    }
+
+    async function saveImplementedFixOutput(code, issueLabel) {
+      try {
+        const sourceName = _reviewSourceFiles.find(f => f.name === 'editor (current)')?.name
+          ?? _reviewSourceFiles[0]?.name
+          ?? 'editor-current';
+        const response = await fetch('/api/save-fixed-model', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            code,
+            sourceName,
+            reviewRunId: _reviewJsonReport?.id,
+            issueLabel,
+          }),
+        });
+        if (!response.ok) return;
+
+        const payload = await response.json();
+        if (!payload?.relativePath) return;
+
+        upsertExampleFile(payload.relativePath, code);
+
+        const status = document.getElementById('fixStatusText');
+        status.textContent = `${status.textContent ? `${status.textContent} · ` : ''}saved to ${payload.relativePath}`;
+      } catch (err) {
+        console.error('Failed to save implemented fix output:', err);
+      }
+    }
+
+    function mapFixProposalError(message) {
+      if (!message) {
+        return 'Unable to generate an automatic fix. Configure the LLM key and try again, or edit the SysML directly.';
+      }
+
+      const lower = message.toLowerCase();
+      if (lower.includes('claude') || lower.includes('anthropic')) {
+        return 'Automatic fixes now use the ai-gateway deployments. Set LLM_API_KEY with your gateway key (see Review settings) and rerun the fix.';
+      }
+      if (lower.includes('llm not configured')) {
+        return 'Set the LLM_API_KEY environment variable with the key provided for https://ai-gateway-eastus2.azure-api.net before requesting fixes.';
+      }
+      if (lower.includes('api error')) {
+        return 'The LLM request failed. Verify the deployment name, API key, and network connectivity, then retry.';
+      }
+      return message;
     }
 
     // ─── Load review config + criteria + example files on startup ───
@@ -3282,13 +3474,11 @@
       // Load example files for the file picker
       try {
         const res = await fetch('/api/examples');
-        const names = await res.json();
-        _exampleFiles = [];
-        for (const name of names) {
-          const r = await fetch(`/examples/${encodeURIComponent(name)}`);
-          const code = await r.text();
-          _exampleFiles.push({ name, code });
-        }
+        const examples = await res.json();
+        _exampleFiles = Array.isArray(examples)
+          ? examples.map(ex => ({ name: ex.name, code: ex.code }))
+          : [];
+        syncExampleSelectOptions();
         renderFilePicker();
       } catch { /* examples not available */ }
 
@@ -3462,6 +3652,7 @@
         files: files.map(f => f.name),
         sourceFiles: files.map(f => ({ ...f })),
         criteria: criteria,
+        fixProposals: {},
         results: [],
       };
 
@@ -3696,6 +3887,7 @@
 
     function restoreSavedReviewRun(report) {
       _reviewJsonReport = report;
+      if (!_reviewJsonReport.fixProposals) _reviewJsonReport.fixProposals = {};
       _reviewSourceFiles = (report.sourceFiles || []).map(f => ({ ...f }));
       _reviewFixIssues = [];
 

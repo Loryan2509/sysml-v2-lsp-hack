@@ -23,6 +23,7 @@ const REPO_ROOT = resolve(__dirname, "../..");
 const SERVER_JS = join(REPO_ROOT, "dist/server/server.js");
 const CRITERIA_DIR = join(REPO_ROOT, "ModelQualityCriteria");
 const REVIEW_RUNS_DIR = join(REPO_ROOT, ".review-runs");
+const FIXED_MODELS_DIR = join(REPO_ROOT, ".fixed-models");
 
 // LLM configuration via environment variables
 const LLM_BASE_URL = process.env.LLM_BASE_URL || "https://ai-gateway-eastus2.azure-api.net";
@@ -277,12 +278,33 @@ const server = createServer(async (req, res) => {
 
     // --- API: GET /api/examples ---
     if (url.pathname === "/api/examples" && req.method === "GET") {
+        const examples = [];
+
         const exDir = join(REPO_ROOT, "examples");
-        const files = readdirSync(exDir).filter((f) => f.endsWith(".sysml"));
-        const examples = files.map((f) => ({
-            name: f.replace(".sysml", ""),
-            code: readFileSync(join(exDir, f), "utf-8"),
-        }));
+        if (existsSync(exDir)) {
+            const files = readdirSync(exDir).filter((f) => f.endsWith(".sysml"));
+            files.forEach((f) => {
+                examples.push({
+                    name: f.replace(".sysml", ""),
+                    code: readFileSync(join(exDir, f), "utf-8"),
+                    source: "examples",
+                });
+            });
+        }
+
+        ensureFixedModelsDir();
+        const fixedFiles = readdirSync(FIXED_MODELS_DIR)
+            .filter((f) => f.endsWith(".sysml"))
+            .sort()
+            .reverse();
+        fixedFiles.forEach((f) => {
+            examples.push({
+                name: `.fixed-models/${f}`,
+                code: readFileSync(join(FIXED_MODELS_DIR, f), "utf-8"),
+                source: "fixed-models",
+            });
+        });
+
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify(examples));
         return;
@@ -514,8 +536,7 @@ Only output valid JSON, no other text.`;
                     "api-key": LLM_API_KEY,
                 },
                 body: JSON.stringify({
-                    temperature: 0.35,
-                    max_tokens: 2048,
+                    max_completion_tokens: 4096,
                     messages: [
                         {
                             role: "system",
@@ -574,6 +595,36 @@ Only output valid JSON, no other text.`;
             console.error("Fix proposals error:", err);
             res.writeHead(500, { "Content-Type": "application/json" });
             res.end(JSON.stringify({ error: err.message, proposals: [] }));
+        }
+        return;
+    }
+
+    // --- API: POST /api/save-fixed-model ---
+    if (url.pathname === "/api/save-fixed-model" && req.method === "POST") {
+        try {
+            const body = await readBody(req);
+            const { code, sourceName, reviewRunId, issueLabel } = JSON.parse(body);
+
+            if (!code?.trim()) {
+                res.writeHead(400, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "Missing 'code' payload" }));
+                return;
+            }
+
+            ensureFixedModelsDir();
+            const safeSource = sanitizeFileStem(sourceName || "model");
+            const safeRun = sanitizeFileStem(reviewRunId || "manual");
+            const safeIssue = sanitizeFileStem(issueLabel || "fix");
+            const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+            const fileName = `${safeSource}__${safeRun}__${safeIssue}__${timestamp}.sysml`;
+            const targetPath = join(FIXED_MODELS_DIR, fileName);
+
+            writeFileSync(targetPath, code, "utf-8");
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ ok: true, fileName, relativePath: `.fixed-models/${fileName}` }));
+        } catch (err) {
+            res.writeHead(500, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: err.message }));
         }
         return;
     }
@@ -765,6 +816,12 @@ function ensureReviewRunsDir() {
     }
 }
 
+function ensureFixedModelsDir() {
+    if (!existsSync(FIXED_MODELS_DIR)) {
+        mkdirSync(FIXED_MODELS_DIR, { recursive: true });
+    }
+}
+
 function buildReviewRunId(timestamp) {
     const base = (timestamp || new Date().toISOString()).replace(/[:.]/g, "-");
     return `review-${base}`;
@@ -772,6 +829,15 @@ function buildReviewRunId(timestamp) {
 
 function sanitizeReviewRunId(value) {
     return String(value || "").replace(/[^a-zA-Z0-9_-]/g, "");
+}
+
+function sanitizeFileStem(value) {
+    return String(value || "")
+        .replace(/\.sysml$/i, "")
+        .replace(/[^a-zA-Z0-9_-]+/g, "-")
+        .replace(/-+/g, "-")
+        .replace(/^-|-$/g, "")
+        .slice(0, 60) || "item";
 }
 
 function buildReviewRunSummary(report) {
