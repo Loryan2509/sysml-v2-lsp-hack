@@ -274,13 +274,19 @@ def _call_llm(messages: list[dict[str, str]], max_tokens: int = 2000) -> str | N
                 if "error" in data:
                     print(f"[LLM] Gateway error: {json.dumps(data['error'])}", file=sys.stderr)
                 return None
-            content = data["choices"][0]["message"]["content"]
-            print(f"[LLM] Content received: {repr(content[:100]) if content else repr(content)}", file=sys.stderr)
-            # content may be None for reasoning models that use a different finish_reason
-            if content is None:
-                # Try refusal or reasoning fields
-                msg = data["choices"][0]["message"]
-                print(f"[LLM] Message fields: {list(msg.keys())}", file=sys.stderr)
+            choice = data["choices"][0]
+            msg = choice.get("message", {})
+            finish_reason = choice.get("finish_reason", "unknown")
+            print(f"[LLM] finish_reason={finish_reason}, message keys={list(msg.keys())}", file=sys.stderr)
+            content = msg.get("content") or ""
+            # Reasoning models (o-series, gpt-5.x) may put output in reasoning_content
+            if not content:
+                content = msg.get("reasoning_content") or msg.get("refusal") or ""
+            if not content:
+                # Last resort: dump the full raw response (sanitised) so we can diagnose
+                safe = raw.replace(azure_key, "***").replace(azure_deployment, "***")
+                print(f"[LLM] Full response (sanitised): {safe}", file=sys.stderr)
+                return None
             return content
     except urllib.error.HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")
