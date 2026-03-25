@@ -233,7 +233,7 @@ def _call_llm(messages: list[dict[str, str]], max_tokens: int = 2000) -> str | N
 
     payload = json.dumps({
         "messages": messages,
-        "max_tokens": max_tokens,
+        "max_completion_tokens": max_tokens,
         "temperature": 0.2,
     }).encode("utf-8")
 
@@ -255,7 +255,7 @@ def _call_llm(messages: list[dict[str, str]], max_tokens: int = 2000) -> str | N
         payload = json.dumps({
             "model": openai_model,
             "messages": messages,
-            "max_tokens": max_tokens,
+            "max_completion_tokens": max_tokens,
             "temperature": 0.2,
         }).encode("utf-8")
     else:
