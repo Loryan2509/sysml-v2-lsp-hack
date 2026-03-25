@@ -13,4 +13,5 @@ examples/temp/
 test/fixtures/conformance/
 *.tgz
 *.patch
-.venv/
+.venv/__pycache__/
+*.pyc
