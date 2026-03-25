@@ -1,4 +1,4 @@
-# SysML v2 Model Assessment: Redundancy
+﻿# SysML v2 Model Assessment: Redundancy
 
 ## Purpose
 
@@ -10,17 +10,9 @@ Evaluate the model systematically against each check below. For every issue foun
 
 ---
 
-## Before You Begin: Model Characterisation
+## Before You Begin
 
-Before applying any checks, briefly summarise the following about the model under assessment. Use this characterisation as the basis for all subsequent judgements.
-
-- **System purpose**: What is the system designed to do, and for whom?
-- **Operational domain**: What environment does it operate in (e.g., aerospace, automotive, medical, industrial, defence)?
-- **Lifecycle phase**: What engineering phase does the model represent (concept, preliminary design, detailed design, verification)?
-- **Model scope**: Is this a complete system model, a fragment, a specific view, or one variant of a product family?
-- **Known scope limitations**: Note any areas intentionally excluded from this model; skip the relevant checks below with a documented rationale rather than raising false findings.
-
-> **Recommended execution order across all assessment files**: 01 -> 05 -> 03 -> 07 -> 02 -> 06 -> 04 -> 08 -> 09 -> 10
+Read [_shared_protocol.md](_shared_protocol.md) for the model characterisation procedure, scoring guide, confidence rating definitions, and overall score formula. Apply that protocol throughout this assessment.
 
 ---
 ## Conceptual Background
@@ -38,57 +30,57 @@ In SysML v2, redundancy is particularly harmful because the language provides po
 
 ## Checks to Perform
 
-> **How to apply these checks**: Each item below is a diagnostic question. Record a finding whenever the answer indicates a problem  -  answer **No** for checks asking whether something required is present, or **Yes** for checks asking whether a problem exists. Skip checks that are out of scope given your model characterisation, and note why.
+> **How to apply these checks**: Work through each item and record a finding for every problem identified. For items that do not apply given your model characterisation, state why and skip.
 ### 1. Duplicate Requirements
 
-- [ ] Are there two or more requirement elements whose text is identical or nearly identical, without one being a derivation or refinement of the other?
-- [ ] Are there requirements at different levels of the hierarchy that state the same constraint at the same level of specificity, suggesting the lower-level requirement was created by copying rather than deriving?
-- [ ] Are requirements duplicated across packages (e.g., a system-level package and a subsystem-level package) without an explicit `derivedReq` or `refine` relationship linking them?
-- [ ] Are the same stakeholder needs restated as both a stakeholder requirement and a system requirement with identical wording, without the expected abstraction step?
-- [ ] Are there verification cases that are identical or near-identical, verifying the same requirement in the same way multiple times?
+- Check whether there are two or more requirement elements whose text is identical or nearly identical, without one being a derivation or refinement of the other.
+- Check whether there are requirements at different levels of the hierarchy that state the same constraint at the same level of specificity, suggesting the lower-level requirement was created by copying rather than deriving.
+- Check that requirements duplicated across packages (e.g., a system-level package and a subsystem-level package) without an explicit `derivedReq` or `refine` relationship linking them.
+- Check whether the same stakeholder needs restated as both a stakeholder requirement and a system requirement with identical wording, without the expected abstraction step?
+- Check whether there are verification cases that are identical or near-identical, verifying the same requirement in the same way multiple times.
 
 ### 2. Duplicate Block or Part Definitions
 
-- [ ] Are there two or more `part def` or `item def` blocks that represent the same physical or logical entity but are named differently (e.g., `PowerSupply` and `PSU` as separate definitions)?
-- [ ] Are there blocks that have nearly identical sets of attributes and ports, suggesting they should be unified as a single definition or one should specialise the other?
-- [ ] Are there `part` usages in different contexts that refer to different blocks but that block appears to model the same real-world component?
-- [ ] Are there multiple definitions of the same interface type scattered across packages rather than a single definition imported or referenced where needed?
+- Check whether there are two or more `part def` or `item def` blocks that represent the same physical or logical entity but are named differently (e.g., `PowerSupply` and `PSU` as separate definitions).
+- Check whether there are blocks that have nearly identical sets of attributes and ports, suggesting they should be unified as a single definition or one should specialise the other.
+- Check whether there are `part` usages in different contexts that refer to different blocks but that block appears to model the same real-world component.
+- Check whether there are multiple definitions of the same interface type scattered across packages rather than a single definition imported or referenced where needed.
 
 ### 3. Redundant Relationships
 
-- [ ] Are there multiple `satisfy` relationships from the same design element to the same requirement?
-- [ ] Are there multiple `allocate` relationships assigning the same function to the same component?
-- [ ] Are structural `connect` statements that duplicate information already expressed by flow definitions or interface bindings?
-- [ ] Are there `bind` constraints in parametric models that equate the same pair of attributes multiple times?
-- [ ] Are there generalisation and `specialization` chains that express the same relationship twice (e.g., A specialises B, and B specialises C, but also A is directly stated to specialise C when this is already implied)?
+- Check whether there are multiple `satisfy` relationships from the same design element to the same requirement.
+- Check whether there are multiple `allocate` relationships assigning the same function to the same component.
+- Check that structural `connect` statements that duplicate information already expressed by flow definitions or interface bindings.
+- Check whether there are `bind` constraints in parametric models that equate the same pair of attributes multiple times.
+- Check whether there are generalisation and `specialization` chains that express the same relationship twice (e.g., A specialises B, and B specialises C, but also A is directly stated to specialise C when this is already implied).
 
 ### 4. Redundant Behaviour Models
 
-- [ ] Are there two state machines in the model that represent the same operational lifecycle of the same element?
-- [ ] Are there action sequences or activity diagrams that duplicate steps already captured in another diagram, without being a decomposition or specialisation of that activity?
-- [ ] Are the same message sequences captured in multiple sequence diagrams without one being a refinement of the other?
-- [ ] Are the same guard conditions and transitions reproduced across multiple states or state machines where a shared mechanism would suffice?
+- Check whether there are two state machines in the model that represent the same operational lifecycle of the same element.
+- Check whether there are action definitions or sequences that duplicate steps already captured elsewhere in the model, without being a decomposition or specialisation of the original.
+- Check whether the same message exchange patterns are captured multiple times in the model without one being a refinement of the other.
+- Check whether the same guard conditions and transitions reproduced across multiple states or state machines where a shared mechanism would suffice?
 
 ### 5. Redundant Attributes & Constraints
 
-- [ ] Are the same physical or performance attributes (e.g., mass, voltage, data rate) defined on both a general definition and a specific usage, where the usage simply repeats the definition's value without redefinition?
-- [ ] Are constraint blocks applied multiple times to the same set of values in different contexts, where a single application would suffice?
-- [ ] Are there derived attributes that simply restate a base attribute without transformation — i.e., a "copy" rather than a computation?
-- [ ] Are units re-specified at every level of the hierarchy when they are already implied by the type?
+- Check whether the same physical or performance attributes (e.g., mass, voltage, data rate) defined on both a general definition and a specific usage, where the usage simply repeats the definition's value without redefinition?
+- Check that constraint blocks applied multiple times to the same set of values in different contexts, where a single application would suffice.
+- Check whether there are derived attributes that simply restate a base attribute without transformation — i.e., a "copy" rather than a computation.
+- Check that units re-specified at every level of the hierarchy when they are already implied by the type.
 
 ### 6. Redundant Decomposition
 
-- [ ] Are there intermediate blocks in a decomposition hierarchy that add no structural, behavioural, or constraint content — i.e., single-child pass-through blocks that serve no organising purpose?
-- [ ] Are there empty packages that exist only as namespace placeholders without content or future purpose?
-- [ ] Are there action decompositions where a parent action contains only a single sub-action with no additional structure, guards, or parameters — making the parent layer redundant?
+- Check whether there are intermediate blocks in a decomposition hierarchy that add no structural, behavioural, or constraint content — i.e., single-child pass-through blocks that serve no organising purpose.
+- Check whether there are empty packages that exist only as namespace placeholders without content or future purpose.
+- Check whether there are action decompositions where a parent action contains only a single sub-action with no additional structure, guards, or parameters — making the parent layer redundant.
 
 ### 7. Unintentional vs. Intentional Redundancy
 
 For any redundancy identified, determine whether it could be **intentional design redundancy** (e.g., two independent power supply paths for reliability). The distinctions are:
 
-- [ ] Intentional architectural redundancy should be **explicitly annotated** with a comment, stereotype, or requirement that justifies it (e.g., "Redundant for single-fault tolerance per requirement REQ-045").
-- [ ] If a duplicated element lacks any such annotation or justification, it should be flagged as potentially unintentional.
-- [ ] If redundancy appears in requirements or model structure (not in physical architecture), it is almost certainly unintentional.
+- Intentional architectural redundancy should be **explicitly annotated** with a comment, stereotype, or requirement that justifies it (e.g., "Redundant for single-fault tolerance per requirement REQ-045").
+- If a duplicated element lacks any such annotation or justification, it should be flagged as potentially unintentional.
+- If redundancy appears in requirements or model structure (not in physical architecture), it is almost certainly unintentional.
 
 ---
 

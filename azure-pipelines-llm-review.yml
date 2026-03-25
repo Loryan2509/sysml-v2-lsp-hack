@@ -60,7 +60,7 @@ steps:
       git fetch origin "$BASE_SHA" 2>/dev/null || true
       ORIGIN_BASE="origin/$(System.PullRequest.TargetBranchName)"
       FILES=$(git diff --name-only --diff-filter=ACM "$ORIGIN_BASE" "$HEAD_SHA" \
-        -- '*.sysml' '*.kerml' || true)
+        -- '**/*.sysml' '**/*.kerml' || true)
       COUNT=$(echo "$FILES" | grep -c '\S' || true)
       echo "##vso[task.setvariable variable=CHANGED_COUNT]$COUNT"
       echo "##vso[task.setvariable variable=CHANGED_FILES]$FILES"

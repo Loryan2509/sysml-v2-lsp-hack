@@ -1,4 +1,4 @@
-# SysML v2 Model Assessment: Misrepresentation & Conflation
+﻿# SysML v2 Model Assessment: Misrepresentation & Conflation
 
 ## Purpose
 
@@ -8,17 +8,9 @@ Evaluate the model systematically against each check below. For every issue foun
 
 ---
 
-## Before You Begin: Model Characterisation
+## Before You Begin
 
-Before applying any checks, briefly summarise the following about the model under assessment. Use this characterisation as the basis for all subsequent judgements.
-
-- **System purpose**: What is the system designed to do, and for whom?
-- **Operational domain**: What environment does it operate in (e.g., aerospace, automotive, medical, industrial, defence)?
-- **Lifecycle phase**: What engineering phase does the model represent (concept, preliminary design, detailed design, verification)?
-- **Model scope**: Is this a complete system model, a fragment, a specific view, or one variant of a product family?
-- **Known scope limitations**: Note any areas intentionally excluded from this model; skip the relevant checks below with a documented rationale rather than raising false findings.
-
-> **Recommended execution order across all assessment files**: 01 -> 05 -> 03 -> 07 -> 02 -> 06 -> 04 -> 08 -> 09 -> 10
+Read [_shared_protocol.md](_shared_protocol.md) for the model characterisation procedure, scoring guide, confidence rating definitions, and overall score formula. Apply that protocol throughout this assessment.
 
 ---
 ## Conceptual Background
@@ -36,65 +28,65 @@ Conflation errors often persist because the model "makes sense" locally — the 
 
 ## Checks to Perform
 
-> **How to apply these checks**: Each item below is a diagnostic question. Record a finding whenever the answer indicates a problem  -  answer **No** for checks asking whether something required is present, or **Yes** for checks asking whether a problem exists. Skip checks that are out of scope given your model characterisation, and note why.
+> **How to apply these checks**: Work through each item and record a finding for every problem identified. For items that do not apply given your model characterisation, state why and skip.
 ### 1. Architectural Layer Conflation
 
-- [ ] Are logical/functional elements and physical/implementation elements kept in appropriately separate decomposition hierarchies, or are they mixed within the same block tree?
-- [ ] Are software components and hardware components modelled as distinct entities, or does a single block represent both?
-- [ ] Are operational concepts (what the system does) kept separate from design choices (how it is implemented)?
-- [ ] Are system-level behaviours mixed with subsystem-level behaviours in the same model context, creating a misleading impression of scope?
-- [ ] Are there blocks that represent both a function and its physical realisation simultaneously, making it impossible to evaluate alternative implementations?
+- Check that logical/functional elements and physical/implementation elements kept in appropriately separate decomposition hierarchies, or are they mixed within the same block tree.
+- Check that software components and hardware components modelled as distinct entities, or does a single block represent both.
+- Check that operational concepts (what the system does) kept separate from design choices (how it is implemented).
+- Check that system-level behaviours mixed with subsystem-level behaviours in the same model context, creating a misleading impression of scope.
+- Check whether there are blocks that represent both a function and its physical realisation simultaneously, making it impossible to evaluate alternative implementations.
 
 ### 2. Requirement Conflation
 
-- [ ] Do any requirement statements conflate a stakeholder need with a specific design solution (i.e., a requirement that mandates an implementation rather than a capability or quality)?
+- Identify any requirement statements conflate a stakeholder need with a specific design solution (i.e., a requirement that mandates an implementation rather than a capability or quality).
   - Example defect: "The system shall use a CAN bus to transmit sensor data" conflates the need (transmit sensor data) with the solution (CAN bus).
-- [ ] Do any requirements conflate multiple independent needs into a single statement, making it impossible to verify each independently?
+- Identify any requirements conflate multiple independent needs into a single statement, making it impossible to verify each independently.
   - Example defect: "The system shall process data in under 10ms and use less than 5W" combines two independently verifiable requirements.
-- [ ] Are acceptance criteria conflated with requirements — specifying test procedures within the requirement text rather than separately?
-- [ ] Are derived requirements conflated with parent requirements by failing to distinguish which applies to the system as a whole and which to a specific subsystem?
+- Check that acceptance criteria conflated with requirements — specifying test procedures within the requirement text rather than separately.
+- Check that derived requirements conflated with parent requirements by failing to distinguish which applies to the system as a whole and which to a specific subsystem.
 
 ### 3. Interface & Flow Conflation
 
-- [ ] Are data flows and control signals carried on the same typed flow or port, without distinguishing between them?
-- [ ] Is electrical power conflated with digital signal in any connection (e.g., a power line carrying both supply and a communication signal without explicit modelling of both)?
-- [ ] Are bidirectional interfaces modelled as a single unidirectional flow rather than as separate or `inout` typed elements, hiding the distinction between what is sent and what is received?
-- [ ] Are physical interfaces (mechanical, thermal, fluidic) conflated with logical interfaces (data, control) on the same port?
-- [ ] Are time-triggered and event-triggered flows treated as the same type of flow?
+- Check that data flows and control signals carried on the same typed flow or port, without distinguishing between them.
+- Check that electrical power conflated with digital signal in any connection (e.g., a power line carrying both supply and a communication signal without explicit modelling of both).
+- Check that bidirectional interfaces modelled as a single unidirectional flow rather than as separate or `inout` typed elements, hiding the distinction between what is sent and what is received.
+- Check that physical interfaces (mechanical, thermal, fluidic) conflated with logical interfaces (data, control) on the same port.
+- Check that time-triggered and event-triggered flows treated as the same type of flow.
 
 ### 4. Role & Actor Conflation
 
-- [ ] Are human operators and automated system functions represented by the same model element, making it impossible to distinguish tasks requiring human judgement from fully autonomous actions?
-- [ ] Are distinct human roles (pilot and co-pilot, operator and supervisor, user and administrator) conflated as a single actor?
-- [ ] Are internal system components conflated with external actors — e.g., a subsystem modelled as both an internal part and an external system it communicates with?
-- [ ] Are physical users and logical users (human-in-the-loop vs. API consumer) conflated?
+- Check that human operators and automated system functions represented by the same model element, making it impossible to distinguish tasks requiring human judgement from fully autonomous actions.
+- Check that distinct human roles (pilot and co-pilot, operator and supervisor, user and administrator) conflated as a single actor.
+- Check that internal system components conflated with external actors — e.g., a subsystem modelled as both an internal part and an external system it communicates with.
+- Check that physical users and logical users (human-in-the-loop vs. API consumer) conflated.
 
 ### 5. State & Mode Conflation
 
-- [ ] Are distinct operational modes represented as a single composite state when they should be orthogonal regions or separate states?
-- [ ] Are system state (what the system is internally doing) and operational mode (what the system is being commanded to do) conflated in the same state machine?
-- [ ] Are fault states conflated with operational states — e.g., "degraded mode" appearing in the same state hierarchy as "standby" without semantic distinction?
-- [ ] Are transient states (startup, shutdown, reconfiguration) conflated with stable steady states?
+- Check that distinct operational modes represented as a single composite state when they should be orthogonal regions or separate states.
+- Check that system state (what the system is internally doing) and operational mode (what the system is being commanded to do) conflated in the same state machine.
+- Check that fault states conflated with operational states — e.g., "degraded mode" appearing in the same state hierarchy as "standby" without semantic distinction.
+- Check that transient states (startup, shutdown, reconfiguration) conflated with stable steady states.
 
 ### 6. Structural Conflation
 
-- [ ] Are two or more physically or logically distinct subsystems represented by a single block, making it impossible to model their individual interfaces, behaviours, or failure modes?
-- [ ] Is a subsystem that appears in multiple system configurations modelled as a single block without variants, forcing all configurations to share properties that should differ?
-- [ ] Are shared resources (a shared bus, a shared power rail) conflated with dedicated resources by modelling them as a single private part of one subsystem rather than a shared element?
-- [ ] Are spatial or installation zones conflated with functional subsystems — i.e., is a block named "Front Module" representing both the physical enclosure and the functional electronics it contains?
+- Check that two or more physically or logically distinct subsystems represented by a single block, making it impossible to model their individual interfaces, behaviours, or failure modes.
+- Check that a subsystem that appears in multiple system configurations modelled as a single block without variants, forcing all configurations to share properties that should differ.
+- Check that shared resources (a shared bus, a shared power rail) conflated with dedicated resources by modelling them as a single private part of one subsystem rather than a shared element.
+- Check that spatial or installation zones conflated with functional subsystems — i.e., is a block named "Front Module" representing both the physical enclosure and the functional electronics it contains.
 
 ### 7. Semantic Term Conflation
 
-- [ ] Is the same term used for model elements that represent fundamentally different concepts (e.g., "Controller" used for both an electronic control unit and a feedback control algorithm)?
-- [ ] Is overloaded terminology from the domain being used in the model without disambiguation (e.g., "power" used to mean both electrical supply and computational processing throughput)?
-- [ ] Are "mode" and "state" used interchangeably when the model has both state machines and mode logic that are conceptually distinct?
-- [ ] Are "interface" and "connection" used interchangeably when one refers to a specification and the other to an instantiated binding?
+- Check that the same term used for model elements that represent fundamentally different concepts (e.g., "Controller" used for both an electronic control unit and a feedback control algorithm).
+- Check that overloaded terminology from the domain being used in the model without disambiguation (e.g., "power" used to mean both electrical supply and computational processing throughput).
+- Check that "mode" and "state" used interchangeably when the model has both state machines and mode logic that are conceptually distinct.
+- Check that "interface" and "connection" used interchangeably when one refers to a specification and the other to an instantiated binding.
 
 ### 8. Analysis Model Conflation
 
-- [ ] Are parametric constraint models conflating system-level and component-level analyses on the same constraint block (e.g., a mass budget constraint that simultaneously rolls up subsystem masses and imposes the total system limit)?
-- [ ] Are worst-case and nominal analysis values conflated in the same attribute without distinguishing which case applies?
-- [ ] Are deterministic and probabilistic attributes (e.g., fixed latency vs. mean latency) represented as the same value type without distinction?
+- Check that parametric constraint models conflating system-level and component-level analyses on the same constraint block (e.g., a mass budget constraint that simultaneously rolls up subsystem masses and imposes the total system limit).
+- Check that worst-case and nominal analysis values conflated in the same attribute without distinguishing which case applies.
+- Check that deterministic and probabilistic attributes (e.g., fixed latency vs. mean latency) represented as the same value type without distinction.
 
 ---
 

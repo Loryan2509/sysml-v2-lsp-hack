@@ -1,4 +1,4 @@
-# SysML v2 Model Assessment: Emergent & System-Level Properties
+﻿# SysML v2 Model Assessment: Emergent & System-Level Properties
 
 ## Purpose
 
@@ -8,17 +8,9 @@ Evaluate the model systematically against each check below. For every issue foun
 
 ---
 
-## Before You Begin: Model Characterisation
+## Before You Begin
 
-Before applying any checks, briefly summarise the following about the model under assessment. Use this characterisation as the basis for all subsequent judgements.
-
-- **System purpose**: What is the system designed to do, and for whom?
-- **Operational domain**: What environment does it operate in (e.g., aerospace, automotive, medical, industrial, defence)?
-- **Lifecycle phase**: What engineering phase does the model represent (concept, preliminary design, detailed design, verification)?
-- **Model scope**: Is this a complete system model, a fragment, a specific view, or one variant of a product family?
-- **Known scope limitations**: Note any areas intentionally excluded from this model; skip the relevant checks below with a documented rationale rather than raising false findings.
-
-> **Recommended execution order across all assessment files**: 01 -> 05 -> 03 -> 07 -> 02 -> 06 -> 04 -> 08 -> 09 -> 10
+Read [_shared_protocol.md](_shared_protocol.md) for the model characterisation procedure, scoring guide, confidence rating definitions, and overall score formula. Apply that protocol throughout this assessment.
 
 ---
 ## Conceptual Background
@@ -38,27 +30,27 @@ Because emergence is inter-actional rather than compositional, it is seldom capt
 
 ## Checks to Perform
 
-> **How to apply these checks**: Each item below is a diagnostic question. Record a finding whenever the answer indicates a problem  -  answer **No** for checks asking whether something required is present, or **Yes** for checks asking whether a problem exists. Skip checks that are out of scope given your model characterisation, and note why.
+> **How to apply these checks**: Work through each item and record a finding for every problem identified. For items that do not apply given your model characterisation, state why and skip.
 
 ### 1. System-Level Property Specification
 
-- [ ] Are system-level properties that can only be evaluated at the whole-system level explicitly identified? Examples include: end-to-end latency, system availability, mission success probability, information throughput, and system-level heat dissipation.
-- [ ] Are these system-level properties specified as verifiable requirements, not just as informal goals or notes?
-- [ ] Is there a clear distinction between component-level properties (managed at subsystem level) and system-level properties (measurable only when the system is assembled and operating)?
-- [ ] Are system-level properties quantified with bounds, not left as qualitative statements (e.g., "high reliability" without a numeric target)?
-- [ ] Are system-level properties traceable from stakeholder needs through to verifiable system-level requirements and allocated design constraints?
+- Check that system-level properties that can only be evaluated at the whole-system level explicitly identified? Examples include: end-to-end latency, system availability, mission success probability, information throughput, and system-level heat dissipation.
+- Check that these system-level properties specified as verifiable requirements, not just as informal goals or notes.
+- Verify that a clear distinction between component-level properties (managed at subsystem level) and system-level properties (measurable only when the system is assembled and operating).
+- Check that system-level properties quantified with bounds, not left as qualitative statements (e.g., "high reliability" without a numeric target).
+- Check that system-level properties traceable from stakeholder needs through to verifiable system-level requirements and allocated design constraints.
 
 ### 2. Functional Emergence from Component Interactions
 
-- [ ] Are the cross-subsystem dependencies that together produce system-level functions explicitly modelled (e.g., an N2 diagram, interface matrix, or dependency view)?
-- [ ] Are functions that depend on coordination between multiple subsystems identified, and is that coordination visible in the model (sequence of actions, shared state, synchronisation conditions)?
-- [ ] Are there system-level functions that appear nowhere in any single subsystem's behaviour model but only arise from the combination? Flag these as potential emergent function gaps requiring explicit modelling.
-- [ ] Are timing relationships between subsystems captured at the system level, not only locally within each subsystem? Specifically: end-to-end latency chains, pipeline stage dependencies, and synchronisation points.
-- [ ] Are resource sharing arrangements modelled — shared buses, shared power rails, shared memory spaces, shared actuators — where simultaneous use by multiple subsystems produces interaction effects?
+- Check that the cross-subsystem dependencies that together produce system-level functions explicitly modelled (e.g., an N2 diagram, interface matrix, or dependency view).
+- Check that functions that depend on coordination between multiple subsystems identified, and is that coordination visible in the model (sequence of actions, shared state, synchronisation conditions).
+- Check whether there are system-level functions that appear nowhere in any single subsystem's behaviour model but only arise from the combination? Flag these as potential emergent function gaps requiring explicit modelling.
+- Check that timing relationships between subsystems captured at the system level, not only locally within each subsystem? Specifically: end-to-end latency chains, pipeline stage dependencies, and synchronisation points.
+- Check that resource sharing arrangements modelled — shared buses, shared power rails, shared memory spaces, shared actuators — where simultaneous use by multiple subsystems produces interaction effects.
 
 ### 3. Negative Emergent Behaviours
 
-- [ ] Are the following categories of negative emergent behaviour considered and either modelled or explicitly argued as non-applicable:
+- Check that the following categories of negative emergent behaviour considered and either modelled or explicitly argued as non-applicable:
   - **Deadlock**: Two or more subsystems each waiting on the other to proceed, resulting in system stall
   - **Livelock**: Subsystems continuously changing state in response to each other without making progress
   - **Race conditions**: Outcomes that depend on the relative timing of concurrent events that the model does not resolve
@@ -68,60 +60,60 @@ Because emergence is inter-actional rather than compositional, it is seldom capt
   - **Thermal runaway**: Positive feedback loop in temperature where increased temperature increases heat generation further
   - **Feedback instability**: A control loop whose gain or phase margin is insufficient to remain stable across the operating envelope
   - **Cascading overload**: A failure in one subsystem increases load on others until a tipping point is reached and the system collapses
-- [ ] For any of the above that are considered applicable, is there model evidence that the design addresses or mitigates them?
-- [ ] Are there numerical thresholds, stability margins, or coverage criteria associated with the mitigation?
+- For any of the above that are considered applicable, is there model evidence that the design addresses or mitigates them.
+- Check whether there are numerical thresholds, stability margins, or coverage criteria associated with the mitigation.
 
 ### 4. Feedback Loops and Dynamic Stability
 
-- [ ] Are all significant feedback control loops in the system identified and captured in the model — including ones that span subsystem boundaries?
-- [ ] For each feedback loop, is the following captured:
+- Verify that all significant feedback control loops in the system are identified and captured in the model — including ones that span subsystem boundaries.
+- For each feedback loop, is the following captured:
   - The sensor or measurement that provides the feedback signal
   - The actuator or output that the control action affects
   - The plant dynamics (even at a high level, e.g., a constraint or `param def`)
   - The control law or algorithm that translates error to control action
-- [ ] Are there any unintended feedback paths created by the architecture — where the output of one subsystem influences its own input through a chain of other subsystems — that are not accounted for in the control design?
-- [ ] Are stability conditions or margins stated? Examples: gain margin, phase margin, settling time, or a constraint that the control loop must remain stable over a specified range of plant parameter variation.
-- [ ] Are any open-loop operations identified where feedback is deliberately absent or delayed, and are the implications for controllability captured?
+- Identify any unintended feedback paths created by the architecture — where the output of one subsystem influences its own input through a chain of other subsystems — that are not accounted for in the control design.
+- Check that stability conditions or margins stated? Examples: gain margin, phase margin, settling time, or a constraint that the control loop must remain stable over a specified range of plant parameter variation.
+- Identify any open-loop operations identified where feedback is deliberately absent or delayed, and are the implications for controllability captured.
 
 ### 5. System-of-Systems Context
 
-- [ ] If this system is intended to operate as part of a larger system-of-systems (SoS), are the external systems (constituent systems) and their interfaces to this system modelled at a level sufficient to reason about joint emergent behaviour?
-- [ ] Are the operational modes where this system and an external system must coordinate explicitly captured?
-- [ ] Are there emergent properties at the SoS level — capabilities that only exist when this system operates alongside partner systems — that need to be reflected in requirements or constraints on this system's interfaces?
-- [ ] Are the effects of external system failure or degradation on the emergent SoS behaviour addressed? Can this system detect and respond appropriately if a partner system behaves unexpectedly?
-- [ ] Are there governance or command-and-control arrangements between systems-of-systems constituents that affect emergent behaviour (e.g., conflicting authority, ambiguous handoff conditions) and are these modelled or documented?
+- If this system is intended to operate as part of a larger system-of-systems (SoS), are the external systems (constituent systems) and their interfaces to this system modelled at a level sufficient to reason about joint emergent behaviour?
+- Check that the operational modes where this system and an external system must coordinate explicitly captured.
+- Check whether there are emergent properties at the SoS level — capabilities that only exist when this system operates alongside partner systems — that need to be reflected in requirements or constraints on this system's interfaces.
+- Check that the effects of external system failure or degradation on the emergent SoS behaviour addressed? Can this system detect and respond is appropriately if a partner system behaves unexpectedly.
+- Check whether there are governance or command-and-control arrangements between systems-of-systems constituents that affect emergent behaviour (e.g., conflicting authority, ambiguous handoff conditions) and are these modelled or documented.
 
 ### 6. Load, Saturation, and Environmental Interaction Effects
 
-- [ ] Are worst-case loading conditions identified at the system level — conditions where multiple subsystems simultaneously demand resources or produce peak loads?
-- [ ] Are there non-linear system-level effects that emerge under load that cannot be predicted from individual subsystem specs (e.g., shared bus saturation, thermal crosstalk, acoustic interference)?
-- [ ] Are environmental interactions captured that affect the system as a whole rather than individual components — e.g., vibration transmitted through a shared chassis, electromagnetic interference from co-located electronics, humidity ingress affecting multiple systems simultaneously?
-- [ ] Are operating envelope boundaries explicitly identified — the conditions (load, temperature, speed, duty cycle, frequency) beyond which the system's emergent behaviour is no longer predictable or has not been analysed?
-- [ ] Are edge cases modelled where the system must operate at or near the boundary of its intended envelope — not just nominal conditions?
+- Check that worst-case loading conditions identified at the system level — conditions where multiple subsystems simultaneously demand resources or produce peak loads.
+- Check whether there are non-linear system-level effects that emerge under load that cannot be predicted from individual subsystem specs (e.g., shared bus saturation, thermal crosstalk, acoustic interference).
+- Check that environmental interactions captured that affect the system as a whole rather than individual components — e.g., vibration transmitted through a shared chassis, electromagnetic interference from co-located electronics, humidity ingress affecting multiple systems simultaneously.
+- Check that operating envelope boundaries explicitly identified — the conditions (load, temperature, speed, duty cycle, frequency) beyond which the system's emergent behaviour is no longer predictable or has not been analysed.
+- Check that edge cases modelled where the system must operate at or near the boundary of its intended envelope — not just nominal conditions.
 
 ### 7. Temporal and Ordering Effects
 
-- [ ] Is the system start-up and initialisation sequence modelled with sufficient fidelity to identify ordering dependencies between subsystems?
-- [ ] Are there conditions where the relative order of events across subsystems produces different system states? Are these identified and the correct ordering enforced in the model?
-- [ ] Are message or data ordering assumptions made explicit — what happens if data arrives out of sequence, late, or duplicated?
-- [ ] Is the shut-down and power-down sequence modelled for any system where incorrect ordering could cause damage, data loss, or unsafe states?
-- [ ] Are mode transitions at the system level modelled to show which subsystems must transition in a defined sequence, with what preconditions and postconditions?
+- Check that the system start-up and initialisation sequence modelled with sufficient fidelity to identify ordering dependencies between subsystems.
+- Check whether there are conditions where the relative order of events across subsystems produces different system states? Are these identified and the correct ordering enforced in the model.
+- Check that message or data ordering assumptions made explicit — what happens if data arrives out of sequence, late, or duplicated.
+- Check that the shut-down and power-down sequence modelled for any system where incorrect ordering could cause damage, data loss, or unsafe states.
+- Check that mode transitions at the system level modelled to show which subsystems must transition in a defined sequence, with what preconditions and postconditions.
 
 ### 8. System-Level Analysis and Simulation Support
 
-- [ ] Does the model contain sufficient detail at the system level to support analysis methods such as N2 diagrams, functional flow block diagrams, system simulation, reliability block diagrams, or fault trees — even if those artefacts are external to the model?
-- [ ] Are interface definitions rich enough (flow type, protocol, timing, value range) to support system-level modelling and simulation?
-- [ ] Are `param def` or `constraint def` elements used to capture system-level engineering relationships (mass budgets, power budgets, link budgets, latency chains) that connect component-level quantities to system-level properties?
-- [ ] Are analysis viewpoints or model views defined that allow a reviewer to inspect the system's key interaction patterns without navigating every element?
-- [ ] Are system-level simulations, coupled analyses, or co-simulation interfaces referenced or represented in the model?
+- Check that the model contain sufficient detail at the system level to support analysis methods such as N2 diagrams, functional flow block diagrams, system simulation, reliability block diagrams, or fault trees — even if those artefacts are external to the model.
+- Check that interface definitions rich enough (flow type, protocol, timing, value range) to support system-level modelling and simulation.
+- Check that `param def` or `constraint def` elements used to capture system-level engineering relationships (mass budgets, power budgets, link budgets, latency chains) that connect component-level quantities to system-level properties.
+- Check that analysis viewpoints or model views defined that allow a reviewer to inspect the system's key interaction patterns without navigating every element.
+- Check that system-level simulations, coupled analyses, or co-simulation interfaces referenced or represented in the model.
 
 ### 9. Verification of Emergent Properties
 
-- [ ] Are the system-level emergent properties identified in Check 1 linked to verification activities?
-- [ ] Are system integration tests or system-level test scenarios defined that specifically target emergent behaviours rather than just component-level correctness?
-- [ ] Is there an explicit test or analysis for each identified negative emergent behaviour type (deadlock analysis, stability margin test, thermal simulation, etc.)?
-- [ ] Are simulation environments, hardware-in-the-loop (HIL) rigs, or test beds identified that are necessary to observe and verify emergent properties not visible in component-level tests?
-- [ ] Is there a defined acceptance criterion for each system-level emergent property, such that it is unambiguous whether the system has passed verification?
+- Check that the system-level emergent properties identified in Check 1 linked to verification activities.
+- Check that system integration tests or system-level test scenarios defined that specifically target emergent behaviours rather than just component-level correctness.
+- Check whether there is an explicit test or analysis for each identified negative emergent behaviour type (deadlock analysis, stability margin test, thermal simulation, etc.).
+- Check that simulation environments, hardware-in-the-loop (HIL) rigs, or test beds identified that are necessary to observe and verify emergent properties not visible in component-level tests.
+- Verify that a defined acceptance criterion for each system-level emergent property, such that it is unambiguous whether the system has passed verification.
 
 ---
 
