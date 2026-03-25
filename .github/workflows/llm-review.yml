@@ -41,10 +41,7 @@ jobs:
           BASE_SHA="${{ github.event.pull_request.base.sha }}"
           HEAD_SHA="${{ github.sha }}"
           FILES=$(git diff --name-only --diff-filter=ACM "$BASE_SHA" "$HEAD_SHA" \
-            -- '*.sysml' '*.kerml' \
-            | xargs -I{} find . -name "$(basename {})" -path "./{}" 2>/dev/null \
-            || git diff --name-only --diff-filter=ACM "$BASE_SHA" "$HEAD_SHA" \
-                 -- '*.sysml' '*.kerml')
+            -- '**/*.sysml' '**/*.kerml')
           COUNT=$(echo "$FILES" | grep -c '\S' || true)
           echo "count=$COUNT" >> "$GITHUB_OUTPUT"
           echo "files<<EOF" >> "$GITHUB_OUTPUT"
