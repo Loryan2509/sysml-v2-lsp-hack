@@ -109,22 +109,22 @@ Design rationale records the engineering logic behind architectural choices. Wit
 
 ## Scoring
 
-Each finding is assigned a **probability score from 0.0 to 1.0** representing the estimated likelihood that this issue, if left unresolved, will cause a harmful outcome  -  such as an incorrect design decision, safety gap, verification failure, or analytical error.
+Each finding is assigned a **quality score from 0.0 to 1.0** where **1.0 means the element fully satisfies the check** (no defect) and **0.0 means a critical defect near-certain to cause analysis failure, an incorrect design decision, or an unmitigated safety gap**.
 
 | Score Range | Interpretation |
 |---|---|
-| **0.9 - 1.0** | Near-certain to cause analysis failure, incorrect decision, or unmitigated safety gap |
-| **0.7 - 0.89** | High likelihood of causing significant analytical error or blocking a key decision |
-| **0.5 - 0.69** | Moderate likelihood of harm; likely to surface as a problem under specific conditions |
-| **0.2 - 0.49** | Low-to-moderate likelihood; reduces model confidence but may not cause immediate failure |
-| **0.0 - 0.19** | Very low likelihood; an observation or minor inconsistency unlikely to cause harm in the current state |
+| **0.9 - 1.0** | Passes or near-passes the check; at most a very minor observation |
+| **0.7 - 0.89** | Minor gap; reduces model confidence but unlikely to cause immediate failure |
+| **0.5 - 0.69** | Moderate defect; likely to surface as a problem under specific conditions |
+| **0.2 - 0.49** | Significant defect; high likelihood of causing analytical error or blocking a key decision |
+| **0.0 - 0.19** | Critical defect; near-certain to cause analysis failure, incorrect decision, or unmitigated safety gap |
 
 Use the following decision aid when assigning a score:
-- Is an analysis blocked entirely from being performed? -> Score >= 0.9
-- Will an analysis likely produce a wrong result? -> Score 0.7-0.89
+- Is this a stylistic or minor cleanliness observation? -> Score 0.9-1.0
+- Is the model weaker but not currently producing wrong results? -> Score 0.7-0.89
 - Will a decision be made without necessary information? -> Score 0.5-0.69
-- Is the model weaker but not currently producing wrong results? -> Score 0.2-0.49
-- Is this a stylistic or minor cleanliness observation? -> Score 0.0-0.19
+- Will an analysis likely produce a wrong result? -> Score 0.2-0.49
+- Is an analysis blocked entirely from being performed? -> Score <= 0.2
 
 ### Confidence Level
 
@@ -148,10 +148,10 @@ For MEDIUM or LOW findings, the `Confidence` output field must explain what limi
 At the end of the assessment, compute an **overall model score** for this dimension:
 
 ```
-Overall Score = 1.0  -  mean(all individual issue scores)
+Overall Score = mean(all individual issue scores)
 ```
 
-A score of **1.0** means no issues were found. A score of **0.0** means every issue found was near-certain to cause harm.
+A score of **1.0** means all checks passed with no defects. A score of **0.0** means every issue found was a critical defect near-certain to cause harm.
 
 | Overall Score | Model Status for this Dimension |
 |---|---|
@@ -172,7 +172,7 @@ Check:               <Check number and title, e.g. "2. External System & Interfa
 Finding:             <Precise description of the undocumented assumption or missing rationale>
 Evidence:            <Quote or reference to model content revealing the implicit assumption>
 Assumption/Decision: <Statement of the assumption or decision that is missing from the model>
-Score:               <0.0 - 1.0>  -  <one-line justification for this score>
+Score:               <0.0 - 1.0>  -  <quality score: 1.0 = passes check, 0.0 = critical defect; one-line justification>
 Confidence:          <HIGH | MEDIUM | LOW>  -  <if MEDIUM or LOW, explain what limits certainty>
 If Violated:         <What breaks or becomes invalid if this assumption does not hold>
 Recommendation:      <How to make the assumption explicit  -  e.g., add comment, constraint, requirement, rationale>```

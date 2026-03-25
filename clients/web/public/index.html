@@ -2435,6 +2435,138 @@
     // ─── Analyse ───
     let analyseTimeout;
 
+    async function analyseCodeSnapshot(code) {
+      const res = await fetch('/api/analyse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Server error: ${res.status}`);
+      }
+      return res.json();
+    }
+
+    function formatDiagnosticsSummary(diags, maxItems = 4) {
+      const list = (diags || []).slice(0, maxItems).map((diag) => {
+        const line = (diag.range?.start?.line ?? 0) + 1;
+        const col = (diag.range?.start?.character ?? 0) + 1;
+        return `L${line}:${col} ${diag.message}`;
+      });
+      return list.join('\n');
+    }
+
+    async function repairCandidateFixCode(code, label) {
+      const res = await fetch('/api/repair-sysml', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, label }),
+      });
+
+      let payload = {};
+      try {
+        payload = await res.json();
+      } catch {
+      }
+
+      if (!res.ok || payload.ok === false) {
+        const reason = payload?.error || `Auto-repair failed (${res.status})`;
+        const details = Array.isArray(payload?.diagnostics) && payload.diagnostics.length
+          ? `\n\n${formatDiagnosticsSummary(payload.diagnostics)}`
+          : '';
+        return { ok: false, message: `${reason}${details}` };
+      }
+
+      if (!payload?.code?.trim()) {
+        return { ok: false, message: 'Auto-repair did not return repaired SysML.' };
+      }
+
+      return {
+        ok: true,
+        code: payload.code,
+        repaired: !!payload.repaired,
+        passes: payload.passes || 0,
+        diagnostics: payload.diagnostics || [],
+      };
+    }
+
+    async function resolveSelectedFixesConsolidated(baseCode, selectedIndexes) {
+      const issues = selectedIndexes.map((idx) => _reviewFixIssues[idx]).filter(Boolean);
+      const res = await fetch('/api/resolve-selected-fixes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: baseCode, issues }),
+      });
+
+      const payload = await res.json();
+      if (!res.ok || payload?.ok === false) {
+        throw new Error(payload?.error || `Consolidated resolution failed (${res.status})`);
+      }
+      if (!payload?.code?.trim()) {
+        throw new Error('Consolidated resolution returned empty model output.');
+      }
+      return payload.code;
+    }
+
+    async function estimateCriterionScoresForCode(code, criterionIds) {
+      const uniqueIds = [...new Set((criterionIds || []).filter(Boolean))];
+      if (!uniqueIds.length) return [];
+
+      const res = await fetch('/api/review-scores', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, criteria: uniqueIds }),
+      });
+
+      const payload = await res.json();
+      if (!res.ok || payload?.ok === false) {
+        throw new Error(payload?.error || `Score estimation failed (${res.status})`);
+      }
+      return Array.isArray(payload?.results) ? payload.results : [];
+    }
+
+    function averageScores(items) {
+      const numeric = (items || []).map(item => item?.score).filter(score => Number.isFinite(score));
+      if (!numeric.length) return null;
+      return numeric.reduce((sum, value) => sum + value, 0) / numeric.length;
+    }
+
+    async function validateCandidateFixCode(code, label) {
+      if (!code?.trim()) {
+        return { ok: false, message: `Cannot apply ${label}: generated code is empty.` };
+      }
+      try {
+        const analysis = await analyseCodeSnapshot(code);
+        const errors = (analysis.diagnostics || []).filter(d => d.severity === 1);
+        if (errors.length) {
+          const status = document.getElementById('fixStatusText');
+          if (status) {
+            status.textContent = `… repairing ${label} (${errors.length} error${errors.length === 1 ? '' : 's'})`;
+          }
+          const repaired = await repairCandidateFixCode(code, label);
+          if (!repaired.ok) {
+            const headline = `Cannot apply ${label}: generated SysML has ${errors.length} error${errors.length === 1 ? '' : 's'} and auto-repair failed.`;
+            return {
+              ok: false,
+              diagnostics: errors,
+              message: `${headline}\n\n${repaired.message}`,
+            };
+          }
+          return {
+            ok: true,
+            code: repaired.code,
+            diagnostics: repaired.diagnostics,
+            autoRepaired: true,
+            repairPasses: repaired.passes,
+          };
+        }
+        return { ok: true, code, diagnostics: analysis.diagnostics || [] };
+      } catch (err) {
+        return { ok: false, message: `Validation failed before apply: ${err.message}` };
+      }
+    }
+
     async function analyse() {
       const code = editor.value;
       if (!code.trim()) return;
@@ -2447,14 +2579,7 @@
       diagBadge.className = 'badge';
 
       try {
-        const res = await fetch('/api/analyse', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code }),
-        });
-
-        if (!res.ok) throw new Error(`Server error: ${res.status}`);
-        const data = await res.json();
+        const data = await analyseCodeSnapshot(code);
 
         // Store diagnostics and metadata for fix interface
         _lastDiagnostics = data.diagnostics ?? [];
@@ -2874,12 +2999,7 @@
       }
 
       try {
-        const res = await fetch('/api/analyse', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code }),
-        });
-        const data = await res.json();
+        const data = await analyseCodeSnapshot(code);
         const diagram = buildMermaidFromSymbols(data.symbols ?? []);
         if (!diagram) {
           container.innerHTML = '<div style="color: var(--text-muted);">No structural elements to diagram</div>';
@@ -2994,15 +3114,34 @@
         ? applyChangeSet(_reviewPrimaryCode || editor.value, proposal.fix.changes)
         : proposal.fix.code;
 
+      const validation = await validateCandidateFixCode(fixedCode, `issue ${idx + 1}`);
+      if (!validation.ok) {
+        alert(validation.message);
+        const status = document.getElementById('fixStatusText');
+        status.textContent = `✗ ${validation.message.split('\n')[0]}`;
+        return;
+      }
+      const appliedCode = validation.code || fixedCode;
+
       // Save to undo stack
       _fixInterfaceState.undoStack.push(editor.value);
-      _fixInterfaceState.appliedFixes.push({ idx, code: fixedCode });
+      _fixInterfaceState.appliedFixes.push({ idx, code: appliedCode });
 
       // Apply the fix
-      editor.value = fixedCode;
-      _reviewPrimaryCode = fixedCode;
+      editor.value = appliedCode;
+      _reviewPrimaryCode = appliedCode;
       updateLineNumbers();
-      await saveImplementedFixOutput(fixedCode, `issue-${idx + 1}`);
+      try {
+        await saveImplementedFixOutput(appliedCode, `issue-${idx + 1}`);
+      } catch (err) {
+        const status = document.getElementById('fixStatusText');
+        status.textContent = `✓ Applied fix, but save failed: ${err.message}`;
+      }
+
+      if (validation.autoRepaired) {
+        const status = document.getElementById('fixStatusText');
+        status.textContent = `✓ Applied auto-repaired fix for issue ${idx + 1}`;
+      }
 
       // Update undo button state
       document.getElementById('fixUndoBtn').style.display = 'inline-block';
@@ -3032,38 +3171,162 @@
       let mergedCode = _reviewPrimaryCode || editor.value;
       let appliedCount = 0;
       const missing = [];
+      const failed = [];
+      const status = document.getElementById('fixStatusText');
 
-      selectedIndexes.forEach((idx) => {
-        const fix = _fixProposals[idx]?.fix;
-        if (!fix) {
-          missing.push(idx + 1);
-          return;
+      if (selectedIndexes.length > 1) {
+        try {
+          if (status) {
+            status.textContent = `Generating consolidated fix for ${selectedIndexes.length} issues…`;
+          }
+          const consolidatedCode = await resolveSelectedFixesConsolidated(mergedCode, selectedIndexes);
+          const consolidatedValidation = await validateCandidateFixCode(consolidatedCode, `${selectedIndexes.length} selected fixes`);
+          if (consolidatedValidation.ok) {
+            const finalCode = consolidatedValidation.code || consolidatedCode;
+
+            const impactedCriteria = [...new Set(selectedIndexes
+              .map(idx => _reviewFixIssues[idx]?.criterionId)
+              .filter(Boolean))];
+
+            if (impactedCriteria.length && Array.isArray(_reviewJsonReport?.results)) {
+              if (status) {
+                status.textContent = `Checking score impact for consolidated fix…`;
+              }
+              const baselineScores = _reviewJsonReport.results
+                .filter(result => impactedCriteria.includes(result.criterionId) && Number.isFinite(result.score))
+                .map(result => ({ criterionId: result.criterionId, score: result.score }));
+              const estimatedScores = await estimateCriterionScoresForCode(finalCode, impactedCriteria);
+              const baselineAvg = averageScores(baselineScores);
+              const estimatedAvg = averageScores(estimatedScores);
+
+              if (baselineAvg !== null && estimatedAvg !== null && estimatedAvg + 0.015 < baselineAvg) {
+                if (status) {
+                  status.textContent = `Consolidated fix rejected (estimated score regression), falling back to staged apply…`;
+                }
+                throw new Error('Estimated criterion score regression');
+              }
+            }
+
+            _fixInterfaceState.undoStack.push(editor.value);
+            editor.value = finalCode;
+            _reviewPrimaryCode = finalCode;
+            updateLineNumbers();
+            document.getElementById('fixUndoBtn').style.display = 'inline-block';
+            displayFixDiagram(finalCode);
+            try {
+              await saveImplementedFixOutput(finalCode, `selected-${selectedIndexes.length}-issues`);
+            } catch (err) {
+              status.textContent = `✓ Applied consolidated fix, but save failed: ${err.message}`;
+              return;
+            }
+            status.textContent = `✓ Implemented consolidated fix for ${selectedIndexes.length} issues${consolidatedValidation.autoRepaired ? ' · auto-repaired syntax' : ''}`;
+            setTimeout(() => {
+              status.textContent = '';
+            }, 3500);
+            return;
+          }
+        } catch (err) {
+          if (status) {
+            status.textContent = `Consolidated fix failed, falling back to staged apply…`;
+          }
+          console.warn('Consolidated selected-fixes resolution failed:', err);
+        }
+      }
+
+      for (const idx of selectedIndexes) {
+        const issueNum = appliedCount + failed.length + missing.length + 1;
+        if (status) {
+          status.textContent = `Generating fix ${issueNum} of ${selectedIndexes.length} against rolling model…`;
         }
 
-        const changes = enrichProposalChanges(idx, fix.changes || [], fix.code || mergedCode);
-        if (changes.length) {
-          mergedCode = applyChangeSet(mergedCode, changes);
-        } else {
-          mergedCode = fix.code || mergedCode;
+        // Generate fix using the rolling model as context (sequential rolling generation)
+        let candidateCode = mergedCode;
+        try {
+          const resp = await fetch('/api/fix-proposals', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code: mergedCode, reviewIssue: _reviewFixIssues[idx] }),
+          });
+          const data = await resp.json();
+          if (!resp.ok) throw new Error(data?.error || `Server error: ${resp.status}`);
+          const payload = data?.proposals?.[0];
+          if (!payload) throw new Error('No fix proposal returned.');
+
+          // Overwrite any stale pre-generated proposal with the rolling-context result
+          _fixProposals[idx] = {
+            fix: {
+              title: payload.title || 'Proposed Fix',
+              description: payload.description || '',
+              code: payload.code || mergedCode,
+              changes: Array.isArray(payload.changes) ? payload.changes : [],
+            },
+          };
+          cacheFixProposalForReport(idx);
+
+          const fix = _fixProposals[idx].fix;
+          const changes = enrichProposalChanges(idx, fix.changes || [], fix.code || mergedCode);
+          if (changes.length) {
+            candidateCode = applyChangeSet(mergedCode, changes);
+          } else if (fix.code) {
+            candidateCode = fix.code;
+          } else {
+            failed.push(idx + 1);
+            continue;
+          }
+        } catch (err) {
+          console.warn(`Rolling fix generation failed for issue ${idx + 1}, falling back to cached proposal:`, err);
+          // Fall back to any pre-generated proposal
+          const fix = _fixProposals[idx]?.fix;
+          if (!fix) {
+            missing.push(idx + 1);
+            continue;
+          }
+          const changes = enrichProposalChanges(idx, fix.changes || [], fix.code || mergedCode);
+          if (changes.length) {
+            candidateCode = applyChangeSet(mergedCode, changes);
+          } else if (fix.code) {
+            candidateCode = fix.code;
+          } else {
+            failed.push(idx + 1);
+            continue;
+          }
         }
+
+        if (status) {
+          status.textContent = `Validating fix ${issueNum} of ${selectedIndexes.length}…`;
+        }
+
+        const validation = await validateCandidateFixCode(candidateCode, `selected issue ${idx + 1}`);
+        if (!validation.ok) {
+          failed.push(idx + 1);
+          continue;
+        }
+
+        mergedCode = validation.code || candidateCode;
         appliedCount += 1;
-      });
+      }
 
       if (!appliedCount) {
-        alert('No generated fixes available for selected issues. Open each issue first to generate proposals.');
+        alert(`Unable to implement selected fixes automatically. Missing proposals: ${missing.length}; failed to merge/repair: ${failed.length}.`);
         return;
       }
 
+      const validatedCode = mergedCode;
+
       _fixInterfaceState.undoStack.push(editor.value);
-      editor.value = mergedCode;
-      _reviewPrimaryCode = mergedCode;
+      editor.value = validatedCode;
+      _reviewPrimaryCode = validatedCode;
       updateLineNumbers();
       document.getElementById('fixUndoBtn').style.display = 'inline-block';
-      displayFixDiagram(mergedCode);
-      await saveImplementedFixOutput(mergedCode, `selected-${selectedIndexes.length}-issues`);
+      displayFixDiagram(validatedCode);
+      try {
+        await saveImplementedFixOutput(validatedCode, `selected-${selectedIndexes.length}-issues`);
+      } catch (err) {
+        status.textContent = `✓ Implemented ${appliedCount} fix${appliedCount === 1 ? '' : 'es'}, but save failed: ${err.message}`;
+        return;
+      }
 
-      const status = document.getElementById('fixStatusText');
-      status.textContent = `✓ Implemented ${appliedCount} selected fix${appliedCount === 1 ? '' : 'es'}${missing.length ? ` (${missing.length} missing proposals)` : ''}`;
+      status.textContent = `✓ Implemented ${appliedCount} selected fix${appliedCount === 1 ? '' : 'es'}${missing.length ? ` · ${missing.length} missing` : ''}${failed.length ? ` · ${failed.length} skipped (merge/repair failed)` : ''}`;
       setTimeout(() => {
         status.textContent = '';
       }, 3500);
@@ -3411,17 +3674,32 @@
             issueLabel,
           }),
         });
-        if (!response.ok) return;
+        if (!response.ok) {
+          let reason = `Save failed (${response.status})`;
+          try {
+            const errPayload = await response.json();
+            if (errPayload?.error) {
+              reason = errPayload.error;
+            }
+            if (Array.isArray(errPayload?.diagnostics) && errPayload.diagnostics.length) {
+              reason = `${reason}\n${formatDiagnosticsSummary(errPayload.diagnostics)}`;
+            }
+          } catch {
+          }
+          throw new Error(reason);
+        }
 
         const payload = await response.json();
-        if (!payload?.relativePath) return;
+        if (!payload?.relativePath) return payload;
 
         upsertExampleFile(payload.relativePath, code);
 
         const status = document.getElementById('fixStatusText');
         status.textContent = `${status.textContent ? `${status.textContent} · ` : ''}saved to ${payload.relativePath}`;
+        return payload;
       } catch (err) {
         console.error('Failed to save implemented fix output:', err);
+        throw err;
       }
     }
 
