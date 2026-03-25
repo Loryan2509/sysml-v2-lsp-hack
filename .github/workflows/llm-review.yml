@@ -48,6 +48,24 @@ jobs:
           echo "$FILES" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
+      - name: Check LLM API configuration
+        if: steps.changed.outputs.count != '0'
+        env:
+          AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
+          AZURE_OPENAI_KEY: ${{ secrets.AZURE_OPENAI_KEY }}
+          AZURE_OPENAI_DEPLOYMENT: ${{ secrets.AZURE_OPENAI_DEPLOYMENT }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          echo "=== LLM API Configuration Check ==="
+          if [ -n "$AZURE_OPENAI_ENDPOINT" ]; then echo "✅ AZURE_OPENAI_ENDPOINT is set"; else echo "❌ AZURE_OPENAI_ENDPOINT is NOT set"; fi
+          if [ -n "$AZURE_OPENAI_KEY" ]; then echo "✅ AZURE_OPENAI_KEY is set"; else echo "❌ AZURE_OPENAI_KEY is NOT set"; fi
+          if [ -n "$AZURE_OPENAI_DEPLOYMENT" ]; then echo "✅ AZURE_OPENAI_DEPLOYMENT is set"; else echo "❌ AZURE_OPENAI_DEPLOYMENT is NOT set"; fi
+          if [ -n "$OPENAI_API_KEY" ]; then echo "✅ OPENAI_API_KEY is set"; else echo "❌ OPENAI_API_KEY is NOT set"; fi
+          if [ -z "$AZURE_OPENAI_ENDPOINT" ] && [ -z "$AZURE_OPENAI_KEY" ] && [ -z "$AZURE_OPENAI_DEPLOYMENT" ] && [ -z "$OPENAI_API_KEY" ]; then
+            echo "⚠️  No LLM API keys configured — review will be LSP diagnostics only."
+            echo "   If you set secrets, check: is this a fork PR? GitHub does not expose secrets to fork PRs."
+          fi
+
       - name: Run SysML LLM Review
         if: steps.changed.outputs.count != '0'
         env:
