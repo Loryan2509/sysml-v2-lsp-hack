@@ -74,21 +74,71 @@ Premature implementation detail destroys option space — specifying how before 
 
 ### 6. Viewpoint Boundary Violations
 
-- Check that elements that should belong to a specific viewpoint (e.g., the security viewpoint, the safety viewpoint, the performance viewpoint) scattered across the general model rather than being organised in their own viewpoint context.
-- Check that elements from one viewpoint referenced directly by elements from an incompatible viewpoint without an explicit cross-viewpoint relationship.
-- Check that different concerns (structural, behavioural, parametric) mixed in the same package or namespace without viewpoint separation.
+- [ ] Are elements that should belong to a specific viewpoint (e.g., the security viewpoint, the safety viewpoint, the performance viewpoint) scattered across the general model rather than being organised in their own viewpoint context?
+- [ ] Are elements from one viewpoint referenced directly by elements from an incompatible viewpoint without an explicit cross-viewpoint relationship?
+- [ ] Are different concerns (structural, behavioural, parametric) mixed in the same package or namespace without viewpoint separation?
 
-### 7. Internal Maturity Consistency
+### 7. Abstraction Consistency Across Lifecycle Phases
 
-- Check that TBD/TBC elements are explicitly flagged with a consistent mechanism (e.g., a comment, stereotype, or tag) rather than silently omitted or assigned placeholder values.
-- Check that TBD/TBC elements are approximately consistent in their distribution — an area that is highly mature while an adjacent area of equal importance remains at sketch level indicates inconsistent development effort.
-- Verify that any areas that appear overly speculative or under-specified relative to adjacent sections of the model are acknowledged explicitly with rationale rather than silently left incomplete.
+- [ ] Is the model appropriate for its current lifecycle phase? Elements appropriate for a Phase B detailed design should not appear in a Phase A concept model, and vice versa.
+- [ ] Are there parts of the model that appear overly speculative or under-specified relative to the maturity expected at the current phase?
+- [ ] Are TBD/TBC elements approximately consistent in their distribution — or is one area of the model highly mature while another is at a sketch level, suggesting inconsistent development effort?
 
 ---
 
-## Scoring & Overall Score
+## Scoring
 
-Apply the scoring, confidence, and overall score protocol in [_shared_protocol.md](_shared_protocol.md).
+Each finding is assigned a **quality score from 0.0 to 1.0** where **1.0 means the element fully satisfies the check** (no defect) and **0.0 means a critical defect near-certain to cause analysis failure, an incorrect design decision, or an unmitigated safety gap**.
+
+| Score Range | Interpretation |
+|---|---|
+| **0.9 - 1.0** | Passes or near-passes the check; at most a very minor observation |
+| **0.7 - 0.89** | Minor gap; reduces model confidence but unlikely to cause immediate failure |
+| **0.5 - 0.69** | Moderate defect; likely to surface as a problem under specific conditions |
+| **0.2 - 0.49** | Significant defect; high likelihood of causing analytical error or blocking a key decision |
+| **0.0 - 0.19** | Critical defect; near-certain to cause analysis failure, incorrect decision, or unmitigated safety gap |
+
+Use the following decision aid when assigning a score:
+- Is this a stylistic or minor cleanliness observation? -> Score 0.9-1.0
+- Is the model weaker but not currently producing wrong results? -> Score 0.7-0.89
+- Will a decision be made without necessary information? -> Score 0.5-0.69
+- Will an analysis likely produce a wrong result? -> Score 0.2-0.49
+- Is an analysis blocked entirely from being performed? -> Score <= 0.2
+
+### Confidence Level
+
+Each finding also carries a **Confidence** rating indicating how certain the assessment is that the finding is real and correctly characterised.
+
+| Confidence | Meaning |
+|---|---|
+| **HIGH** | The finding is directly supported by explicit evidence in the model text. No domain assumption is required. Any competent reviewer examining the same model would reach the same conclusion. |
+| **MEDIUM** | The finding is based on inference, partial evidence, or domain knowledge that may not be universally shared. A domain expert could reasonably disagree or request more context before accepting the finding. |
+| **LOW** | The finding is speculative or depends on information not present in the model (e.g., external requirements, domain-specific norms, or undisclosed design intent). Treat as a question to raise with the model author rather than a confirmed defect. |
+
+Use the following decision aid when assigning a confidence level:
+- Is the evidence a direct quote or explicit absence from the model? -> HIGH
+- Does the finding depend on an engineering assumption or domain norm that reasonable engineers might apply differently? -> MEDIUM
+- Would confirming the finding require external documents, domain expertise, or author intent not visible in the model? -> LOW
+
+For MEDIUM or LOW findings, the `Confidence` output field must explain what limits certainty.
+
+### Overall Assessment Score
+
+At the end of the assessment, compute an **overall model score** for this dimension:
+
+```
+Overall Score = mean(all individual issue scores)
+```
+
+A score of **1.0** means all checks passed with no defects. A score of **0.0** means every issue found was a critical defect near-certain to cause harm.
+
+| Overall Score | Model Status for this Dimension |
+|---|---|
+| 0.9 - 1.0 | Good  -  minor improvements only |
+| 0.7 - 0.89 | Notable gaps  -  address before finalising design decisions |
+| 0.5 - 0.69 | Significant issues  -  not suitable for baseline or verification activities |
+| 0.0 - 0.49 | Critical deficiencies  -  major rework required before this model can be used |
+
 ---
 
 ## Output Format
@@ -102,7 +152,7 @@ Finding:          <Precise description of the abstraction inconsistency  -  what
 Evidence:         <Quote or reference to model content demonstrating the issue>
 Expected Level:   <What abstraction level should this element or content be at>
 Actual Level:     <What abstraction level does the element or content appear to be at>
-Score:            <0.0 - 1.0>  -  <one-line justification for this score>
+Score:            <0.0 - 1.0>  -  <quality score: 1.0 = passes check, 0.0 = critical defect; one-line justification>
 Confidence:       <HIGH | MEDIUM | LOW>  -  <if MEDIUM or LOW, explain what limits certainty>
 Impact:           <What analysis or design freedom is compromised>
 Recommendation:   <How to restructure, separate, or move the content to restore abstraction consistency>```

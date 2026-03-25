@@ -9,6 +9,42 @@
  *   node clients/web/server.mjs [--port 3000]
  */
 
+function extractLLMTextContent(llmData) {
+    const rawContent = llmData?.choices?.[0]?.message?.content;
+    if (Array.isArray(rawContent)) {
+        return rawContent.map(part => typeof part === "string" ? part : (part?.text ?? "")).join("");
+    }
+    if (typeof rawContent === "string") {
+        return rawContent;
+    }
+    return rawContent?.text ?? "";
+}
+
+function normalizeSysmlResponse(text) {
+    if (!text) return "";
+    const fenced = text.match(/```(?:sysml)?\s*([\s\S]*?)```/i);
+    return (fenced ? fenced[1] : text).trim();
+}
+
+function extractOverallScore(text) {
+    if (!text) return null;
+    const patterns = [
+        /Overall\s+(?:Assessment\s+)?Score\s*[=:]\s*([\d.]+)/i,
+        /Overall\s+Score\s*[=:]\s*([\d.]+)/i,
+        /\*\*Overall.*?Score.*?\*\*.*?([\d.]+)/i,
+        /score\s*[=:]\s*([\d.]+)/i,
+    ];
+    for (const p of patterns) {
+        const match = text.match(p);
+        if (!match) continue;
+        const value = parseFloat(match[1]);
+        if (Number.isFinite(value) && value >= 0 && value <= 1) {
+            return value;
+        }
+    }
+    return null;
+}
+
 import { createServer } from "http";
 import { readFileSync, existsSync, readdirSync, mkdirSync, writeFileSync } from "fs";
 import { resolve, dirname, extname, join, sep } from "path";
@@ -562,15 +598,7 @@ Only output valid JSON, no other text.`;
             }
 
             const llmData = await llmRes.json();
-            let responseText = "";
-            const rawContent = llmData.choices?.[0]?.message?.content;
-            if (Array.isArray(rawContent)) {
-                responseText = rawContent.map(part => typeof part === "string" ? part : (part?.text ?? "")).join("");
-            } else if (typeof rawContent === "string") {
-                responseText = rawContent;
-            } else {
-                responseText = rawContent?.text ?? "";
-            }
+            const responseText = extractLLMTextContent(llmData);
 
             let proposals = [];
             try {
@@ -599,6 +627,322 @@ Only output valid JSON, no other text.`;
         return;
     }
 
+    // --- API: POST /api/resolve-selected-fixes ---
+    if (url.pathname === "/api/resolve-selected-fixes" && req.method === "POST") {
+        try {
+            const body = await readBody(req);
+            const { code, issues } = JSON.parse(body);
+
+            if (!code?.trim()) {
+                res.writeHead(400, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "Missing 'code' payload" }));
+                return;
+            }
+            if (!Array.isArray(issues) || !issues.length) {
+                res.writeHead(400, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "Missing 'issues' payload" }));
+                return;
+            }
+            if (!LLM_API_KEY) {
+                res.writeHead(503, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "LLM not configured. Set LLM_API_KEY environment variable." }));
+                return;
+            }
+
+            const cappedIssues = issues.slice(0, 30);
+            const issueSummary = cappedIssues.map((issue, idx) => {
+                const startLine = (issue?.range?.start?.line ?? 0) + 1;
+                const criterion = issue?.criterionName || issue?.criterionId || "unknown";
+                const message = String(issue?.message || "").trim();
+                const raw = String(issue?.rawText || "").trim().slice(0, 600);
+                return `### Issue ${idx + 1}\n- Criterion: ${criterion}\n- Line: ${startLine}\n- Message: ${message || "N/A"}\n- Evidence:\n${raw || "N/A"}`;
+            }).join("\n\n");
+
+            const numberedCode = code
+                .split("\n")
+                .map((line, idx) => `${String(idx + 1).padStart(4, " ")} | ${line}`)
+                .join("\n");
+
+            const prompt = `You are a senior SysML v2 quality engineer.
+
+Task: Produce one consolidated revised SysML model that resolves all listed issues together and maximizes review quality score.
+
+Hard constraints:
+- Output complete SysML model text only.
+- Keep existing intent and domain semantics unless a listed issue requires change.
+- Ensure consistency across related elements (parts, requirements, constraints, interfaces, flows).
+- Avoid introducing duplicate or conflicting definitions.
+- Prefer coherent, model-wide edits over local patches.
+
+Selected issues to resolve:
+${issueSummary}
+
+Current SysML model (with line numbers):
+${numberedCode}`;
+
+            const llmUrl = `${LLM_BASE_URL.replace(/\/+$/, "")}/openai/deployments/${encodeURIComponent(LLM_MODEL)}/chat/completions?api-version=${LLM_API_VERSION}`;
+            const llmRes = await fetch(llmUrl, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "api-key": LLM_API_KEY,
+                },
+                body: JSON.stringify({
+                    max_completion_tokens: 8192,
+                    messages: [
+                        {
+                            role: "system",
+                            content: "You improve SysML v2 model quality and return only complete corrected SysML text.",
+                        },
+                        {
+                            role: "user",
+                            content: prompt,
+                        },
+                    ],
+                }),
+            });
+
+            if (!llmRes.ok) {
+                const errText = await llmRes.text();
+                res.writeHead(503, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: `LLM API error ${llmRes.status}`, details: errText.slice(0, 2000) }));
+                return;
+            }
+
+            const llmData = await llmRes.json();
+            const candidate = normalizeSysmlResponse(extractLLMTextContent(llmData));
+            if (!candidate) {
+                res.writeHead(503, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "LLM returned empty consolidated model output" }));
+                return;
+            }
+
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ ok: true, code: candidate }));
+        } catch (err) {
+            res.writeHead(500, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: err.message }));
+        }
+        return;
+    }
+
+    // --- API: POST /api/repair-sysml ---
+    if (url.pathname === "/api/repair-sysml" && req.method === "POST") {
+        try {
+            const body = await readBody(req);
+            const { code, label } = JSON.parse(body);
+
+            if (!code?.trim()) {
+                res.writeHead(400, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "Missing 'code' payload" }));
+                return;
+            }
+
+            let candidate = code;
+            const maxPasses = 4;
+
+            for (let pass = 0; pass <= maxPasses; pass += 1) {
+                const analysis = await lsp.openAndAnalyse(candidate);
+                const diagnostics = analysis?.diagnostics ?? [];
+                const errors = diagnostics.filter((diag) => diag.severity === 1);
+
+                if (!errors.length) {
+                    res.writeHead(200, { "Content-Type": "application/json" });
+                    res.end(JSON.stringify({
+                        ok: true,
+                        repaired: pass > 0,
+                        passes: pass,
+                        code: candidate,
+                        diagnostics,
+                    }));
+                    return;
+                }
+
+                if (!LLM_API_KEY) {
+                    res.writeHead(503, { "Content-Type": "application/json" });
+                    res.end(JSON.stringify({
+                        ok: false,
+                        error: "LLM not configured for auto-repair. Set LLM_API_KEY.",
+                        diagnostics: errors.slice(0, 50),
+                    }));
+                    return;
+                }
+
+                if (pass === maxPasses) {
+                    res.writeHead(400, { "Content-Type": "application/json" });
+                    res.end(JSON.stringify({
+                        ok: false,
+                        error: `Unable to repair SysML after ${maxPasses} pass${maxPasses === 1 ? "" : "es"}`,
+                        diagnostics: errors.slice(0, 50),
+                        code: candidate,
+                    }));
+                    return;
+                }
+
+                const numberedCode = candidate
+                    .split("\n")
+                    .map((line, idx) => `${String(idx + 1).padStart(4, " ")} | ${line}`)
+                    .join("\n");
+                const errorSummary = errors.slice(0, 80).map((diag) => {
+                    const line = (diag.range?.start?.line ?? 0) + 1;
+                    const col = (diag.range?.start?.character ?? 0) + 1;
+                    return `- L${line}:${col} ${diag.message}`;
+                }).join("\n");
+
+                const prompt = `You are a SysML v2 syntax repair assistant.
+
+Task: Repair the SysML model so it parses with zero syntax/semantic errors reported by the checker.
+Context label: ${label || "bulk-fix"}
+
+Constraints:
+- Preserve intended model meaning and existing element names where possible.
+- Make minimal structural edits needed to resolve parser/validator errors.
+- Prioritize structural correctness: balanced delimiters, valid block nesting, and complete declarations.
+- Return the complete corrected SysML model.
+- Do not include markdown, explanations, or JSON.
+
+Current errors:
+${errorSummary}
+
+Current model with line numbers:
+${numberedCode}`;
+
+                const llmUrl = `${LLM_BASE_URL.replace(/\/+$/, "")}/openai/deployments/${encodeURIComponent(LLM_MODEL)}/chat/completions?api-version=${LLM_API_VERSION}`;
+                const llmRes = await fetch(llmUrl, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "api-key": LLM_API_KEY,
+                    },
+                    body: JSON.stringify({
+                        max_completion_tokens: 4096,
+                        messages: [
+                            {
+                                role: "system",
+                                content: "You repair SysML models and return only full corrected SysML text.",
+                            },
+                            {
+                                role: "user",
+                                content: prompt,
+                            },
+                        ],
+                    }),
+                });
+
+                if (!llmRes.ok) {
+                    const errText = await llmRes.text();
+                    res.writeHead(503, { "Content-Type": "application/json" });
+                    res.end(JSON.stringify({
+                        ok: false,
+                        error: `LLM API error ${llmRes.status}`,
+                        details: errText.slice(0, 2000),
+                        diagnostics: errors.slice(0, 50),
+                    }));
+                    return;
+                }
+
+                const llmData = await llmRes.json();
+                const repairedText = normalizeSysmlResponse(extractLLMTextContent(llmData));
+                if (!repairedText) {
+                    res.writeHead(503, { "Content-Type": "application/json" });
+                    res.end(JSON.stringify({
+                        ok: false,
+                        error: "LLM returned empty repair output",
+                        diagnostics: errors.slice(0, 50),
+                    }));
+                    return;
+                }
+
+                candidate = repairedText;
+            }
+        } catch (err) {
+            res.writeHead(500, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: err.message }));
+        }
+        return;
+    }
+
+    // --- API: POST /api/review-scores ---
+    if (url.pathname === "/api/review-scores" && req.method === "POST") {
+        try {
+            const body = await readBody(req);
+            const { code, criteria } = JSON.parse(body);
+
+            if (!code?.trim()) {
+                res.writeHead(400, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "Missing 'code' payload" }));
+                return;
+            }
+            if (!Array.isArray(criteria) || !criteria.length) {
+                res.writeHead(400, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "Missing 'criteria' payload" }));
+                return;
+            }
+            if (!LLM_API_KEY) {
+                res.writeHead(503, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "LLM not configured. Set LLM_API_KEY environment variable." }));
+                return;
+            }
+
+            const requestedCriteria = criteria
+                .map((item) => String(item || "").trim())
+                .filter(Boolean)
+                .slice(0, 12);
+            const results = [];
+
+            for (const criterionId of requestedCriteria) {
+                const criterionFile = join(CRITERIA_DIR, `${criterionId}.md`);
+                if (!existsSync(criterionFile)) {
+                    results.push({ criterionId, score: null, error: "Criterion file not found" });
+                    continue;
+                }
+
+                const criterionContent = readFileSync(criterionFile, "utf-8");
+                const prompt = `Assess this SysML v2 model for ONLY the criterion below and return one line exactly in this format:\nOverall Assessment Score: <number between 0 and 1>\n\nCriterion:\n${criterionContent.slice(0, 9000)}\n\nModel:\n\`\`\`sysml\n${code}\n\`\`\``;
+
+                const llmUrl = `${LLM_BASE_URL.replace(/\/+$/, "")}/openai/deployments/${encodeURIComponent(LLM_MODEL)}/chat/completions?api-version=${LLM_API_VERSION}`;
+                const llmRes = await fetch(llmUrl, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "api-key": LLM_API_KEY,
+                    },
+                    body: JSON.stringify({
+                        max_completion_tokens: 256,
+                        temperature: 0,
+                        messages: [
+                            {
+                                role: "system",
+                                content: "You are a strict SysML assessor. Return exactly one score line in the requested format.",
+                            },
+                            {
+                                role: "user",
+                                content: prompt,
+                            },
+                        ],
+                    }),
+                });
+
+                if (!llmRes.ok) {
+                    const errText = await llmRes.text();
+                    results.push({ criterionId, score: null, error: `LLM API error ${llmRes.status}: ${errText.slice(0, 300)}` });
+                    continue;
+                }
+
+                const llmData = await llmRes.json();
+                const text = extractLLMTextContent(llmData);
+                results.push({ criterionId, score: extractOverallScore(text), raw: text.slice(0, 300) });
+            }
+
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ ok: true, results }));
+        } catch (err) {
+            res.writeHead(500, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: err.message }));
+        }
+        return;
+    }
+
     // --- API: POST /api/save-fixed-model ---
     if (url.pathname === "/api/save-fixed-model" && req.method === "POST") {
         try {
@@ -608,6 +952,18 @@ Only output valid JSON, no other text.`;
             if (!code?.trim()) {
                 res.writeHead(400, { "Content-Type": "application/json" });
                 res.end(JSON.stringify({ error: "Missing 'code' payload" }));
+                return;
+            }
+
+            const analysis = await lsp.openAndAnalyse(code);
+            const diagnostics = analysis?.diagnostics ?? [];
+            const errors = diagnostics.filter((diag) => diag.severity === 1);
+            if (errors.length) {
+                res.writeHead(400, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({
+                    error: `Refusing to save invalid SysML (${errors.length} error${errors.length === 1 ? "" : "s"})`,
+                    diagnostics: errors.slice(0, 10),
+                }));
                 return;
             }
 
