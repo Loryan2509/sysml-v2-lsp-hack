@@ -223,19 +223,13 @@ def get_changed_sysml_files(base_sha: str, repo_root: Path) -> list[Path]:
 
 def _call_llm(messages: list[dict[str, str]], max_tokens: int = 2000) -> str | None:
     """Call OpenAI or Azure OpenAI chat completions; return assistant text or None."""
-    azure_endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT", "").rstrip("/")
-    azure_key = os.environ.get("AZURE_OPENAI_KEY", "")
-    azure_deployment = os.environ.get("AZURE_OPENAI_DEPLOYMENT", "")
-    azure_api_version = os.environ.get("AZURE_OPENAI_API_VERSION", "2024-08-01-preview")
+    azure_endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT", "").strip().rstrip("/")
+    azure_key = os.environ.get("AZURE_OPENAI_KEY", "").strip()
+    azure_deployment = os.environ.get("AZURE_OPENAI_DEPLOYMENT", "").strip()
+    azure_api_version = os.environ.get("AZURE_OPENAI_API_VERSION", "2024-08-01-preview").strip()
 
-    openai_key = os.environ.get("OPENAI_API_KEY", "")
-    openai_model = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
-
-    payload = json.dumps({
-        "messages": messages,
-        "max_completion_tokens": max_tokens,
-        "temperature": 0.2,
-    }).encode("utf-8")
+    openai_key = os.environ.get("OPENAI_API_KEY", "").strip()
+    openai_model = os.environ.get("OPENAI_MODEL", "gpt-4o-mini").strip()
 
     if azure_endpoint and azure_key and azure_deployment:
         url = (
@@ -246,6 +240,12 @@ def _call_llm(messages: list[dict[str, str]], max_tokens: int = 2000) -> str | N
             "Content-Type": "application/json",
             "api-key": azure_key,
         }
+        # Omit temperature — some newer models (e.g. reasoning models) do not support it
+        payload = json.dumps({
+            "messages": messages,
+            "max_completion_tokens": max_tokens,
+        }).encode("utf-8")
+        print(f"[LLM] Using Azure OpenAI: {azure_endpoint}/openai/deployments/{azure_deployment}", file=sys.stderr)
     elif openai_key:
         url = "https://api.openai.com/v1/chat/completions"
         headers = {
@@ -258,8 +258,10 @@ def _call_llm(messages: list[dict[str, str]], max_tokens: int = 2000) -> str | N
             "max_completion_tokens": max_tokens,
             "temperature": 0.2,
         }).encode("utf-8")
+        print(f"[LLM] Using OpenAI model: {openai_model}", file=sys.stderr)
     else:
-        return None  # No API key available
+        print("[LLM] No API credentials found — skipping AI review.", file=sys.stderr)
+        return None
 
     req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
     try:
@@ -268,7 +270,7 @@ def _call_llm(messages: list[dict[str, str]], max_tokens: int = 2000) -> str | N
             return data["choices"][0]["message"]["content"]
     except urllib.error.HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")
-        print(f"[LLM] HTTP {exc.code}: {body[:200]}", file=sys.stderr)
+        print(f"[LLM] HTTP {exc.code}: {body[:400]}", file=sys.stderr)
         return None
     except Exception as exc:
         print(f"[LLM] Request failed: {exc}", file=sys.stderr)
