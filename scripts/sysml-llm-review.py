@@ -271,11 +271,17 @@ def _call_llm(messages: list[dict[str, str]], max_tokens: int = 2000) -> str | N
             data = json.loads(raw)
             if "choices" not in data:
                 print(f"[LLM] Unexpected response shape — keys: {list(data.keys())}", file=sys.stderr)
-                # Surface any error field from the gateway
                 if "error" in data:
                     print(f"[LLM] Gateway error: {json.dumps(data['error'])}", file=sys.stderr)
                 return None
-            return data["choices"][0]["message"]["content"]
+            content = data["choices"][0]["message"]["content"]
+            print(f"[LLM] Content received: {repr(content[:100]) if content else repr(content)}", file=sys.stderr)
+            # content may be None for reasoning models that use a different finish_reason
+            if content is None:
+                # Try refusal or reasoning fields
+                msg = data["choices"][0]["message"]
+                print(f"[LLM] Message fields: {list(msg.keys())}", file=sys.stderr)
+            return content
     except urllib.error.HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")
         print(f"[LLM] HTTP {exc.code} error from API", file=sys.stderr)
@@ -509,10 +515,13 @@ def main() -> None:
             code = sysml_file.read_text(encoding="utf-8")
             messages = build_review_prompt(code, diags, sysml_file.name)
             llm_text = _call_llm(messages)
-            if llm_text:
+            if llm_text is not None and llm_text != "":
                 print(f"[review]   ✓ LLM review received ({len(llm_text)} chars)", file=sys.stderr)
+            elif llm_text == "":
+                print("[review]   ⚠ LLM returned empty content", file=sys.stderr)
+                llm_text = None
             else:
-                print("[review]   (no LLM API key — skipping AI review)", file=sys.stderr)
+                print("[review]   ⚠ LLM returned no content (None) — check logs above", file=sys.stderr)
 
             file_results.append({
                 "filename": str(sysml_file),
