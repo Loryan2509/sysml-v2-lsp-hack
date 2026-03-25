@@ -1279,14 +1279,12 @@
     }
 
     .criterion-stream {
-      font-family: var(--font-mono);
+      font-family: var(--font-ui);
       font-size: 12px;
-      line-height: 1.65;
+      line-height: 1.5;
       color: var(--text-secondary);
-      white-space: pre-wrap;
-      word-break: break-word;
-      padding: 0 8px;
-      max-height: 600px;
+      padding: 0 8px 8px;
+      max-height: 2000px;
       overflow-y: auto;
       transition: max-height 0.3s ease;
     }
@@ -1295,6 +1293,230 @@
       max-height: 0;
       overflow: hidden;
       padding: 0;
+    }
+
+    /* ── Model characterisation box ── */
+    .model-char {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 10px 14px;
+      margin-bottom: 12px;
+      font-size: 11px;
+      line-height: 1.6;
+      color: var(--text-muted);
+    }
+    .model-char-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .model-char ul {
+      margin: 0; padding: 0 0 0 16px;
+    }
+    .model-char li { margin-bottom: 2px; }
+    .model-char li strong {
+      color: var(--text-secondary);
+    }
+
+    /* ── Issue cards ── */
+    .issue-card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      margin-bottom: 8px;
+      overflow: hidden;
+      transition: border-color var(--transition);
+    }
+    .issue-card:hover {
+      border-color: var(--text-muted);
+    }
+    .issue-card-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 10px 12px;
+      cursor: pointer;
+      user-select: none;
+      background: var(--bg-surface);
+      transition: background var(--transition);
+    }
+    .issue-card-header:hover {
+      background: var(--bg-hover);
+    }
+    .issue-card-id {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--accent);
+      white-space: nowrap;
+      padding-top: 1px;
+    }
+    .issue-card-finding {
+      flex: 1;
+      font-size: 12px;
+      color: var(--text-primary);
+      line-height: 1.4;
+    }
+    .issue-card-badges {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .issue-score-pill {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 10px;
+    }
+    .issue-confidence {
+      font-size: 9px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      padding: 2px 6px;
+      border-radius: 8px;
+      background: rgba(148,163,184,0.12);
+      color: var(--text-muted);
+    }
+    .issue-card-chevron {
+      color: var(--text-muted);
+      font-size: 10px;
+      transition: transform var(--transition);
+      padding-top: 2px;
+    }
+    .issue-card.collapsed .issue-card-chevron {
+      transform: rotate(-90deg);
+    }
+    .issue-card-body {
+      padding: 0 12px 12px 12px;
+      font-size: 11px;
+      line-height: 1.55;
+      border-top: 1px solid var(--border);
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 4px 10px;
+      background: var(--bg-panel);
+    }
+    .issue-card.collapsed .issue-card-body {
+      display: none;
+    }
+    .issue-field-label {
+      font-weight: 600;
+      color: var(--text-muted);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      padding-top: 8px;
+      white-space: nowrap;
+    }
+    .issue-field-value {
+      color: var(--text-secondary);
+      padding-top: 8px;
+    }
+
+    /* ── Check passed badge ── */
+    .check-passed {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      margin-bottom: 6px;
+      background: rgba(34,197,94,0.06);
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      color: var(--green);
+    }
+    .check-passed-icon {
+      font-size: 14px;
+    }
+
+    /* ── Criterion summary table ── */
+    .criterion-summary-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+      margin-top: 12px;
+    }
+    .criterion-summary-table th {
+      text-align: left;
+      font-weight: 600;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-muted);
+      padding: 6px 8px;
+      border-bottom: 2px solid var(--border);
+    }
+    .criterion-summary-table td {
+      padding: 5px 8px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-secondary);
+    }
+    .criterion-summary-table tr:last-child td {
+      border-bottom: none;
+    }
+    .criterion-summary-table .col-id {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--accent);
+      white-space: nowrap;
+    }
+    .criterion-summary-table .col-score {
+      font-family: var(--font-mono);
+      font-weight: 600;
+      text-align: right;
+      white-space: nowrap;
+    }
+    .criterion-summary-table .col-confidence {
+      font-size: 10px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    /* ── Overall assessment box ── */
+    .overall-assessment {
+      margin-top: 12px;
+      padding: 12px 14px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--bg-surface);
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .overall-assessment-score {
+      font-family: var(--font-mono);
+      font-size: 22px;
+      font-weight: 700;
+    }
+    .overall-assessment-text {
+      font-weight: 400;
+      color: var(--text-secondary);
+      font-size: 12px;
+    }
+
+    /* ── Issues overview strip ── */
+    .issues-overview {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+    .issues-overview-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
     }
 
     .criterion-spinner {
@@ -4006,12 +4228,19 @@
     // ─── Build summary bar at top of report ───
     function buildReviewSummary(texts) {
       const scores = [];
+      let totalIssues = 0;
+      let totalPassed = 0;
       for (const [id, text] of Object.entries(texts)) {
         const score = extractOverallScore(text);
         const criterion = _criteriaData.find(c => c.id === id);
         if (score !== null) {
           scores.push({ id, name: criterion?.name ?? id, score });
         }
+        // Count issues and passes in this criterion
+        const issueMatches = text.match(/^ISSUE \[/gm);
+        const passMatches = text.match(/^CHECK PASSED:/gm);
+        if (issueMatches) totalIssues += issueMatches.length;
+        if (passMatches) totalPassed += passMatches.length;
       }
       if (!scores.length) return;
 
@@ -4033,6 +4262,14 @@
                 <div class="summary-card-label">Criteria</div>
                 <div class="summary-card-value" style="color:var(--text-primary)">${scores.length}</div>
             </div>
+            <div class="summary-card">
+                <div class="summary-card-label">Issues</div>
+                <div class="summary-card-value" style="color:${totalIssues > 0 ? 'var(--amber)' : 'var(--green)'}">${totalIssues}</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-card-label">Checks Passed</div>
+                <div class="summary-card-value" style="color:var(--green)">${totalPassed}</div>
+            </div>
             ${scores.map(s => `
                 <div class="summary-card">
                     <div class="summary-card-label">${escHtml(s.name)}</div>
@@ -4046,51 +4283,207 @@
 
     // ─── Simple markdown-like formatting for LLM output ───
     function formatReviewMarkdown(text) {
-      let html = escHtml(text);
+      return parseStructuredReview(text);
+    }
 
-      html = html.replace(
-        /^(ISSUE \[[\w-]+\])$/gm,
-        '<div style="font-weight:600;color:var(--accent);margin-top:12px;">$1</div>'
-      );
+    /**
+     * Parse structured LLM review output into rich HTML.
+     * Handles: Model Characterisation, ISSUE blocks, CHECK PASSED, Summary Table, Overall Score.
+     */
+    function parseStructuredReview(text) {
+      const lines = text.split('\n');
+      const parts = [];
+      let i = 0;
 
-      html = html.replace(
-        /^((?:Element|Check|Finding|Evidence|Score|Confidence|Impact|Recommendation):)\s*/gm,
-        '<span style="color:var(--text-muted);font-weight:500;">$1</span> '
-      );
+      // ── Helpers ──
+      const esc = s => escHtml(s);
+      const scoreColor = s => {
+        const v = parseFloat(s);
+        if (v >= 0.9) return 'var(--green)';
+        if (v >= 0.7) return 'var(--amber)';
+        if (v >= 0.5) return '#f97316';
+        return 'var(--red)';
+      };
+      const scoreBg = s => {
+        const v = parseFloat(s);
+        if (v >= 0.9) return 'rgba(34,197,94,0.15)';
+        if (v >= 0.7) return 'rgba(245,158,11,0.15)';
+        if (v >= 0.5) return 'rgba(249,115,22,0.15)';
+        return 'rgba(239,68,68,0.15)';
+      };
 
-      html = html.replace(
-        /^(CHECK PASSED:.*$)/gm,
-        '<span style="color:var(--green);">$1</span>'
-      );
-
-      html = html.replace(
-        /(Overall\s+(?:Assessment\s+)?Score\s*[=:]\s*)([\d.]+)/gi,
-        (match, prefix, scoreStr) => {
-          const s = parseFloat(scoreStr);
-          const color = getScoreColor(s);
-          return `<span style="font-weight:600;">${prefix}<span style="color:${color};font-size:14px;">${scoreStr}</span></span>`;
+      // ── Parse Model Characterisation ──
+      if (lines[i] && lines[i].trim().startsWith('Model Characterisation')) {
+        i++;
+        const charLines = [];
+        while (i < lines.length && !lines[i].match(/^ISSUE \[/) && !lines[i].match(/^CHECK PASSED:/)) {
+          charLines.push(lines[i]);
+          i++;
         }
-      );
-
-      html = html.replace(/\*\*(.+?)\*\*/g, '<strong style="color:var(--text-primary);">$1</strong>');
-
-      html = html.replace(/^### (.+)$/gm, '<div style="font-size:13px;font-weight:600;color:var(--text-primary);margin:10px 0 4px;">$1</div>');
-      html = html.replace(/^## (.+)$/gm, '<div style="font-size:14px;font-weight:600;color:var(--text-primary);margin:12px 0 6px;">$1</div>');
-
-      html = html.replace(/^---+$/gm, '<hr style="border:none;border-top:1px solid var(--border);margin:8px 0;">');
-
-      html = html.replace(
-        /^\|(.+)\|$/gm,
-        (match, inner) => {
-          if (inner.match(/^[\s\-|]+$/)) return '';
-          const cells = inner.split('|').map(c => c.trim());
-          return '<div style="display:flex;gap:8px;padding:2px 0;">' + cells.map(c =>
-            `<span style="flex:1;min-width:0;">${c}</span>`
-          ).join('') + '</div>';
+        if (charLines.length) {
+          let items = charLines.filter(l => l.trim().startsWith('-')).map(l => {
+            const m = l.trim().replace(/^-\s*/, '').match(/^(.+?):\s*(.+)$/);
+            return m ? `<li><strong>${esc(m[1])}:</strong> ${esc(m[2])}</li>` : `<li>${esc(l.trim().replace(/^-\s*/, ''))}</li>`;
+          });
+          if (items.length) {
+            parts.push(`<div class="model-char"><div class="model-char-title">Model Characterisation</div><ul>${items.join('')}</ul></div>`);
+          }
         }
-      );
+      }
 
-      return html;
+      // ── Parse issues, check-passed, summary, overall ──
+      let issueCount = 0;
+      let issuesBySeverity = { critical: 0, significant: 0, notable: 0, good: 0 };
+
+      while (i < lines.length) {
+        const line = lines[i];
+
+        // ISSUE block
+        const issueMatch = line.match(/^ISSUE \[([\w-]+)\]$/);
+        if (issueMatch) {
+          const issueId = issueMatch[1];
+          i++;
+          const fields = {};
+          let scoreVal = null;
+          let scoreSuffix = '';
+          while (i < lines.length && !lines[i].match(/^ISSUE \[/) && !lines[i].match(/^CHECK PASSED:/) && !lines[i].match(/^Summary Table/) && !lines[i].match(/^Overall\s+(Assessment\s+)?Score/i)) {
+            const fieldMatch = lines[i].match(/^(Element|Check|Finding|Evidence|Score|Confidence|Impact|Recommendation):\s*(.*)/);
+            if (fieldMatch) {
+              const key = fieldMatch[1];
+              let val = fieldMatch[2];
+              // Score may have suffix after the number
+              if (key === 'Score') {
+                const sm = val.match(/([\d.]+)\s*(.*)/);
+                if (sm) {
+                  scoreVal = sm[1];
+                  scoreSuffix = sm[2] ? sm[2].replace(/^-\s*/, '').trim() : '';
+                  val = scoreSuffix || val;
+                }
+              }
+              fields[key] = val;
+            }
+            i++;
+          }
+
+          issueCount++;
+          const sv = parseFloat(scoreVal);
+          if (sv >= 0.9) issuesBySeverity.good++;
+          else if (sv >= 0.7) issuesBySeverity.notable++;
+          else if (sv >= 0.5) issuesBySeverity.significant++;
+          else issuesBySeverity.critical++;
+
+          const collapsed = issueCount > 3 ? ' collapsed' : '';
+          parts.push(`<div class="issue-card${collapsed}">
+            <div class="issue-card-header" onclick="this.parentElement.classList.toggle('collapsed')">
+              <span class="issue-card-id">${esc(issueId)}</span>
+              <span class="issue-card-finding">${esc(fields.Finding || '')}</span>
+              <span class="issue-card-badges">
+                ${scoreVal ? `<span class="issue-score-pill" style="color:${scoreColor(scoreVal)};background:${scoreBg(scoreVal)}">${scoreVal}</span>` : ''}
+                ${fields.Confidence ? `<span class="issue-confidence">${esc(fields.Confidence.split(/\s/)[0])}</span>` : ''}
+              </span>
+              <span class="issue-card-chevron">▼</span>
+            </div>
+            <div class="issue-card-body">
+              ${fields.Element ? `<span class="issue-field-label">Element</span><span class="issue-field-value">${esc(fields.Element)}</span>` : ''}
+              ${fields.Check ? `<span class="issue-field-label">Check</span><span class="issue-field-value">${esc(fields.Check)}</span>` : ''}
+              ${scoreSuffix ? `<span class="issue-field-label">Score Note</span><span class="issue-field-value">${esc(scoreSuffix)}</span>` : ''}
+              ${fields.Evidence ? `<span class="issue-field-label">Evidence</span><span class="issue-field-value" style="font-family:var(--font-mono);font-size:10px;">${esc(fields.Evidence)}</span>` : ''}
+              ${fields.Impact ? `<span class="issue-field-label">Impact</span><span class="issue-field-value">${esc(fields.Impact)}</span>` : ''}
+              ${fields.Recommendation ? `<span class="issue-field-label">Fix</span><span class="issue-field-value" style="color:var(--text-primary);">${esc(fields.Recommendation)}</span>` : ''}
+            </div>
+          </div>`);
+          continue;
+        }
+
+        // CHECK PASSED
+        if (line.match(/^CHECK PASSED:/)) {
+          const detail = line.replace(/^CHECK PASSED:\s*/, '').trim();
+          parts.push(`<div class="check-passed"><span class="check-passed-icon">✓</span><span>${esc(detail)}</span></div>`);
+          i++;
+          continue;
+        }
+
+        // Summary Table
+        if (line.match(/^Summary Table/i)) {
+          i++;
+          // skip blank lines
+          while (i < lines.length && lines[i].trim() === '') i++;
+          // parse table header
+          if (i < lines.length && lines[i].trim().startsWith('|')) {
+            const headerCells = lines[i].split('|').filter(c => c.trim()).map(c => c.trim());
+            i++;
+            // skip separator
+            if (i < lines.length && lines[i].match(/^\|[\s\-:]+\|/)) i++;
+            const rows = [];
+            while (i < lines.length && lines[i].trim().startsWith('|')) {
+              const cells = lines[i].split('|').filter(c => c.trim()).map(c => c.trim());
+              rows.push(cells);
+              i++;
+            }
+            if (rows.length) {
+              let tableHtml = `<table class="criterion-summary-table"><thead><tr>`;
+              headerCells.forEach(h => { tableHtml += `<th>${esc(h)}</th>`; });
+              tableHtml += `</tr></thead><tbody>`;
+              rows.forEach(cells => {
+                tableHtml += `<tr>`;
+                cells.forEach((c, ci) => {
+                  let cls = '';
+                  if (ci === 0) cls = 'col-id';
+                  else if (headerCells[ci] && headerCells[ci].toLowerCase().includes('score')) cls = 'col-score';
+                  else if (headerCells[ci] && headerCells[ci].toLowerCase().includes('confidence')) cls = 'col-confidence';
+                  const style = cls === 'col-score' ? ` style="color:${scoreColor(c)}"` : '';
+                  tableHtml += `<td class="${cls}"${style}>${esc(c)}</td>`;
+                });
+                tableHtml += `</tr>`;
+              });
+              tableHtml += `</tbody></table>`;
+              parts.push(tableHtml);
+            }
+          }
+          continue;
+        }
+
+        // Overall Assessment Score
+        const overallMatch = line.match(/^Overall\s+(?:Assessment\s+)?Score\s*[=:]\s*([\d.]+)/i);
+        if (overallMatch) {
+          const score = overallMatch[1];
+          // Grab following status line if present
+          let statusText = '';
+          if (i + 1 < lines.length && lines[i + 1].trim() !== '' && !lines[i + 1].match(/^ISSUE \[/) && !lines[i + 1].match(/^Summary Table/)) {
+            i++;
+            statusText = lines[i].trim().replace(/^Model Status.*?:\s*/i, '');
+          }
+
+          // Build the issues overview strip if we have issues
+          let overviewHtml = '';
+          if (issueCount > 0) {
+            overviewHtml = `<div class="issues-overview">`;
+            overviewHtml += `<span class="issues-overview-chip" style="background:rgba(148,163,184,0.1);color:var(--text-secondary);">${issueCount} issues</span>`;
+            if (issuesBySeverity.critical > 0) overviewHtml += `<span class="issues-overview-chip" style="background:rgba(239,68,68,0.15);color:var(--red);">● ${issuesBySeverity.critical} critical</span>`;
+            if (issuesBySeverity.significant > 0) overviewHtml += `<span class="issues-overview-chip" style="background:rgba(249,115,22,0.15);color:#f97316;">● ${issuesBySeverity.significant} significant</span>`;
+            if (issuesBySeverity.notable > 0) overviewHtml += `<span class="issues-overview-chip" style="background:rgba(245,158,11,0.15);color:var(--amber);">● ${issuesBySeverity.notable} notable</span>`;
+            if (issuesBySeverity.good > 0) overviewHtml += `<span class="issues-overview-chip" style="background:rgba(34,197,94,0.15);color:var(--green);">● ${issuesBySeverity.good} good</span>`;
+            overviewHtml += `</div>`;
+          }
+
+          parts.push(`${overviewHtml}<div class="overall-assessment">
+            <span class="overall-assessment-score" style="color:${scoreColor(score)}">${score}</span>
+            <span class="overall-assessment-text">${statusText ? esc(statusText) : 'Overall Assessment Score'}</span>
+          </div>`);
+          i++;
+          continue;
+        }
+
+        // Fallback: plain text lines (any unstructured text between sections)
+        if (line.trim()) {
+          let plainHtml = esc(line);
+          plainHtml = plainHtml.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+          parts.push(`<div style="font-size:12px;line-height:1.5;color:var(--text-secondary);padding:2px 0;">${plainHtml}</div>`);
+        }
+        i++;
+      }
+
+      return parts.join('\n');
     }
 
     // Listen for editor changes to update review button state
