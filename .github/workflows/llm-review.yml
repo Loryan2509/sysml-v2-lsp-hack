@@ -1,0 +1,120 @@
+name: SysML LLM Review
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '**/*.sysml'
+      - '**/*.kerml'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  llm-review:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Generate ANTLR parser
+        run: npm run generate
+
+      - name: Build LSP server
+        run: npm run build
+
+      - name: Find changed SysML/KerML files
+        id: changed
+        run: |
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.sha }}"
+          FILES=$(git diff --name-only --diff-filter=ACM "$BASE_SHA" "$HEAD_SHA" \
+            -- '*.sysml' '*.kerml' \
+            | xargs -I{} find . -name "$(basename {})" -path "./{}" 2>/dev/null \
+            || git diff --name-only --diff-filter=ACM "$BASE_SHA" "$HEAD_SHA" \
+                 -- '*.sysml' '*.kerml')
+          COUNT=$(echo "$FILES" | grep -c '\S' || true)
+          echo "count=$COUNT" >> "$GITHUB_OUTPUT"
+          echo "files<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$FILES" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Run SysML LLM Review
+        if: steps.changed.outputs.count != '0'
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-4o-mini' }}
+          AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
+          AZURE_OPENAI_KEY: ${{ secrets.AZURE_OPENAI_KEY }}
+          AZURE_OPENAI_DEPLOYMENT: ${{ secrets.AZURE_OPENAI_DEPLOYMENT }}
+          AZURE_OPENAI_API_VERSION: ${{ vars.AZURE_OPENAI_API_VERSION || '2024-08-01-preview' }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          python3 scripts/sysml-llm-review.py \
+            ${{ steps.changed.outputs.files }} \
+            --output review.md
+
+      - name: No SysML files changed
+        if: steps.changed.outputs.count == '0'
+        run: |
+          cat > review.md << 'EOF'
+          <!-- sysml-llm-review -->
+          ## 🔍 SysML Model Quality Review
+          _No SysML/KerML files were changed in this PR._
+          EOF
+
+      - name: Post or update PR review comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('review.md', 'utf8');
+            const marker = '<!-- sysml-llm-review -->';
+
+            // Find and delete any previous bot comment containing our marker
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const existing = comments.find(
+              c => c.user.type === 'Bot' && c.body.includes(marker)
+            );
+
+            if (existing) {
+              await github.rest.issues.deleteComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+              });
+            }
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });
+
+      - name: Upload review artefacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sysml-llm-review
+          path: |
+            review.md
+            .review-runs/
+          if-no-files-found: ignore
