@@ -15,6 +15,7 @@ package ToasterSystem {
         part crumbTray : CrumbTray;
         part powerCord : PowerCord;
         part plug : Plug;
+        part screen : Screen;
 
         attribute maxTemp : Real;
         attribute slots : Integer = 2;
