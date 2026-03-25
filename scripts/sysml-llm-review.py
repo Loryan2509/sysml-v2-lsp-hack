@@ -266,14 +266,25 @@ def _call_llm(messages: list[dict[str, str]], max_tokens: int = 2000) -> str | N
     req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
     try:
         with urllib.request.urlopen(req, timeout=120) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
+            raw = resp.read().decode("utf-8")
+            print(f"[LLM] Response received ({len(raw)} bytes)", file=sys.stderr)
+            data = json.loads(raw)
+            if "choices" not in data:
+                print(f"[LLM] Unexpected response shape — keys: {list(data.keys())}", file=sys.stderr)
+                # Surface any error field from the gateway
+                if "error" in data:
+                    print(f"[LLM] Gateway error: {json.dumps(data['error'])}", file=sys.stderr)
+                return None
             return data["choices"][0]["message"]["content"]
     except urllib.error.HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")
-        print(f"[LLM] HTTP {exc.code}: {body[:400]}", file=sys.stderr)
+        print(f"[LLM] HTTP {exc.code} error from API", file=sys.stderr)
+        # Sanitise body before printing in case secrets are embedded
+        safe_body = body[:600].replace(azure_key, "***").replace(azure_deployment, "***")
+        print(f"[LLM] Response body: {safe_body}", file=sys.stderr)
         return None
-    except Exception as exc:
-        print(f"[LLM] Request failed: {exc}", file=sys.stderr)
+    except BaseException as exc:
+        print(f"[LLM] Request failed ({type(exc).__name__}): {exc}", file=sys.stderr)
         return None
 
 
