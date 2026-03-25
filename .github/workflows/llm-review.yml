@@ -6,6 +6,12 @@ on:
     paths:
       - '**/*.sysml'
       - '**/*.kerml'
+  workflow_dispatch:
+    inputs:
+      files:
+        description: 'Space-separated list of SysML files to review'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -54,27 +60,24 @@ jobs:
           AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
           AZURE_OPENAI_KEY: ${{ secrets.AZURE_OPENAI_KEY }}
           AZURE_OPENAI_DEPLOYMENT: ${{ secrets.AZURE_OPENAI_DEPLOYMENT }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          echo "=== LLM API Configuration Check ==="
+          echo "=== LLM API Configuration Check (Azure OpenAI) ==="
           if [ -n "$AZURE_OPENAI_ENDPOINT" ]; then echo "✅ AZURE_OPENAI_ENDPOINT is set"; else echo "❌ AZURE_OPENAI_ENDPOINT is NOT set"; fi
           if [ -n "$AZURE_OPENAI_KEY" ]; then echo "✅ AZURE_OPENAI_KEY is set"; else echo "❌ AZURE_OPENAI_KEY is NOT set"; fi
           if [ -n "$AZURE_OPENAI_DEPLOYMENT" ]; then echo "✅ AZURE_OPENAI_DEPLOYMENT is set"; else echo "❌ AZURE_OPENAI_DEPLOYMENT is NOT set"; fi
-          if [ -n "$OPENAI_API_KEY" ]; then echo "✅ OPENAI_API_KEY is set"; else echo "❌ OPENAI_API_KEY is NOT set"; fi
-          if [ -z "$AZURE_OPENAI_ENDPOINT" ] && [ -z "$AZURE_OPENAI_KEY" ] && [ -z "$AZURE_OPENAI_DEPLOYMENT" ] && [ -z "$OPENAI_API_KEY" ]; then
-            echo "⚠️  No LLM API keys configured — review will be LSP diagnostics only."
-            echo "   If you set secrets, check: is this a fork PR? GitHub does not expose secrets to fork PRs."
+          if [ -z "$AZURE_OPENAI_ENDPOINT" ] || [ -z "$AZURE_OPENAI_KEY" ] || [ -z "$AZURE_OPENAI_DEPLOYMENT" ]; then
+            echo "⚠️  Azure OpenAI not fully configured — review will be LSP diagnostics only."
+          else
+            echo "✅ Azure OpenAI fully configured — AI review enabled."
           fi
 
       - name: Run SysML LLM Review
         if: steps.changed.outputs.count != '0'
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-4o-mini' }}
           AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
           AZURE_OPENAI_KEY: ${{ secrets.AZURE_OPENAI_KEY }}
           AZURE_OPENAI_DEPLOYMENT: ${{ secrets.AZURE_OPENAI_DEPLOYMENT }}
-          AZURE_OPENAI_API_VERSION: ${{ vars.AZURE_OPENAI_API_VERSION || '2024-08-01-preview' }}
+          AZURE_OPENAI_API_VERSION: ${{ vars.AZURE_OPENAI_API_VERSION || '2024-10-21' }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           python3 scripts/sysml-llm-review.py \
