@@ -1,0 +1,173 @@
+# Azure DevOps Pipeline — SysML LLM Review
+#
+# Posts an AI-powered model quality review as a PR thread comment
+# whenever .sysml or .kerml files change in a pull request.
+#
+# Required pipeline variables (set in the Azure DevOps UI or library):
+#   OPENAI_API_KEY            (secret) — OpenAI API key
+#   OPENAI_MODEL              (optional) — model name, default gpt-4o-mini
+#   AZURE_OPENAI_ENDPOINT     (secret) — https://<resource>.openai.azure.com
+#   AZURE_OPENAI_KEY          (secret) — Azure OpenAI key
+#   AZURE_OPENAI_DEPLOYMENT   (secret) — deployment name
+#   AZURE_OPENAI_API_VERSION  (optional) — API version, default 2024-08-01-preview
+#
+# The pipeline posts/updates a single thread on the PR with the review results.
+# Re-running the pipeline replaces the previous review comment.
+
+trigger: none
+
+pr:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - '**/*.sysml'
+      - '**/*.kerml'
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  NODE_VERSION: '24'
+
+steps:
+  # ── Checkout ────────────────────────────────────────────────────────────────
+  - checkout: self
+    fetchDepth: 0
+
+  # ── Node.js ─────────────────────────────────────────────────────────────────
+  - task: NodeTool@0
+    displayName: 'Use Node.js $(NODE_VERSION)'
+    inputs:
+      versionSpec: '$(NODE_VERSION)'
+
+  # ── Build LSP server ────────────────────────────────────────────────────────
+  - script: npm install
+    displayName: 'Install npm dependencies'
+
+  - script: npm run generate
+    displayName: 'Generate ANTLR parser'
+
+  - script: npm run build
+    displayName: 'Build LSP server'
+
+  # ── Find changed .sysml/.kerml files ────────────────────────────────────────
+  - bash: |
+      BASE_SHA="$(System.PullRequest.TargetBranchName)"
+      HEAD_SHA="$(Build.SourceVersion)"
+      # Fetch the target branch so git diff has it
+      git fetch origin "$BASE_SHA" 2>/dev/null || true
+      ORIGIN_BASE="origin/$(System.PullRequest.TargetBranchName)"
+      FILES=$(git diff --name-only --diff-filter=ACM "$ORIGIN_BASE" "$HEAD_SHA" \
+        -- '*.sysml' '*.kerml' || true)
+      COUNT=$(echo "$FILES" | grep -c '\S' || true)
+      echo "##vso[task.setvariable variable=CHANGED_COUNT]$COUNT"
+      echo "##vso[task.setvariable variable=CHANGED_FILES]$FILES"
+      echo "Changed SysML files ($COUNT):"
+      echo "$FILES"
+    displayName: 'Find changed SysML/KerML files'
+
+  # ── Run the review script ────────────────────────────────────────────────────
+  - bash: |
+      python3 scripts/sysml-llm-review.py \
+        $(CHANGED_FILES) \
+        --output "$(Build.ArtifactStagingDirectory)/review.md"
+    displayName: 'Run SysML LLM Review'
+    condition: and(succeeded(), ne(variables['CHANGED_COUNT'], '0'))
+    env:
+      OPENAI_API_KEY: $(OPENAI_API_KEY)
+      OPENAI_MODEL: $(OPENAI_MODEL)
+      AZURE_OPENAI_ENDPOINT: $(AZURE_OPENAI_ENDPOINT)
+      AZURE_OPENAI_KEY: $(AZURE_OPENAI_KEY)
+      AZURE_OPENAI_DEPLOYMENT: $(AZURE_OPENAI_DEPLOYMENT)
+      AZURE_OPENAI_API_VERSION: $(AZURE_OPENAI_API_VERSION)
+      BASE_SHA: origin/$(System.PullRequest.TargetBranchName)
+
+  - bash: |
+      cat > "$(Build.ArtifactStagingDirectory)/review.md" << 'EOF'
+      <!-- sysml-llm-review -->
+      ## 🔍 SysML Model Quality Review
+      _No SysML/KerML files were changed in this PR._
+      EOF
+    displayName: 'Write empty review (no changed files)'
+    condition: and(succeeded(), eq(variables['CHANGED_COUNT'], '0'))
+
+  # ── Post the review as an Azure DevOps PR thread ─────────────────────────────
+  #
+  # Uses the Azure DevOps REST API via the built-in $(System.AccessToken).
+  # The pipeline's "Project Collection Build Service" account must have
+  # "Contribute to pull requests" permission on the repository.
+  - bash: |
+      set -euo pipefail
+
+      REVIEW_FILE="$(Build.ArtifactStagingDirectory)/review.md"
+      MARKER="<!-- sysml-llm-review -->"
+      REVIEW_BODY=$(cat "$REVIEW_FILE")
+
+      ORG_URL="$(System.CollectionUri)"
+      PROJECT="$(System.TeamProject)"
+      REPO_ID="$(Build.Repository.ID)"
+      PR_ID="$(System.PullRequest.PullRequestId)"
+      TOKEN="$(System.AccessToken)"
+
+      set +x  # Prevent token from appearing in pipeline logs
+      AUTH=$(echo -n ":$TOKEN" | base64 -w 0)
+      set -x
+      API_BASE="${ORG_URL}${PROJECT}/_apis/git/repositories/${REPO_ID}/pullRequests/${PR_ID}"
+      THREADS_URL="${API_BASE}/threads?api-version=7.1"
+
+      # Fetch existing threads and find a previous review thread to update
+      THREADS=$(curl -s -H "Authorization: Basic $AUTH" "$THREADS_URL")
+      EXISTING_THREAD_ID=$(echo "$THREADS" | python3 -c "
+      import json, sys
+      data = json.load(sys.stdin)
+      for thread in data.get('value', []):
+          for comment in thread.get('comments', []):
+              if '$MARKER' in comment.get('content', ''):
+                  print(thread['id'])
+                  sys.exit(0)
+      ")
+
+      # Escape the review body as a JSON string
+      COMMENT_JSON=$(python3 -c "
+      import json, sys
+      body = open('$REVIEW_FILE').read()
+      print(json.dumps({'comments': [{'parentCommentId': 0, 'content': body, 'commentType': 1}], 'status': 1}))
+      ")
+
+      if [ -n "$EXISTING_THREAD_ID" ]; then
+        # Update the first comment of the existing thread
+        COMMENT_URL="${API_BASE}/threads/${EXISTING_THREAD_ID}/comments/1?api-version=7.1"
+        PATCH_JSON=$(python3 -c "
+      import json, sys
+      body = open('$REVIEW_FILE').read()
+      print(json.dumps({'content': body}))
+      ")
+        curl -s -X PATCH \
+          -H "Authorization: Basic $AUTH" \
+          -H "Content-Type: application/json" \
+          -d "$PATCH_JSON" \
+          "$COMMENT_URL" > /dev/null
+        echo "Updated existing PR review thread $EXISTING_THREAD_ID."
+      else
+        # Create a new thread
+        curl -s -X POST \
+          -H "Authorization: Basic $AUTH" \
+          -H "Content-Type: application/json" \
+          -d "$COMMENT_JSON" \
+          "$THREADS_URL" > /dev/null
+        echo "Created new PR review thread."
+      fi
+    displayName: 'Post review comment to Azure DevOps PR'
+    condition: and(succeeded(), ne(variables['System.PullRequest.PullRequestId'], ''))
+    env:
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+
+  # ── Publish review artefacts ────────────────────────────────────────────────
+  - task: PublishBuildArtifacts@1
+    displayName: 'Publish review artefacts'
+    condition: always()
+    inputs:
+      pathToPublish: '$(Build.ArtifactStagingDirectory)'
+      artifactName: 'sysml-llm-review'
