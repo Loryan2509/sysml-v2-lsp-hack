@@ -1,0 +1,1377 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SysML v2 LSP Hack — LLMs Spotting Larger Issues</title>
+  <style>
+    /* ─── Reset & Base ─────────────────────────────────────────── */
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --blue-900: #0d1b40;
+      --blue-800: #0f2356;
+      --blue-700: #162d6e;
+      --blue-600: #1a3a8f;
+      --accent: #3b82f6;
+      --accent2: #60a5fa;
+      --teal: #14b8a6;
+      --amber: #f59e0b;
+      --green: #22c55e;
+      --red: #ef4444;
+      --white: #ffffff;
+      --gray-100: #f1f5f9;
+      --gray-300: #cbd5e1;
+      --gray-500: #64748b;
+      --gray-700: #334155;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      background: #060e22;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      color: var(--white);
+      overflow: hidden;
+    }
+
+    /* ─── Slide Container ───────────────────────────────────────── */
+    .deck {
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .slide {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 56px 80px;
+      opacity: 0;
+      transform: translateX(60px);
+      transition: opacity .55s cubic-bezier(.4, 0, .2, 1),
+        transform .55s cubic-bezier(.4, 0, .2, 1);
+      pointer-events: none;
+    }
+
+    .slide.active {
+      opacity: 1;
+      transform: translateX(0);
+      pointer-events: all;
+    }
+
+    .slide.exit-left {
+      opacity: 0;
+      transform: translateX(-60px);
+    }
+
+    /* ─── Progress Bar ──────────────────────────────────────────── */
+    #progress {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--teal), var(--accent));
+      transition: width .4s ease;
+      z-index: 1000;
+    }
+
+    /* ─── Slide Counter ─────────────────────────────────────────── */
+    #counter {
+      position: fixed;
+      bottom: 28px;
+      right: 40px;
+      font-size: .8rem;
+      color: var(--gray-500);
+      letter-spacing: .06em;
+      z-index: 1000;
+    }
+
+    /* ─── Nav Arrows ────────────────────────────────────────────── */
+    .nav-btn {
+      position: fixed;
+      top: 50%;
+      transform: translateY(-50%);
+      background: rgba(255, 255, 255, .08);
+      border: 1px solid rgba(255, 255, 255, .14);
+      color: var(--white);
+      font-size: 1.4rem;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 1000;
+      transition: background .2s, border-color .2s;
+      backdrop-filter: blur(6px);
+    }
+
+    .nav-btn:hover {
+      background: rgba(59, 130, 246, .35);
+      border-color: var(--accent2);
+    }
+
+    #prev {
+      left: 18px;
+    }
+
+    #next {
+      right: 18px;
+    }
+
+    /* ─── Dot Nav ───────────────────────────────────────────────── */
+    #dots {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 8px;
+      z-index: 1000;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, .25);
+      cursor: pointer;
+      transition: background .2s, transform .2s;
+    }
+
+    .dot.active {
+      background: var(--accent2);
+      transform: scale(1.3);
+    }
+
+    /* ─── Common Typography ─────────────────────────────────────── */
+    .eyebrow {
+      font-size: .78rem;
+      font-weight: 600;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: var(--teal);
+      margin-bottom: 12px;
+    }
+
+    .headline {
+      font-size: clamp(2rem, 4.5vw, 3.2rem);
+      font-weight: 800;
+      line-height: 1.1;
+      letter-spacing: -.02em;
+    }
+
+    .headline span {
+      color: var(--accent2);
+    }
+
+    .subhead {
+      font-size: clamp(.9rem, 1.4vw, 1.15rem);
+      color: var(--gray-300);
+      line-height: 1.65;
+      max-width: 680px;
+    }
+
+    .tag {
+      display: inline-block;
+      padding: 3px 12px;
+      border-radius: 999px;
+      font-size: .72rem;
+      font-weight: 600;
+      letter-spacing: .08em;
+      background: rgba(59, 130, 246, .18);
+      border: 1px solid rgba(59, 130, 246, .4);
+      color: var(--accent2);
+    }
+
+    /* ─── Backgrounds ───────────────────────────────────────────── */
+    .bg-grid {
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(59, 130, 246, .07) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(59, 130, 246, .07) 1px, transparent 1px);
+      background-size: 48px 48px;
+      pointer-events: none;
+    }
+
+    .bg-glow {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(120px);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ─── Cards ─────────────────────────────────────────────────── */
+    .card {
+      background: rgba(255, 255, 255, .04);
+      border: 1px solid rgba(255, 255, 255, .1);
+      border-radius: 16px;
+      padding: 22px 26px;
+      backdrop-filter: blur(12px);
+      transition: border-color .2s, background .2s;
+    }
+
+    .card:hover {
+      border-color: rgba(59, 130, 246, .4);
+      background: rgba(59, 130, 246, .08);
+    }
+
+    .card-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.4rem;
+      margin-bottom: 12px;
+    }
+
+    .card-title {
+      font-weight: 700;
+      font-size: .95rem;
+      margin-bottom: 6px;
+    }
+
+    .card-body {
+      font-size: .82rem;
+      color: var(--gray-300);
+      line-height: 1.55;
+    }
+
+    /* ─── Pill badges ───────────────────────────────────────────── */
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 14px;
+      border-radius: 999px;
+      font-size: .8rem;
+      font-weight: 600;
+    }
+
+    .pill-blue {
+      background: rgba(59, 130, 246, .2);
+      border: 1px solid rgba(59, 130, 246, .5);
+      color: #93c5fd;
+    }
+
+    .pill-teal {
+      background: rgba(20, 184, 166, .2);
+      border: 1px solid rgba(20, 184, 166, .5);
+      color: #5eead4;
+    }
+
+    .pill-amber {
+      background: rgba(245, 158, 11, .2);
+      border: 1px solid rgba(245, 158, 11, .5);
+      color: #fcd34d;
+    }
+
+    .pill-green {
+      background: rgba(34, 197, 94, .2);
+      border: 1px solid rgba(34, 197, 94, .5);
+      color: #86efac;
+    }
+
+    .pill-red {
+      background: rgba(239, 68, 68, .2);
+      border: 1px solid rgba(239, 68, 68, .5);
+      color: #fca5a5;
+    }
+
+    .pill-purple {
+      background: rgba(168, 85, 247, .2);
+      border: 1px solid rgba(168, 85, 247, .5);
+      color: #d8b4fe;
+    }
+
+    /* ─── Two / Three column layout ─────────────────────────────── */
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 28px;
+      width: 100%;
+    }
+
+    .three-col {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      width: 100%;
+    }
+
+    /* ─── Code block ────────────────────────────────────────────── */
+    .code-block {
+      background: rgba(0, 0, 0, .4);
+      border: 1px solid rgba(255, 255, 255, .12);
+      border-radius: 12px;
+      padding: 18px 22px;
+      font-family: 'Cascadia Code', 'Fira Code', monospace;
+      font-size: .78rem;
+      line-height: 1.7;
+      color: #e2e8f0;
+      overflow: hidden;
+    }
+
+    .code-block .kw {
+      color: #60a5fa;
+    }
+
+    .code-block .str {
+      color: #86efac;
+    }
+
+    .code-block .cm {
+      color: #6b7280;
+      font-style: italic;
+    }
+
+    .code-block .ty {
+      color: #f9a8d4;
+    }
+
+    .code-block .nm {
+      color: #fcd34d;
+    }
+
+    /* ─── Divider ───────────────────────────────────────────────── */
+    .divider {
+      width: 48px;
+      height: 3px;
+      border-radius: 2px;
+      background: linear-gradient(90deg, var(--teal), var(--accent));
+      margin: 18px 0;
+    }
+
+    /* ─── Step list ─────────────────────────────────────────────── */
+    .step-list {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      width: 100%;
+    }
+
+    .step {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+    }
+
+    .step-num {
+      min-width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: .78rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--accent), var(--teal));
+      flex-shrink: 0;
+    }
+
+    .step-content {
+      flex: 1;
+    }
+
+    .step-title {
+      font-weight: 700;
+      font-size: .92rem;
+      margin-bottom: 3px;
+    }
+
+    .step-desc {
+      font-size: .8rem;
+      color: var(--gray-300);
+      line-height: 1.5;
+    }
+
+    /* ─── Score bar ─────────────────────────────────────────────── */
+    .score-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: .82rem;
+    }
+
+    .score-label {
+      width: 200px;
+      color: var(--gray-300);
+      flex-shrink: 0;
+    }
+
+    .score-bar-wrap {
+      flex: 1;
+      height: 8px;
+      border-radius: 99px;
+      background: rgba(255, 255, 255, .1);
+      overflow: hidden;
+    }
+
+    .score-bar {
+      height: 100%;
+      border-radius: 99px;
+      background: linear-gradient(90deg, var(--accent), var(--teal));
+    }
+
+    .score-val {
+      width: 36px;
+      text-align: right;
+      font-weight: 700;
+      color: var(--accent2);
+    }
+
+    /* ─── Large number stat ─────────────────────────────────────── */
+    .stat-num {
+      font-size: clamp(2.5rem, 5vw, 4rem);
+      font-weight: 900;
+      background: linear-gradient(135deg, var(--accent2), var(--teal));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    /* ─── Architecture nodes ────────────────────────────────────── */
+    .arch-node {
+      background: rgba(255, 255, 255, .05);
+      border: 1px solid rgba(255, 255, 255, .12);
+      border-radius: 12px;
+      padding: 12px 16px;
+      text-align: center;
+    }
+
+    .arch-node .an-icon {
+      font-size: 1.3rem;
+      margin-bottom: 4px;
+    }
+
+    .arch-node .an-title {
+      font-size: .78rem;
+      font-weight: 700;
+    }
+
+    .arch-node .an-sub {
+      font-size: .68rem;
+      color: #94a3b8;
+      margin-top: 2px;
+    }
+
+    .arch-node.highlight {
+      border-color: rgba(20, 184, 166, .5);
+      background: rgba(20, 184, 166, .1);
+    }
+
+    .arch-node.highlight2 {
+      border-color: rgba(59, 130, 246, .5);
+      background: rgba(59, 130, 246, .1);
+    }
+
+    .arch-box {
+      border-radius: 14px;
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .arch-box .ab-icon {
+      font-size: 1.5rem;
+    }
+
+    .arch-box .ab-label {
+      font-size: .82rem;
+      font-weight: 600;
+    }
+
+    .arch-box .ab-sub {
+      font-size: .72rem;
+      color: var(--gray-300);
+      margin-top: 2px;
+    }
+
+    .layer-label {
+      font-size: .68rem;
+      font-weight: 700;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--gray-500);
+      margin-bottom: 8px;
+    }
+
+    .arrow-down {
+      text-align: center;
+      font-size: 1.2rem;
+      color: var(--gray-500);
+      line-height: 1;
+      margin: 6px 0;
+    }
+
+    /* ─── MCP flow ──────────────────────────────────────────────── */
+    .mcp-flow {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 18px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, .04);
+      border: 1px solid rgba(255, 255, 255, .1);
+    }
+
+    .mcp-node {
+      flex: 1;
+      text-align: center;
+      padding: 14px 10px;
+      border-radius: 10px;
+    }
+
+    .mcp-node .mn-icon {
+      font-size: 1.8rem;
+      margin-bottom: 6px;
+    }
+
+    .mcp-node .mn-title {
+      font-size: .8rem;
+      font-weight: 700;
+    }
+
+    .mcp-node .mn-sub {
+      font-size: .7rem;
+      color: var(--gray-300);
+      margin-top: 3px;
+    }
+
+    .mcp-arrow {
+      font-size: 1.4rem;
+      color: var(--gray-500);
+      flex-shrink: 0;
+    }
+
+    .tool-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      width: 100%;
+    }
+
+    .tool-chip {
+      padding: 7px 10px;
+      border-radius: 8px;
+      text-align: center;
+      background: rgba(59, 130, 246, .1);
+      border: 1px solid rgba(59, 130, 246, .3);
+      font-size: .72rem;
+      font-weight: 600;
+      color: #93c5fd;
+    }
+
+    /* ─── AI criteria grid ──────────────────────────────────────── */
+    .criteria-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+      width: 100%;
+    }
+
+    .crit-card {
+      background: rgba(255, 255, 255, .04);
+      border: 1px solid rgba(255, 255, 255, .1);
+      border-radius: 12px;
+      padding: 14px 12px;
+      text-align: center;
+      transition: border-color .2s, background .2s;
+    }
+
+    .crit-card:hover {
+      border-color: rgba(245, 158, 11, .4);
+      background: rgba(245, 158, 11, .08);
+    }
+
+    .crit-icon {
+      font-size: 1.4rem;
+      margin-bottom: 6px;
+    }
+
+    .crit-title {
+      font-size: .7rem;
+      font-weight: 700;
+      line-height: 1.3;
+    }
+
+    .crit-score {
+      margin-top: 8px;
+      font-size: .68rem;
+      font-weight: 700;
+      color: var(--amber);
+    }
+
+    /* ─── Demo window ───────────────────────────────────────────── */
+    .demo-window {
+      background: rgba(5, 15, 35, .9);
+      border: 1px solid rgba(255, 255, 255, .14);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+
+    .demo-titlebar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      background: rgba(255, 255, 255, .06);
+      border-bottom: 1px solid rgba(255, 255, 255, .08);
+      font-size: .75rem;
+      color: var(--gray-300);
+    }
+
+    .dot-red {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #ef4444;
+    }
+
+    .dot-yellow {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #f59e0b;
+    }
+
+    .dot-green2 {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #22c55e;
+    }
+
+    /* ─── Link row ──────────────────────────────────────────────── */
+    .qr-placeholder {
+      width: 120px;
+      height: 120px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, .08);
+      border: 1px solid rgba(255, 255, 255, .15);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2.4rem;
+    }
+
+    .link-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: .85rem;
+      color: var(--gray-300);
+    }
+
+    .link-row a {
+      color: var(--accent2);
+      text-decoration: none;
+    }
+
+    .link-row a:hover {
+      text-decoration: underline;
+    }
+
+    /* ─── Keyboard hint ─────────────────────────────────────────── */
+    #keyhint {
+      position: fixed;
+      bottom: 28px;
+      left: 18px;
+      font-size: .7rem;
+      color: var(--gray-700);
+      z-index: 1000;
+    }
+
+    kbd {
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid var(--gray-700);
+      background: rgba(255, 255, 255, .06);
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="progress"></div>
+  <button class="nav-btn" id="prev" aria-label="Previous slide">&#8592;</button>
+  <button class="nav-btn" id="next" aria-label="Next slide">&#8594;</button>
+  <div id="dots"></div>
+  <div id="counter"></div>
+  <div id="keyhint"><kbd>&larr;</kbd> <kbd>&rarr;</kbd> &nbsp;navigate &nbsp;&nbsp; <kbd>Space</kbd> next</div>
+
+  <div class="deck">
+
+    <!-- ══ SLIDE 1 — HERO ══════════════════════════════════════════ -->
+    <section class="slide" id="s1">
+      <div class="bg-grid"></div>
+      <div class="bg-glow" style="width:700px;height:700px;top:-200px;right:-160px;
+      background:radial-gradient(circle,rgba(59,130,246,.3) 0%,transparent 70%);"></div>
+      <div class="bg-glow" style="width:500px;height:500px;bottom:-120px;left:40px;
+      background:radial-gradient(circle,rgba(20,184,166,.22) 0%,transparent 70%);"></div>
+      <div class="bg-glow" style="width:350px;height:350px;top:40%;left:55%;
+      background:radial-gradient(circle,rgba(168,85,247,.15) 0%,transparent 70%);"></div>
+
+      <div style="position:relative;z-index:1;display:flex;flex-direction:column;
+                align-items:center;text-align:center;max-width:940px;">
+
+        <!-- Logo cluster -->
+        <div style="display:flex;align-items:center;gap:16px;margin-bottom:48px;">
+          <div style="width:52px;height:52px;border-radius:14px;
+                    background:linear-gradient(135deg,var(--accent),var(--teal));
+                    display:flex;align-items:center;justify-content:center;
+                    font-size:1.2rem;font-weight:800;color:white;
+                    font-family:'Cascadia Code','Fira Code',monospace;
+                    box-shadow:0 0 40px rgba(59,130,246,.35);">S2</div>
+          <span style="font-size:.9rem;font-weight:600;color:var(--gray-300);">
+            SysML v2 LSP Hack &nbsp;·&nbsp; <span data-version>v0.8.0</span>
+          </span>
+          <span class="tag">Open Source · MIT</span>
+        </div>
+
+        <!-- Headline -->
+        <h1 style="font-size:clamp(2.8rem,6vw,4.5rem);font-weight:900;line-height:1.05;
+                 letter-spacing:-.04em;margin-bottom:28px;">
+          Can AI Spot What<br>
+          <span style="background:linear-gradient(90deg,#60a5fa,#14b8a6,#a78bfa);
+                     -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+                     background-size:200% auto;">
+            Engineers Miss?
+          </span>
+        </h1>
+
+        <p style="font-size:clamp(1.05rem,1.7vw,1.25rem);color:var(--gray-300);
+                line-height:1.75;max-width:660px;margin-bottom:40px;">
+          We layered an <strong style="color:var(--white);">AI reasoning engine</strong> on top of a
+          <strong style="color:var(--white);">SysML v2 Language Server</strong> — giving LLMs
+          structured tools, formal context, and 10 quality criteria to find
+          real design flaws before they become real failures.
+        </p>
+
+        <!-- Tech pills - centred row -->
+        <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-bottom:40px;">
+          <span class="pill pill-blue">SysML v2</span>
+          <span class="pill pill-teal">Language Server Protocol</span>
+          <span class="pill pill-purple">Model Context Protocol</span>
+          <span class="pill pill-amber">LLM Reasoning</span>
+          <span class="pill pill-green">TypeScript + ANTLR4</span>
+        </div>
+
+        <!-- Three highlight cards -->
+        <div class="three-col" style="gap:14px;">
+          <div style="padding:18px 20px;border-radius:14px;
+                    background:rgba(20,184,166,.06);border:1px solid rgba(20,184,166,.25);
+                    text-align:center;">
+            <div style="font-size:1.8rem;margin-bottom:6px;">🔍</div>
+            <div style="font-size:.82rem;font-weight:700;margin-bottom:4px;">Deterministic Checks</div>
+            <div style="font-size:.72rem;color:var(--gray-300);">25+ LSP features — parsing, diagnostics, type
+              validation</div>
+          </div>
+          <div style="padding:18px 20px;border-radius:14px;
+                    background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.25);
+                    text-align:center;">
+            <div style="font-size:1.8rem;margin-bottom:6px;">🧠</div>
+            <div style="font-size:.82rem;font-weight:700;margin-bottom:4px;">AI-Powered Review</div>
+            <div style="font-size:.72rem;color:var(--gray-300);">10 structured criteria for deeper systems reasoning
+            </div>
+          </div>
+          <div style="padding:18px 20px;border-radius:14px;
+                    background:rgba(168,85,247,.06);border:1px solid rgba(168,85,247,.25);
+                    text-align:center;">
+            <div style="font-size:1.8rem;margin-bottom:6px;">🤖</div>
+            <div style="font-size:.82rem;font-weight:700;margin-bottom:4px;">Automated at Scale</div>
+            <div style="font-size:.72rem;color:var(--gray-300);">CI/CD PR bot, web UI, VS Code, Python — every workflow
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ SLIDE 2 — THE PROBLEM ════════════════════════════════════ -->
+    <section class="slide" id="s2">
+      <div class="bg-grid"></div>
+      <div class="bg-glow" style="width:500px;height:500px;left:-100px;top:50%;transform:translateY(-50%);
+      background:radial-gradient(circle,rgba(245,158,11,.15) 0%,transparent 70%);"></div>
+
+      <div style="position:relative;z-index:1;width:100%;max-width:1000px;">
+        <p class="eyebrow">The Opportunity</p>
+        <h2 class="headline" style="margin-bottom:10px;">
+          Models in Natural Language —<br><span>Made for LLMs</span>
+        </h2>
+        <div class="divider"></div>
+        <p class="subhead" style="margin-bottom:32px;max-width:800px;">
+          SysML v2 models describe entire systems — parts, actions, states, requirements —
+          using <strong>structured natural language</strong>. That makes them a perfect use case
+          for Large Language Models, which can read, reason over, and spot the issues
+          that human reviewers leave behind.
+        </p>
+        <div class="three-col">
+          <div class="card">
+            <div class="card-icon" style="background:rgba(59,130,246,.15);">📝</div>
+            <div class="card-title">Natural Language Models</div>
+            <div class="card-body">SysML v2 reads like structured English — part definitions, requirements, constraints.
+              LLMs already understand this language natively.</div>
+          </div>
+          <div class="card">
+            <div class="card-icon" style="background:rgba(239,68,68,.15);">💥</div>
+            <div class="card-title">Human Reviewers Miss Issues</div>
+            <div class="card-body">Large models with thousands of interconnected elements hide subtle flaws — missing
+              failure modes, conflicting requirements, incomplete safety paths.</div>
+          </div>
+          <div class="card">
+            <div class="card-icon" style="background:rgba(20,184,166,.15);">🤖</div>
+            <div class="card-title">LLMs Can Spot What We Miss</div>
+            <div class="card-body">Give an LLM the full model context and structured criteria, and it finds emergent
+              issues, redundancies, and gaps that slip past expert review.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ SLIDE 3 — HOW WE BUILT IT (combined 3+4+5) ═══════════════ -->
+    <section class="slide" id="s3">
+      <div class="bg-grid"></div>
+      <div class="bg-glow" style="width:560px;height:560px;right:-80px;top:-80px;
+      background:radial-gradient(circle,rgba(20,184,166,.18) 0%,transparent 70%);"></div>
+      <div class="bg-glow" style="width:400px;height:400px;bottom:-80px;left:-40px;
+      background:radial-gradient(circle,rgba(59,130,246,.15) 0%,transparent 70%);"></div>
+
+      <div style="position:relative;z-index:1;width:100%;max-width:960px;">
+        <p class="eyebrow">How We Built It</p>
+        <h2 class="headline" style="margin-bottom:10px;">
+          Deterministic Checks First,<br><span>AI Review on Top</span>
+        </h2>
+        <div class="divider"></div>
+        <p class="subhead" style="margin-bottom:28px;font-size:.9rem;max-width:760px;">
+          We built a <strong>Language Server</strong> that parses and validates SysML v2 models
+          deterministically. Then we layered <strong>AI-powered review</strong> on top — giving the LLM
+          parsed model data and structured criteria to reason with.
+        </p>
+
+        <!-- Stacked layers diagram -->
+        <div style="display:flex;flex-direction:column;gap:0;max-width:740px;margin:0 auto;">
+          <!-- AI Review Layer -->
+          <div style="padding:24px 28px;border-radius:16px 16px 4px 4px;
+                    background:linear-gradient(135deg,rgba(59,130,246,.1) 0%,rgba(168,85,247,.08) 100%);
+                    border:1px solid rgba(59,130,246,.3);border-bottom:none;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+              <div style="width:36px;height:36px;border-radius:10px;
+                        background:rgba(59,130,246,.2);display:flex;align-items:center;
+                        justify-content:center;font-size:1.1rem;">🧠</div>
+              <div>
+                <div style="font-size:.92rem;font-weight:700;color:#93c5fd;">AI Review Layer</div>
+                <div style="font-size:.7rem;color:var(--gray-500);">LLM reasons over parsed model data</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+              <span class="pill pill-blue">10 Quality Criteria</span>
+              <span class="pill pill-blue">Structured Scoring (0.0–1.0)</span>
+              <span class="pill pill-blue">Confidence Levels</span>
+              <span class="pill pill-purple">MCP Tools for Model Access</span>
+            </div>
+          </div>
+
+          <!-- Connector -->
+          <div style="display:flex;justify-content:center;align-items:center;height:36px;
+                    background:linear-gradient(180deg,rgba(59,130,246,.15),rgba(20,184,166,.15));
+                    border-left:1px solid rgba(255,255,255,.08);border-right:1px solid rgba(255,255,255,.08);">
+            <div style="font-size:.72rem;font-weight:600;color:var(--gray-400);letter-spacing:.08em;">▲▲▲ &nbsp; feeds
+              into &nbsp; ▲▲▲</div>
+          </div>
+
+          <!-- Deterministic Layer -->
+          <div style="padding:24px 28px;border-radius:4px 4px 16px 16px;
+                    background:linear-gradient(135deg,rgba(20,184,166,.1) 0%,rgba(20,184,166,.05) 100%);
+                    border:1px solid rgba(20,184,166,.3);border-top:none;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+              <div style="width:36px;height:36px;border-radius:10px;
+                        background:rgba(20,184,166,.2);display:flex;align-items:center;
+                        justify-content:center;font-size:1.1rem;">⚙️</div>
+              <div>
+                <div style="font-size:.92rem;font-weight:700;color:#5eead4;">Deterministic Language Server</div>
+                <div style="font-size:.7rem;color:var(--gray-500);">Parses, validates &amp; analyses SysML v2</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+              <span class="pill pill-teal">ANTLR4 Parser</span>
+              <span class="pill pill-teal">Symbol Table</span>
+              <span class="pill pill-teal">25+ IDE Features</span>
+              <span class="pill pill-teal">Diagnostics</span>
+              <span class="pill pill-teal">Complexity Analysis</span>
+              <span class="pill pill-amber">Mermaid Diagrams</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top:20px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+          <span class="pill pill-blue" style="font-size:.78rem;padding:6px 14px;">VS Code</span>
+          <span class="pill pill-teal" style="font-size:.78rem;padding:6px 14px;">Web Browser</span>
+          <span class="pill pill-amber" style="font-size:.78rem;padding:6px 14px;">Python / Jupyter</span>
+          <span class="pill pill-purple" style="font-size:.78rem;padding:6px 14px;">Claude / Copilot</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ SLIDE 4 — 10 AI QUALITY CRITERIA ════════════════════════ -->
+    <section class="slide" id="s4">
+      <div class="bg-grid"></div>
+      <div class="bg-glow" style="width:500px;height:500px;left:-60px;bottom:-60px;
+      background:radial-gradient(circle,rgba(245,158,11,.18) 0%,transparent 70%);"></div>
+
+      <div style="position:relative;z-index:1;width:100%;max-width:1000px;">
+        <p class="eyebrow">The Core Innovation</p>
+        <h2 class="headline" style="margin-bottom:10px;">
+          10 Structured Criteria for<br><span>AI Model Assessment</span>
+        </h2>
+        <div class="divider"></div>
+        <p class="subhead" style="margin-bottom:20px;font-size:.88rem;">
+          Each criterion guides the LLM with scoring guidance (0.0–1.0 harm probability)
+          and confidence levels (HIGH / MEDIUM / LOW), turning free-form AI output into
+          <strong>structured, auditable assessments</strong>.
+        </p>
+        <div class="criteria-grid">
+          <div class="crit-card">
+            <div class="crit-icon">✅</div>
+            <div class="crit-title">Completeness</div>
+            <div class="crit-score">0.0–1.0 harm prob.</div>
+          </div>
+          <div class="crit-card">
+            <div class="crit-icon">🎯</div>
+            <div class="crit-title">Correctness &amp; Intent</div>
+            <div class="crit-score">0.0–1.0 harm prob.</div>
+          </div>
+          <div class="crit-card">
+            <div class="crit-icon">🔀</div>
+            <div class="crit-title">Misrepresentation &amp; Conflation</div>
+            <div class="crit-score">0.0–1.0 harm prob.</div>
+          </div>
+          <div class="crit-card">
+            <div class="crit-icon">♻️</div>
+            <div class="crit-title">Redundancy</div>
+            <div class="crit-score">0.0–1.0 harm prob.</div>
+          </div>
+          <div class="crit-card">
+            <div class="crit-icon">⚔️</div>
+            <div class="crit-title">Conflicting Requirements</div>
+            <div class="crit-score">0.0–1.0 harm prob.</div>
+          </div>
+          <div class="crit-card">
+            <div class="crit-icon">🌍</div>
+            <div class="crit-title">Contextual Plausibility</div>
+            <div class="crit-score">0.0–1.0 harm prob.</div>
+          </div>
+          <div class="crit-card">
+            <div class="crit-icon">🛡️</div>
+            <div class="crit-title">Failure Modes &amp; Resilience</div>
+            <div class="crit-score">0.0–1.0 harm prob.</div>
+          </div>
+          <div class="crit-card">
+            <div class="crit-icon">📐</div>
+            <div class="crit-title">Abstraction Consistency</div>
+            <div class="crit-score">0.0–1.0 harm prob.</div>
+          </div>
+          <div class="crit-card">
+            <div class="crit-icon">💡</div>
+            <div class="crit-title">Assumptions &amp; Rationale</div>
+            <div class="crit-score">0.0–1.0 harm prob.</div>
+          </div>
+          <div class="crit-card">
+            <div class="crit-icon">🌊</div>
+            <div class="crit-title">Emergent System Properties</div>
+            <div class="crit-score">0.0–1.0 harm prob.</div>
+          </div>
+        </div>
+        <div style="margin-top:18px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <span class="pill pill-amber">Scoring: 0.0 &rarr; 1.0</span>
+          <span class="pill pill-green">Confidence: HIGH / MEDIUM / LOW</span>
+          <span class="pill pill-blue">Used as LLM system prompt context</span>
+          <span class="pill pill-purple">Auditable · Repeatable · Structured</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ SLIDE 5 — LIVE DEMO ═══════════════════════════════════════ -->
+    <section class="slide" id="s5">
+      <div class="bg-grid"></div>
+      <div class="bg-glow" style="width:600px;height:600px;top:50%;left:50%;
+      transform:translate(-50%,-50%);
+      background:radial-gradient(circle,rgba(20,184,166,.22) 0%,transparent 65%);"></div>
+      <div class="bg-glow" style="width:350px;height:350px;bottom:-60px;right:60px;
+      background:radial-gradient(circle,rgba(59,130,246,.18) 0%,transparent 70%);"></div>
+
+      <div style="position:relative;z-index:1;width:100%;max-width:1100px;
+                display:flex;flex-direction:column;align-items:center;text-align:center;">
+        <p class="eyebrow" style="margin-bottom:6px;">Demonstration</p>
+        <h2 style="font-size:clamp(1.6rem,3.5vw,2.2rem);font-weight:900;line-height:1.1;
+                 letter-spacing:-.02em;margin-bottom:12px;">
+          Web Review Tool —
+          <span style="background:linear-gradient(90deg,#14b8a6,#60a5fa);
+                     -webkit-background-clip:text;-webkit-text-fill-color:transparent;">
+            Live Demo
+          </span>
+        </h2>
+        <video controls playsinline style="width:100%;max-height:72vh;border-radius:12px;
+                    border:1px solid rgba(255,255,255,.1);
+                    box-shadow:0 8px 40px rgba(0,0,0,.5);">
+          <source src="ReviewModuleDemo.mp4" type="video/mp4">
+        </video>
+      </div>
+    </section>
+
+    <!-- ══ SLIDE 6 — GITHUB PR BOT ═════════════════════════════════ -->
+    <section class="slide" id="s6">
+      <div class="bg-grid"></div>
+      <div class="bg-glow" style="width:500px;height:500px;left:-60px;top:-30px;
+      background:radial-gradient(circle,rgba(168,85,247,.2) 0%,transparent 70%);"></div>
+      <div class="bg-glow" style="width:400px;height:400px;right:-40px;bottom:-40px;
+      background:radial-gradient(circle,rgba(59,130,246,.15) 0%,transparent 70%);"></div>
+
+      <div style="position:relative;z-index:1;width:100%;max-width:1000px;">
+        <p class="eyebrow">CI / CD Integration</p>
+        <h2 class="headline" style="margin-bottom:10px;">
+          GitHub PR Bot —<br><span>Automated Review at Every Push</span>
+        </h2>
+        <div class="divider"></div>
+        <div class="two-col" style="margin-top:20px;align-items:start;gap:22px;">
+          <!-- Left: how it works -->
+          <div style="display:flex;flex-direction:column;gap:16px;">
+            <p class="subhead" style="font-size:.88rem;">
+              Every pull request with <code>.sysml</code> changes triggers an
+              <strong>automated AI review</strong> via Azure Pipelines.
+              The bot parses each file, runs all 10 quality criteria through the LLM,
+              and posts structured findings directly as PR comments.
+            </p>
+            <div class="step-list">
+              <div class="step">
+                <div class="step-num" style="background:rgba(168,85,247,.15);color:#d8b4fe;">1</div>
+                <div class="step-content">
+                  <div class="step-title">PR Opened / Updated</div>
+                  <div class="step-desc">Azure Pipeline detects changed .sysml files</div>
+                </div>
+              </div>
+              <div class="step">
+                <div class="step-num" style="background:rgba(59,130,246,.15);color:#93c5fd;">2</div>
+                <div class="step-content">
+                  <div class="step-title">AI Review Triggered</div>
+                  <div class="step-desc">Each file reviewed against 10 quality criteria via GPT</div>
+                </div>
+              </div>
+              <div class="step">
+                <div class="step-num" style="background:rgba(20,184,166,.15);color:#5eead4;">3</div>
+                <div class="step-content">
+                  <div class="step-title">PR Comment Posted</div>
+                  <div class="step-desc">Structured scorecard with issues, scores &amp; recommendations</div>
+                </div>
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+              <span class="pill pill-purple">Azure Pipelines</span>
+              <span class="pill pill-blue">GitHub API</span>
+              <span class="pill pill-amber">GPT via AI Gateway</span>
+            </div>
+          </div>
+          <!-- Right: demo space -->
+          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;
+                    min-height:340px;border-radius:16px;border:2px dashed rgba(168,85,247,.35);
+                    background:rgba(168,85,247,.04);padding:24px;">
+            <div style="font-size:2.5rem;margin-bottom:16px;">🤖</div>
+            <div style="font-size:1rem;font-weight:700;color:var(--gray-300);margin-bottom:8px;">
+              Live PR Bot Demo
+            </div>
+            <div style="font-size:.8rem;color:var(--gray-500);text-align:center;max-width:240px;">
+              Showing a real PR review comment posted by the automated pipeline
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ SLIDE 7 — IMPACT: MISTAKES AT SCALE ═══════════════════════ -->
+    <section class="slide" id="s7">
+      <div class="bg-grid"></div>
+      <div class="bg-glow" style="width:700px;height:700px;top:50%;left:50%;
+      transform:translate(-50%,-50%);
+      background:radial-gradient(circle,rgba(239,68,68,.14) 0%,transparent 65%);"></div>
+      <div class="bg-glow" style="width:400px;height:400px;top:-40px;right:-40px;
+      background:radial-gradient(circle,rgba(59,130,246,.16) 0%,transparent 70%);"></div>
+
+      <div style="position:relative;z-index:1;width:100%;max-width:1000px;">
+        <p class="eyebrow">The Bigger Picture</p>
+        <h2 class="headline" style="margin-bottom:10px;">
+          Catching Mistakes at Scale —<br><span>Before They Become Failures</span>
+        </h2>
+        <div class="divider"></div>
+        <p class="subhead" style="margin-bottom:24px;font-size:.9rem;max-width:800px;">
+          Systems engineering errors caught late cost <strong>100–1000× more</strong> to fix.
+          The earlier you catch mistakes — at the <em>modelling stage</em>, not in testing or production —
+          the cheaper and safer the outcome. AI can review every model change,
+          every PR, across every team — continuously and consistently.
+        </p>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:24px;">
+          <div style="padding:20px;border-radius:14px;background:rgba(239,68,68,.08);
+                    border:1px solid rgba(239,68,68,.3);text-align:center;">
+            <div style="font-size:2rem;margin-bottom:8px;">🚨</div>
+            <div style="font-size:.85rem;font-weight:700;color:#fca5a5;margin-bottom:6px;">Missing Failure Modes</div>
+            <div style="font-size:.75rem;color:var(--gray-300);line-height:1.5;">
+              AI spots missing safety paths, single points of failure, and incomplete state machines
+            </div>
+          </div>
+          <div style="padding:20px;border-radius:14px;background:rgba(245,158,11,.08);
+                    border:1px solid rgba(245,158,11,.3);text-align:center;">
+            <div style="font-size:2rem;margin-bottom:8px;">⚔️</div>
+            <div style="font-size:.85rem;font-weight:700;color:#fcd34d;margin-bottom:6px;">Conflicting Requirements
+            </div>
+            <div style="font-size:.75rem;color:var(--gray-300);line-height:1.5;">
+              Contradictions between subsystems that humans overlook across large models
+            </div>
+          </div>
+          <div style="padding:20px;border-radius:14px;background:rgba(168,85,247,.08);
+                    border:1px solid rgba(168,85,247,.3);text-align:center;">
+            <div style="font-size:2rem;margin-bottom:8px;">🌊</div>
+            <div style="font-size:.85rem;font-weight:700;color:#d8b4fe;margin-bottom:6px;">Emergent Properties</div>
+            <div style="font-size:.75rem;color:var(--gray-300);line-height:1.5;">
+              System-level behaviours that only surface when parts interact — invisible in isolation
+            </div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div class="card" style="border-color:rgba(20,184,166,.3);">
+            <div style="font-size:.8rem;font-weight:700;color:#5eead4;margin-bottom:10px;">🔁 Automated at Every Stage
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px;">
+              <div style="display:flex;align-items:flex-start;gap:8px;font-size:.78rem;color:var(--gray-300);">
+                <span style="color:var(--teal);">▸</span>
+                <strong>IDE:</strong> Real-time AI review as engineers work in VS Code
+              </div>
+              <div style="display:flex;align-items:flex-start;gap:8px;font-size:.78rem;color:var(--gray-300);">
+                <span style="color:var(--teal);">▸</span>
+                <strong>PR Gate:</strong> Every model change reviewed before merge
+              </div>
+              <div style="display:flex;align-items:flex-start;gap:8px;font-size:.78rem;color:var(--gray-300);">
+                <span style="color:var(--teal);">▸</span>
+                <strong>Web Tool:</strong> On-demand deep review for any .sysml file
+              </div>
+              <div style="display:flex;align-items:flex-start;gap:8px;font-size:.78rem;color:var(--gray-300);">
+                <span style="color:var(--teal);">▸</span>
+                <strong>Consistent:</strong> Same 10 criteria applied everywhere, every time
+              </div>
+            </div>
+          </div>
+          <div class="card" style="border-color:rgba(59,130,246,.3);">
+            <div style="font-size:.8rem;font-weight:700;color:#93c5fd;margin-bottom:10px;">🎯 The Goal</div>
+            <div style="display:flex;flex-direction:column;gap:8px;">
+              <div style="display:flex;align-items:flex-start;gap:8px;font-size:.78rem;color:var(--gray-300);">
+                <span style="color:var(--accent2);">▸</span>
+                No model ships with unexamined failure modes
+              </div>
+              <div style="display:flex;align-items:flex-start;gap:8px;font-size:.78rem;color:var(--gray-300);">
+                <span style="color:var(--accent2);">▸</span>
+                Every engineer gets an AI second pair of eyes
+              </div>
+              <div style="display:flex;align-items:flex-start;gap:8px;font-size:.78rem;color:var(--gray-300);">
+                <span style="color:var(--accent2);">▸</span>
+                Structured, auditable — not just LLM opinions
+              </div>
+              <div style="display:flex;align-items:flex-start;gap:8px;font-size:.78rem;color:var(--gray-300);">
+                <span style="color:var(--accent2);">▸</span>
+                Scale to thousands of models across an organisation
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ SLIDE 8 — WHAT WE LEARNT ═════════════════════════════════ -->
+    <section class="slide" id="s8">
+      <div class="bg-grid"></div>
+      <div class="bg-glow" style="width:550px;height:550px;top:50%;left:50%;
+      transform:translate(-50%,-50%);
+      background:radial-gradient(circle,rgba(34,197,94,.16) 0%,transparent 65%);"></div>
+
+      <div style="position:relative;z-index:1;width:100%;max-width:900px;
+                display:flex;flex-direction:column;align-items:center;text-align:center;">
+        <p class="eyebrow">Key Learnings</p>
+        <h2 class="headline" style="margin-bottom:10px;">
+          What We Learnt<br><span>Along the Way</span>
+        </h2>
+        <div class="divider" style="margin-bottom:24px;"></div>
+
+        <div class="card" style="border-color:rgba(34,197,94,.3);text-align:left;max-width:780px;margin-bottom:16px;">
+          <div style="font-size:.85rem;font-weight:700;color:#86efac;margin-bottom:10px;">🎯 The Criteria is Key</div>
+          <div style="font-size:.82rem;color:var(--gray-300);line-height:1.65;">
+            Structured criteria are what turn an LLM from a chatbot into a <strong>systematic reviewer</strong>.
+            Without them, you get vague opinions. With them, you get auditable, repeatable assessments
+            that surface real issues every time.
+          </div>
+        </div>
+
+        <div class="card" style="border-color:rgba(245,158,11,.3);text-align:left;max-width:780px;margin-bottom:16px;">
+          <div style="font-size:.85rem;font-weight:700;color:#fcd34d;margin-bottom:10px;">💡 More Issues Than We
+            Expected</div>
+          <div style="font-size:.82rem;color:var(--gray-300);line-height:1.65;">
+            We expected to find one or two issues per model. But with criteria guiding the AI,
+            it consistently surfaced <strong>more valid findings</strong> than anticipated — subtle gaps
+            in failure modes, unspoken assumptions, and emergent risks that were genuinely important.
+          </div>
+        </div>
+
+        <div class="card" style="border-color:rgba(59,130,246,.3);text-align:left;max-width:780px;">
+          <div style="font-size:.85rem;font-weight:700;color:#93c5fd;margin-bottom:10px;">🚀 Going Forward — Standards
+            like ISO 15288</div>
+          <div style="font-size:.82rem;color:var(--gray-300);line-height:1.65;">
+            The same approach can extend beyond our 10 criteria. Standards like
+            <strong>ISO 15288</strong> could be encoded as additional criteria packs, letting the AI
+            review models against <strong>formal engineering standards</strong> — not just best practices.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ SLIDE 9 — THANK YOU ═══════════════════════════════════════ -->
+    <section class="slide" id="s9">
+      <div class="bg-grid"></div>
+      <div class="bg-glow" style="width:700px;height:700px;top:50%;left:50%;
+      transform:translate(-50%,-50%);
+      background:radial-gradient(circle,rgba(59,130,246,.22) 0%,transparent 65%);"></div>
+      <div class="bg-glow" style="width:400px;height:400px;bottom:-80px;left:80px;
+      background:radial-gradient(circle,rgba(20,184,166,.2) 0%,transparent 70%);"></div>
+      <div class="bg-glow" style="width:300px;height:300px;top:30px;right:80px;
+      background:radial-gradient(circle,rgba(168,85,247,.2) 0%,transparent 70%);"></div>
+
+      <div style="position:relative;z-index:1;width:100%;max-width:860px;
+                display:flex;flex-direction:column;align-items:center;text-align:center;">
+        <div style="font-size:3rem;margin-bottom:20px;">⚙️</div>
+        <p class="eyebrow">Open Source · MIT License</p>
+        <h2 style="font-size:clamp(2.2rem,5vw,3.6rem);font-weight:900;line-height:1.05;
+                 letter-spacing:-.03em;margin-bottom:16px;">
+          SysML v2
+          <span style="background:linear-gradient(90deg,#60a5fa,#14b8a6);
+                     -webkit-background-clip:text;-webkit-text-fill-color:transparent;">
+            LSP Hack
+          </span>
+        </h2>
+        <p style="font-size:1.05rem;color:var(--gray-300);line-height:1.7;
+                max-width:600px;margin-bottom:36px;">
+          Formal language tooling meets AI reasoning.<br>
+          Helping LLMs spot the issues that matter — before they ship.
+        </p>
+        <div style="display:flex;gap:16px;justify-content:center;margin-bottom:36px;flex-wrap:wrap;">
+          <span class="pill pill-blue" style="font-size:.85rem;padding:8px 18px;">🧩 VS Code Marketplace</span>
+          <span class="pill pill-teal" style="font-size:.85rem;padding:8px 18px;">📦 NPM: sysml-v2-lsp</span>
+          <span class="pill pill-amber" style="font-size:.85rem;padding:8px 18px;">🤖 sysml-mcp CLI</span>
+          <span class="pill pill-green" style="font-size:.85rem;padding:8px 18px;">🌐 <span
+              data-version>v0.8.0</span></span>
+        </div>
+        <div style="display:flex;gap:24px;align-items:center;justify-content:center;flex-wrap:wrap;">
+          <div class="qr-placeholder">🔗</div>
+          <div style="display:flex;flex-direction:column;gap:10px;text-align:left;">
+            <div class="link-row">
+              <span>📦</span>
+              <a href="https://github.com/Loryan2509/sysml-v2-lsp-hack" target="_blank">
+                github.com/Loryan2509/sysml-v2-lsp-hack
+              </a>
+            </div>
+            <div class="link-row">
+              <span>🧩</span>
+              <span>VS Code: <a href="https://marketplace.visualstudio.com/items?itemName=JamieD.sysml-v2-support"
+                  target="_blank">JamieD.sysml-v2-support</a></span>
+            </div>
+            <div class="link-row">
+              <span>📖</span>
+              <span>SysML v2 Spec: <a href="https://www.omgsysml.org/SysML-2.htm"
+                  target="_blank">omgsysml.org</a></span>
+            </div>
+            <div class="link-row">
+              <span>🔤</span>
+              <span>Grammar: <a href="https://github.com/daltskin/sysml-v2-grammar"
+                  target="_blank">daltskin/sysml-v2-grammar</a></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div><!-- /.deck -->
+
+  <script>
+    const VERSION = '0.8.0';
+    // Stamp every element that carries a data-version attribute with the version constant
+    document.querySelectorAll('[data-version]').forEach(el => { el.textContent = 'v' + VERSION; });
+
+    const slides = Array.from(document.querySelectorAll('.slide'));
+    const total = slides.length;
+    let cur = 0;
+
+    // Build dots
+    const dotsEl = document.getElementById('dots');
+    slides.forEach((_, i) => {
+      const d = document.createElement('div');
+      d.className = 'dot' + (i === 0 ? ' active' : '');
+      d.addEventListener('click', () => goTo(i));
+      dotsEl.appendChild(d);
+    });
+    const dots = Array.from(dotsEl.querySelectorAll('.dot'));
+
+    function goTo(idx) {
+      if (idx === cur || idx < 0 || idx >= total) return;
+      const prev = cur;
+      cur = idx;
+
+      slides[prev].classList.remove('active');
+      slides[prev].classList.add('exit-left');
+      setTimeout(() => slides[prev].classList.remove('exit-left'), 600);
+
+      slides[cur].classList.add('active');
+
+      dots.forEach((d, i) => d.classList.toggle('active', i === cur));
+      document.getElementById('counter').textContent = (cur + 1) + ' / ' + total;
+      document.getElementById('progress').style.width = ((cur + 1) / total * 100) + '%';
+    }
+
+    // Initialise first slide
+    slides[0].classList.add('active');
+    document.getElementById('counter').textContent = '1 / ' + total;
+    document.getElementById('progress').style.width = (1 / total * 100) + '%';
+
+    document.getElementById('prev').addEventListener('click', () => goTo(cur - 1));
+    document.getElementById('next').addEventListener('click', () => goTo(cur + 1));
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); goTo(cur + 1); }
+      else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); goTo(cur - 1); }
+      else if (e.key === 'Home') goTo(0);
+      else if (e.key === 'End') goTo(total - 1);
+    });
+
+    // Touch swipe support
+    let touchStartX = 0;
+    document.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; }, { passive: true });
+    document.addEventListener('touchend', e => {
+      const dx = e.changedTouches[0].clientX - touchStartX;
+      if (Math.abs(dx) > 50) dx < 0 ? goTo(cur + 1) : goTo(cur - 1);
+    });
+  </script>
+</body>
+
+</html>
