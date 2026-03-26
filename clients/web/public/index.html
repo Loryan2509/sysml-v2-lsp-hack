@@ -1159,7 +1159,7 @@
     .review-report-header {
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      gap: 12px;
       padding: 10px 16px;
       background: var(--bg-panel);
       border-bottom: 1px solid var(--border);
@@ -1172,6 +1172,7 @@
       text-transform: uppercase;
       letter-spacing: 0.06em;
       color: var(--text-muted);
+      white-space: nowrap;
     }
 
     .review-progress-text {
@@ -1179,6 +1180,10 @@
       color: var(--text-muted);
       font-style: italic;
       flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     /* ── Report toolbar (expand / collapse / filter controls) ── */
@@ -1186,6 +1191,9 @@
       display: flex;
       align-items: center;
       gap: 4px;
+      border-left: 1px solid var(--border);
+      padding-left: 12px;
+      flex-shrink: 0;
     }
 
     .report-tool-btn {
