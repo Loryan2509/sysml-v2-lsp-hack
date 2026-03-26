@@ -221,7 +221,7 @@ def get_changed_sysml_files(base_sha: str, repo_root: Path) -> list[Path]:
 # LLM API helpers
 # ---------------------------------------------------------------------------
 
-def _call_llm(messages: list[dict[str, str]], max_tokens: int = 2000) -> str | None:
+def _call_llm(messages: list[dict[str, str]], max_tokens: int = 16000) -> str | None:
     """Call OpenAI or Azure OpenAI chat completions; return assistant text or None."""
     azure_endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT", "").strip().rstrip("/")
     azure_key = os.environ.get("AZURE_OPENAI_KEY", "").strip()
@@ -266,14 +266,37 @@ def _call_llm(messages: list[dict[str, str]], max_tokens: int = 2000) -> str | N
     req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
     try:
         with urllib.request.urlopen(req, timeout=120) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            return data["choices"][0]["message"]["content"]
+            raw = resp.read().decode("utf-8")
+            print(f"[LLM] Response received ({len(raw)} bytes)", file=sys.stderr)
+            data = json.loads(raw)
+            if "choices" not in data:
+                print(f"[LLM] Unexpected response shape — keys: {list(data.keys())}", file=sys.stderr)
+                if "error" in data:
+                    print(f"[LLM] Gateway error: {json.dumps(data['error'])}", file=sys.stderr)
+                return None
+            choice = data["choices"][0]
+            msg = choice.get("message", {})
+            finish_reason = choice.get("finish_reason", "unknown")
+            print(f"[LLM] finish_reason={finish_reason}, message keys={list(msg.keys())}", file=sys.stderr)
+            content = msg.get("content") or ""
+            # Reasoning models (o-series, gpt-5.x) may put output in reasoning_content
+            if not content:
+                content = msg.get("reasoning_content") or msg.get("refusal") or ""
+            if not content:
+                # Last resort: dump the full raw response (sanitised) so we can diagnose
+                safe = raw.replace(azure_key, "***").replace(azure_deployment, "***")
+                print(f"[LLM] Full response (sanitised): {safe}", file=sys.stderr)
+                return None
+            return content
     except urllib.error.HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")
-        print(f"[LLM] HTTP {exc.code}: {body[:400]}", file=sys.stderr)
+        print(f"[LLM] HTTP {exc.code} error from API", file=sys.stderr)
+        # Sanitise body before printing in case secrets are embedded
+        safe_body = body[:600].replace(azure_key, "***").replace(azure_deployment, "***")
+        print(f"[LLM] Response body: {safe_body}", file=sys.stderr)
         return None
-    except Exception as exc:
-        print(f"[LLM] Request failed: {exc}", file=sys.stderr)
+    except BaseException as exc:
+        print(f"[LLM] Request failed ({type(exc).__name__}): {exc}", file=sys.stderr)
         return None
 
 
@@ -498,10 +521,13 @@ def main() -> None:
             code = sysml_file.read_text(encoding="utf-8")
             messages = build_review_prompt(code, diags, sysml_file.name)
             llm_text = _call_llm(messages)
-            if llm_text:
+            if llm_text is not None and llm_text != "":
                 print(f"[review]   ✓ LLM review received ({len(llm_text)} chars)", file=sys.stderr)
+            elif llm_text == "":
+                print("[review]   ⚠ LLM returned empty content", file=sys.stderr)
+                llm_text = None
             else:
-                print("[review]   (no LLM API key — skipping AI review)", file=sys.stderr)
+                print("[review]   ⚠ LLM returned no content (None) — check logs above", file=sys.stderr)
 
             file_results.append({
                 "filename": str(sysml_file),
