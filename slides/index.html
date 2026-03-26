@@ -1,0 +1,1219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SysML v2 LSP Hack — LLMs Spotting Larger Issues</title>
+  <style>
+    /* ─── Reset & Base ─────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --blue-900: #0d1b40;
+      --blue-800: #0f2356;
+      --blue-700: #162d6e;
+      --blue-600: #1a3a8f;
+      --accent:   #3b82f6;
+      --accent2:  #60a5fa;
+      --teal:     #14b8a6;
+      --amber:    #f59e0b;
+      --green:    #22c55e;
+      --red:      #ef4444;
+      --white:    #ffffff;
+      --gray-100: #f1f5f9;
+      --gray-300: #cbd5e1;
+      --gray-500: #64748b;
+      --gray-700: #334155;
+    }
+    html, body {
+      width: 100%; height: 100%;
+      background: #060e22;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      color: var(--white);
+      overflow: hidden;
+    }
+
+    /* ─── Slide Container ───────────────────────────────────────── */
+    .deck {
+      width: 100vw; height: 100vh;
+      position: relative;
+      overflow: hidden;
+    }
+    .slide {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 56px 80px;
+      opacity: 0;
+      transform: translateX(60px);
+      transition: opacity .55s cubic-bezier(.4,0,.2,1),
+                  transform .55s cubic-bezier(.4,0,.2,1);
+      pointer-events: none;
+    }
+    .slide.active {
+      opacity: 1; transform: translateX(0); pointer-events: all;
+    }
+    .slide.exit-left {
+      opacity: 0; transform: translateX(-60px);
+    }
+
+    /* ─── Progress Bar ──────────────────────────────────────────── */
+    #progress {
+      position: fixed; top: 0; left: 0;
+      height: 3px; background: linear-gradient(90deg, var(--teal), var(--accent));
+      transition: width .4s ease;
+      z-index: 1000;
+    }
+
+    /* ─── Slide Counter ─────────────────────────────────────────── */
+    #counter {
+      position: fixed; bottom: 28px; right: 40px;
+      font-size: .8rem; color: var(--gray-500);
+      letter-spacing: .06em;
+      z-index: 1000;
+    }
+
+    /* ─── Nav Arrows ────────────────────────────────────────────── */
+    .nav-btn {
+      position: fixed; top: 50%; transform: translateY(-50%);
+      background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.14);
+      color: var(--white); font-size: 1.4rem;
+      width: 44px; height: 44px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; z-index: 1000;
+      transition: background .2s, border-color .2s;
+      backdrop-filter: blur(6px);
+    }
+    .nav-btn:hover { background: rgba(59,130,246,.35); border-color: var(--accent2); }
+    #prev { left: 18px; }
+    #next { right: 18px; }
+
+    /* ─── Dot Nav ───────────────────────────────────────────────── */
+    #dots {
+      position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+      display: flex; gap: 8px; z-index: 1000;
+    }
+    .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: rgba(255,255,255,.25);
+      cursor: pointer;
+      transition: background .2s, transform .2s;
+    }
+    .dot.active { background: var(--accent2); transform: scale(1.3); }
+
+    /* ─── Common Typography ─────────────────────────────────────── */
+    .eyebrow {
+      font-size: .78rem; font-weight: 600; letter-spacing: .18em;
+      text-transform: uppercase; color: var(--teal);
+      margin-bottom: 12px;
+    }
+    .headline {
+      font-size: clamp(2rem, 4.5vw, 3.2rem);
+      font-weight: 800; line-height: 1.1;
+      letter-spacing: -.02em;
+    }
+    .headline span { color: var(--accent2); }
+    .subhead {
+      font-size: clamp(.9rem, 1.4vw, 1.15rem);
+      color: var(--gray-300); line-height: 1.65;
+      max-width: 680px;
+    }
+    .tag {
+      display: inline-block;
+      padding: 3px 12px; border-radius: 999px;
+      font-size: .72rem; font-weight: 600; letter-spacing: .08em;
+      background: rgba(59,130,246,.18); border: 1px solid rgba(59,130,246,.4);
+      color: var(--accent2);
+    }
+
+    /* ─── Backgrounds ───────────────────────────────────────────── */
+    .bg-grid {
+      position: absolute; inset: 0;
+      background-image:
+        linear-gradient(rgba(59,130,246,.07) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(59,130,246,.07) 1px, transparent 1px);
+      background-size: 48px 48px;
+      pointer-events: none;
+    }
+    .bg-glow {
+      position: absolute; border-radius: 50%;
+      filter: blur(120px); pointer-events: none; z-index: 0;
+    }
+
+    /* ─── Cards ─────────────────────────────────────────────────── */
+    .card {
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: 16px;
+      padding: 22px 26px;
+      backdrop-filter: blur(12px);
+      transition: border-color .2s, background .2s;
+    }
+    .card:hover {
+      border-color: rgba(59,130,246,.4);
+      background: rgba(59,130,246,.08);
+    }
+    .card-icon {
+      width: 44px; height: 44px; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.4rem; margin-bottom: 12px;
+    }
+    .card-title { font-weight: 700; font-size: .95rem; margin-bottom: 6px; }
+    .card-body  { font-size: .82rem; color: var(--gray-300); line-height: 1.55; }
+
+    /* ─── Pill badges ───────────────────────────────────────────── */
+    .pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 5px 14px; border-radius: 999px;
+      font-size: .8rem; font-weight: 600;
+    }
+    .pill-blue   { background: rgba(59,130,246,.2);  border: 1px solid rgba(59,130,246,.5);  color: #93c5fd; }
+    .pill-teal   { background: rgba(20,184,166,.2);  border: 1px solid rgba(20,184,166,.5);  color: #5eead4; }
+    .pill-amber  { background: rgba(245,158,11,.2);  border: 1px solid rgba(245,158,11,.5);  color: #fcd34d; }
+    .pill-green  { background: rgba(34,197,94,.2);   border: 1px solid rgba(34,197,94,.5);   color: #86efac; }
+    .pill-red    { background: rgba(239,68,68,.2);   border: 1px solid rgba(239,68,68,.5);   color: #fca5a5; }
+    .pill-purple { background: rgba(168,85,247,.2);  border: 1px solid rgba(168,85,247,.5);  color: #d8b4fe; }
+
+    /* ─── Two / Three column layout ─────────────────────────────── */
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 28px;
+      width: 100%;
+    }
+    .three-col {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      width: 100%;
+    }
+
+    /* ─── Code block ────────────────────────────────────────────── */
+    .code-block {
+      background: rgba(0,0,0,.4);
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 12px;
+      padding: 18px 22px;
+      font-family: 'Cascadia Code', 'Fira Code', monospace;
+      font-size: .78rem;
+      line-height: 1.7;
+      color: #e2e8f0;
+      overflow: hidden;
+    }
+    .code-block .kw  { color: #60a5fa; }
+    .code-block .str { color: #86efac; }
+    .code-block .cm  { color: #6b7280; font-style: italic; }
+    .code-block .ty  { color: #f9a8d4; }
+    .code-block .nm  { color: #fcd34d; }
+
+    /* ─── Divider ───────────────────────────────────────────────── */
+    .divider {
+      width: 48px; height: 3px; border-radius: 2px;
+      background: linear-gradient(90deg, var(--teal), var(--accent));
+      margin: 18px 0;
+    }
+
+    /* ─── Step list ─────────────────────────────────────────────── */
+    .step-list { display: flex; flex-direction: column; gap: 16px; width: 100%; }
+    .step {
+      display: flex; align-items: flex-start; gap: 16px;
+    }
+    .step-num {
+      min-width: 32px; height: 32px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: .78rem; font-weight: 800;
+      background: linear-gradient(135deg, var(--accent), var(--teal));
+      flex-shrink: 0;
+    }
+    .step-content { flex: 1; }
+    .step-title { font-weight: 700; font-size: .92rem; margin-bottom: 3px; }
+    .step-desc  { font-size: .8rem; color: var(--gray-300); line-height: 1.5; }
+
+    /* ─── Score bar ─────────────────────────────────────────────── */
+    .score-row {
+      display: flex; align-items: center; gap: 12px;
+      font-size: .82rem;
+    }
+    .score-label { width: 200px; color: var(--gray-300); flex-shrink: 0; }
+    .score-bar-wrap {
+      flex: 1; height: 8px; border-radius: 99px;
+      background: rgba(255,255,255,.1); overflow: hidden;
+    }
+    .score-bar {
+      height: 100%; border-radius: 99px;
+      background: linear-gradient(90deg, var(--accent), var(--teal));
+    }
+    .score-val { width: 36px; text-align: right; font-weight: 700; color: var(--accent2); }
+
+    /* ─── Large number stat ─────────────────────────────────────── */
+    .stat-num {
+      font-size: clamp(2.5rem, 5vw, 4rem);
+      font-weight: 900;
+      background: linear-gradient(135deg, var(--accent2), var(--teal));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+
+    /* ─── Architecture nodes ────────────────────────────────────── */
+    .arch-node {
+      background: rgba(255,255,255,.05);
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 12px;
+      padding: 12px 16px;
+      text-align: center;
+    }
+    .arch-node .an-icon  { font-size: 1.3rem; margin-bottom: 4px; }
+    .arch-node .an-title { font-size: .78rem; font-weight: 700; }
+    .arch-node .an-sub   { font-size: .68rem; color: #94a3b8; margin-top: 2px; }
+    .arch-node.highlight {
+      border-color: rgba(20,184,166,.5);
+      background: rgba(20,184,166,.1);
+    }
+    .arch-node.highlight2 {
+      border-color: rgba(59,130,246,.5);
+      background: rgba(59,130,246,.1);
+    }
+    .arch-box {
+      border-radius: 14px; padding: 14px 20px;
+      display: flex; align-items: center; gap: 12px;
+    }
+    .arch-box .ab-icon  { font-size: 1.5rem; }
+    .arch-box .ab-label { font-size: .82rem; font-weight: 600; }
+    .arch-box .ab-sub   { font-size: .72rem; color: var(--gray-300); margin-top: 2px; }
+    .layer-label {
+      font-size: .68rem; font-weight: 700; letter-spacing: .14em;
+      text-transform: uppercase; color: var(--gray-500);
+      margin-bottom: 8px;
+    }
+    .arrow-down {
+      text-align: center; font-size: 1.2rem; color: var(--gray-500);
+      line-height: 1; margin: 6px 0;
+    }
+
+    /* ─── MCP flow ──────────────────────────────────────────────── */
+    .mcp-flow {
+      display: flex; align-items: center; gap: 16px;
+      padding: 18px; border-radius: 14px;
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.1);
+    }
+    .mcp-node {
+      flex: 1; text-align: center;
+      padding: 14px 10px;
+      border-radius: 10px;
+    }
+    .mcp-node .mn-icon  { font-size: 1.8rem; margin-bottom: 6px; }
+    .mcp-node .mn-title { font-size: .8rem; font-weight: 700; }
+    .mcp-node .mn-sub   { font-size: .7rem; color: var(--gray-300); margin-top: 3px; }
+    .mcp-arrow { font-size: 1.4rem; color: var(--gray-500); flex-shrink: 0; }
+    .tool-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+      width: 100%;
+    }
+    .tool-chip {
+      padding: 7px 10px; border-radius: 8px; text-align: center;
+      background: rgba(59,130,246,.1); border: 1px solid rgba(59,130,246,.3);
+      font-size: .72rem; font-weight: 600; color: #93c5fd;
+    }
+
+    /* ─── AI criteria grid ──────────────────────────────────────── */
+    .criteria-grid {
+      display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;
+      width: 100%;
+    }
+    .crit-card {
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: 12px; padding: 14px 12px;
+      text-align: center;
+      transition: border-color .2s, background .2s;
+    }
+    .crit-card:hover {
+      border-color: rgba(245,158,11,.4);
+      background: rgba(245,158,11,.08);
+    }
+    .crit-icon  { font-size: 1.4rem; margin-bottom: 6px; }
+    .crit-title { font-size: .7rem; font-weight: 700; line-height: 1.3; }
+    .crit-score {
+      margin-top: 8px; font-size: .68rem; font-weight: 700;
+      color: var(--amber);
+    }
+
+    /* ─── Demo window ───────────────────────────────────────────── */
+    .demo-window {
+      background: rgba(5,15,35,.9);
+      border: 1px solid rgba(255,255,255,.14);
+      border-radius: 14px; overflow: hidden;
+    }
+    .demo-titlebar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 14px;
+      background: rgba(255,255,255,.06);
+      border-bottom: 1px solid rgba(255,255,255,.08);
+      font-size: .75rem; color: var(--gray-300);
+    }
+    .dot-red    { width: 10px; height: 10px; border-radius: 50%; background: #ef4444; }
+    .dot-yellow { width: 10px; height: 10px; border-radius: 50%; background: #f59e0b; }
+    .dot-green2 { width: 10px; height: 10px; border-radius: 50%; background: #22c55e; }
+
+    /* ─── Link row ──────────────────────────────────────────────── */
+    .qr-placeholder {
+      width: 120px; height: 120px; border-radius: 14px;
+      background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.15);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2.4rem;
+    }
+    .link-row {
+      display: flex; align-items: center; gap: 10px;
+      font-size: .85rem; color: var(--gray-300);
+    }
+    .link-row a { color: var(--accent2); text-decoration: none; }
+    .link-row a:hover { text-decoration: underline; }
+
+    /* ─── Keyboard hint ─────────────────────────────────────────── */
+    #keyhint {
+      position: fixed; bottom: 28px; left: 18px;
+      font-size: .7rem; color: var(--gray-700);
+      z-index: 1000;
+    }
+    kbd {
+      padding: 2px 6px; border-radius: 4px;
+      border: 1px solid var(--gray-700);
+      background: rgba(255,255,255,.06);
+    }
+  </style>
+</head>
+<body>
+
+<div id="progress"></div>
+<button class="nav-btn" id="prev" aria-label="Previous slide">&#8592;</button>
+<button class="nav-btn" id="next" aria-label="Next slide">&#8594;</button>
+<div id="dots"></div>
+<div id="counter"></div>
+<div id="keyhint"><kbd>&larr;</kbd> <kbd>&rarr;</kbd> &nbsp;navigate &nbsp;&nbsp; <kbd>Space</kbd> next</div>
+
+<div class="deck">
+
+  <!-- ══ SLIDE 1 — HERO ══════════════════════════════════════════ -->
+  <section class="slide" id="s1">
+    <div class="bg-grid"></div>
+    <div class="bg-glow" style="width:600px;height:600px;top:-160px;right:-120px;
+      background:radial-gradient(circle,rgba(59,130,246,.25) 0%,transparent 70%);"></div>
+    <div class="bg-glow" style="width:400px;height:400px;bottom:-80px;left:60px;
+      background:radial-gradient(circle,rgba(20,184,166,.2) 0%,transparent 70%);"></div>
+
+    <div style="position:relative;z-index:1;display:flex;flex-direction:column;
+                align-items:flex-start;max-width:860px;">
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:40px;">
+        <div style="width:44px;height:44px;border-radius:12px;
+                    background:linear-gradient(135deg,var(--accent),var(--teal));
+                    display:flex;align-items:center;justify-content:center;font-size:1.4rem;">⚙️</div>
+        <span style="font-size:.85rem;font-weight:600;color:var(--gray-300);">SysML v2 LSP Hack &nbsp;·&nbsp; <span data-version>v0.8.0</span></span>
+        <span class="tag">Open Source · MIT</span>
+      </div>
+
+      <div style="position:relative;display:inline-block;">
+        <h1 style="font-size:clamp(2.6rem,5.5vw,4rem);font-weight:900;line-height:1.05;
+                   letter-spacing:-.03em;margin-bottom:22px;">
+          Teaching LLMs to Spot<br>
+          <span style="background:linear-gradient(90deg,#60a5fa,#14b8a6);
+                       -webkit-background-clip:text;-webkit-text-fill-color:transparent;">
+            Larger System Issues
+          </span>
+        </h1>
+        <div style="position:absolute;top:-10px;right:-10px;
+                    background:linear-gradient(135deg,var(--accent),var(--teal));
+                    padding:6px 16px;border-radius:999px;
+                    font-size:.75rem;font-weight:700;letter-spacing:.08em;" data-version>v0.8.0</div>
+      </div>
+
+      <p style="font-size:clamp(1rem,1.6vw,1.2rem);color:var(--gray-300);
+                line-height:1.7;max-width:620px;margin-bottom:36px;">
+        We took a production-grade <strong>SysML v2 Language Server</strong> and layered an
+        <strong>AI reasoning engine</strong> on top — giving LLMs the tools, context, and
+        structured criteria to find real design flaws before they become real problems.
+      </p>
+
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <span class="tag">SysML v2</span>
+        <span class="tag">LSP</span>
+        <span class="tag">Model Context Protocol</span>
+        <span class="tag">Claude / LLM</span>
+        <span class="tag">ANTLR4</span>
+        <span class="tag">TypeScript</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ SLIDE 2 — THE PROBLEM ════════════════════════════════════ -->
+  <section class="slide" id="s2">
+    <div class="bg-grid"></div>
+    <div class="bg-glow" style="width:500px;height:500px;left:-100px;top:50%;transform:translateY(-50%);
+      background:radial-gradient(circle,rgba(245,158,11,.15) 0%,transparent 70%);"></div>
+
+    <div style="position:relative;z-index:1;width:100%;max-width:1000px;">
+      <p class="eyebrow">The Problem Space</p>
+      <h2 class="headline" style="margin-bottom:10px;">
+        Systems Models Are <span>Too Complex</span><br>for Humans Alone
+      </h2>
+      <div class="divider"></div>
+      <p class="subhead" style="margin-bottom:32px;">
+        SysML v2 models can describe entire aerospace, automotive, or medical systems —
+        thousands of interconnected parts, actions, states, and requirements.
+        Spotting logical flaws, missing failure modes, or conflicting constraints
+        requires deep, multi-domain reasoning that human reviewers routinely miss.
+      </p>
+      <div class="three-col">
+        <div class="card">
+          <div class="card-icon" style="background:rgba(239,68,68,.15);">💥</div>
+          <div class="card-title">Human Review Bottleneck</div>
+          <div class="card-body">Highly trained systems engineers spend weeks reviewing models that LLMs can scan in seconds — and still miss subtle emergent issues.</div>
+        </div>
+        <div class="card">
+          <div class="card-icon" style="background:rgba(245,158,11,.15);">🔗</div>
+          <div class="card-title">No Rich Open Tooling</div>
+          <div class="card-body">Most SysML tools are proprietary, heavyweight, or lack any AI integration. Open-source ecosystems for SysML v2 were nearly non-existent.</div>
+        </div>
+        <div class="card">
+          <div class="card-icon" style="background:rgba(59,130,246,.15);">🤖</div>
+          <div class="card-title">LLMs Lack Model Context</div>
+          <div class="card-body">Raw LLMs have no structured access to SysML model data. They can't navigate definitions, validate types, or compute complexity metrics.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ SLIDE 3 — FOUNDATION ══════════════════════════════════════ -->
+  <section class="slide" id="s3">
+    <div class="bg-grid"></div>
+    <div class="bg-glow" style="width:560px;height:560px;right:-80px;top:-80px;
+      background:radial-gradient(circle,rgba(20,184,166,.18) 0%,transparent 70%);"></div>
+
+    <div style="position:relative;z-index:1;width:100%;max-width:1000px;">
+      <p class="eyebrow">Our Foundation</p>
+      <h2 class="headline" style="margin-bottom:10px;">
+        We Didn't Start <span>from Scratch</span>
+      </h2>
+      <div class="divider"></div>
+      <p class="subhead" style="margin-bottom:28px;">
+        We built on robust, established open standards and tooling — a solid, formal base
+        to layer AI reasoning on top of.
+      </p>
+      <div class="two-col">
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div class="layer-label">📐 Language Standard</div>
+          <div class="arch-box card" style="border-color:rgba(59,130,246,.3);">
+            <div class="ab-icon">🏛️</div>
+            <div>
+              <div class="ab-label">SysML v2 — OMG Standard</div>
+              <div class="ab-sub">Next-generation systems modelling language. Formal, precise, adopted across aerospace, defence, automotive.</div>
+            </div>
+          </div>
+          <div class="layer-label">📝 Grammar</div>
+          <div class="arch-box card" style="border-color:rgba(20,184,166,.3);">
+            <div class="ab-icon">🔤</div>
+            <div>
+              <div class="ab-label">ANTLR4 Grammar — daltskin/sysml-v2-grammar</div>
+              <div class="ab-sub">Open-source ANTLR4 .g4 grammar files. Auto-synced via <code>make update-grammar</code>.</div>
+            </div>
+          </div>
+          <div class="layer-label">🖥️ Protocol</div>
+          <div class="arch-box card" style="border-color:rgba(168,85,247,.3);">
+            <div class="ab-icon">🔌</div>
+            <div>
+              <div class="ab-label">Language Server Protocol — Microsoft LSP</div>
+              <div class="ab-sub">Same protocol powering VS Code, Neovim, Emacs. Editor-agnostic IDE features over stdin/stdout.</div>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div class="layer-label">📦 Standard Library</div>
+          <div class="arch-box card" style="border-color:rgba(245,158,11,.3);">
+            <div class="ab-icon">📚</div>
+            <div>
+              <div class="ab-label">OMG SysML v2 Standard Library</div>
+              <div class="ab-sub">Official OMG library of base definitions. Auto-indexed on startup for symbol resolution.</div>
+            </div>
+          </div>
+          <div class="layer-label">🤖 AI Protocol</div>
+          <div class="arch-box card" style="border-color:rgba(34,197,94,.3);">
+            <div class="ab-icon">🔗</div>
+            <div>
+              <div class="ab-label">Model Context Protocol — Anthropic MCP SDK</div>
+              <div class="ab-sub">Open protocol connecting LLMs to tools and resources. Powers Claude Desktop, VS Code Copilot, and more.</div>
+            </div>
+          </div>
+          <div class="layer-label">✅ Client Ecosystem</div>
+          <div style="display:flex;gap:8px;">
+            <span class="pill pill-blue" style="flex:1;justify-content:center;">VS Code</span>
+            <span class="pill pill-teal" style="flex:1;justify-content:center;">Web Browser</span>
+            <span class="pill pill-amber" style="flex:1;justify-content:center;">Python</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ SLIDE 4 — WHAT WE BUILT ══════════════════════════════════ -->
+  <section class="slide" id="s4">
+    <div class="bg-grid"></div>
+    <div class="bg-glow" style="width:500px;height:500px;bottom:-100px;right:-60px;
+      background:radial-gradient(circle,rgba(59,130,246,.2) 0%,transparent 70%);"></div>
+
+    <div style="position:relative;z-index:1;width:100%;max-width:1000px;">
+      <p class="eyebrow">What We Built</p>
+      <h2 class="headline" style="margin-bottom:10px;">
+        25+ IDE Features <span>+ AI Reasoning</span>
+      </h2>
+      <div class="divider"></div>
+      <div class="two-col" style="margin-top:20px;align-items:start;">
+        <div>
+          <p style="font-size:.8rem;font-weight:700;color:var(--gray-300);margin-bottom:12px;
+                    letter-spacing:.08em;text-transform:uppercase;">
+            🖥️ Language Server — 24 Providers
+          </p>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <div class="pill pill-blue">Go to Definition</div>
+            <div class="pill pill-blue">Find References</div>
+            <div class="pill pill-blue">Code Completion</div>
+            <div class="pill pill-blue">Hover Info</div>
+            <div class="pill pill-teal">Semantic Tokens</div>
+            <div class="pill pill-teal">Diagnostics</div>
+            <div class="pill pill-teal">Rename Symbol</div>
+            <div class="pill pill-teal">Code Actions</div>
+            <div class="pill pill-amber">Call Hierarchy</div>
+            <div class="pill pill-amber">Type Hierarchy</div>
+            <div class="pill pill-amber">Folding Ranges</div>
+            <div class="pill pill-amber">Formatting</div>
+          </div>
+          <div style="margin-top:14px;padding:12px 16px;border-radius:10px;
+                      background:rgba(20,184,166,.08);border:1px solid rgba(20,184,166,.3);">
+            <div style="font-size:.78rem;font-weight:700;margin-bottom:6px;color:#5eead4;">🎯 Complexity Analysis</div>
+            <div style="font-size:.74rem;color:var(--gray-300);">
+              Structural metrics · nesting depth · coupling · fan-out ·
+              doc coverage · composite index (0–100) · hotspot detection
+            </div>
+          </div>
+          <div style="margin-top:10px;padding:12px 16px;border-radius:10px;
+                      background:rgba(168,85,247,.08);border:1px solid rgba(168,85,247,.3);">
+            <div style="font-size:.78rem;font-weight:700;margin-bottom:6px;color:#d8b4fe;">📊 Mermaid Diagrams</div>
+            <div style="font-size:.74rem;color:var(--gray-300);">
+              6 types (general, activity, state, sequence, interconnection, use-case) ·
+              auto-detect · focus filtering · diff highlights
+            </div>
+          </div>
+        </div>
+        <div>
+          <p style="font-size:.8rem;font-weight:700;color:var(--gray-300);margin-bottom:12px;
+                    letter-spacing:.08em;text-transform:uppercase;">
+            🤖 MCP / AI Layer
+          </p>
+          <div class="step-list">
+            <div class="step">
+              <div class="step-num">14</div>
+              <div class="step-content">
+                <div class="step-title">MCP Tools</div>
+                <div class="step-desc">parse · validate · getDiagnostics · getSymbols · getDefinition · getReferences · getHierarchy · getComplexity · preview · and more</div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">3</div>
+              <div class="step-content">
+                <div class="step-title">AI Prompts</div>
+                <div class="step-desc">review-sysml · generate-sysml · explain-element — structured reasoning tasks for LLMs</div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">3</div>
+              <div class="step-content">
+                <div class="step-title">Resources</div>
+                <div class="step-desc">80+ element kinds reference · complete keyword list · grammar overview — live model context for the LLM</div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">10</div>
+              <div class="step-content">
+                <div class="step-title">AI Quality Criteria</div>
+                <div class="step-desc">Structured scoring rubric (0.0–1.0 harm probability) with HIGH / MEDIUM / LOW confidence levels</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ SLIDE 5 — ARCHITECTURE ════════════════════════════════════ -->
+  <section class="slide" id="s5">
+    <div class="bg-grid"></div>
+    <div class="bg-glow" style="width:700px;height:700px;top:50%;left:50%;
+      transform:translate(-50%,-50%);
+      background:radial-gradient(circle,rgba(59,130,246,.12) 0%,transparent 65%);"></div>
+
+    <div style="position:relative;z-index:1;width:100%;max-width:980px;">
+      <p class="eyebrow">Architecture</p>
+      <h2 class="headline" style="margin-bottom:10px;">
+        Three Layers, <span>One Coherent System</span>
+      </h2>
+      <div class="divider" style="margin-bottom:28px;"></div>
+
+      <div style="display:flex;flex-direction:column;gap:6px;width:100%;">
+        <!-- Client Layer -->
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="min-width:120px;font-size:.68rem;font-weight:700;letter-spacing:.12em;
+                      text-transform:uppercase;color:var(--gray-500);text-align:right;">Client Layer</div>
+          <div style="flex:1;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+            <div class="arch-node">
+              <div class="an-icon">🧩</div>
+              <div class="an-title">VS Code Extension</div>
+              <div class="an-sub">Published on Marketplace</div>
+            </div>
+            <div class="arch-node">
+              <div class="an-icon">🌐</div>
+              <div class="an-title">Web Browser SPA</div>
+              <div class="an-sub">React + Node.js bridge</div>
+            </div>
+            <div class="arch-node">
+              <div class="an-icon">🐍</div>
+              <div class="an-title">Python Client</div>
+              <div class="an-sub">Zero deps · Jupyter notebook</div>
+            </div>
+          </div>
+        </div>
+        <div class="arrow-down">↕</div>
+        <!-- Language Server -->
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="min-width:120px;font-size:.68rem;font-weight:700;letter-spacing:.12em;
+                      text-transform:uppercase;color:var(--teal);text-align:right;">Language Server</div>
+          <div style="flex:1;display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;">
+            <div class="arch-node highlight">
+              <div class="an-icon">🔤</div>
+              <div class="an-title">ANTLR4 Parser</div>
+              <div class="an-sub">Grammar · Error listener</div>
+            </div>
+            <div class="arch-node highlight">
+              <div class="an-icon">🗂️</div>
+              <div class="an-title">Symbol Table</div>
+              <div class="an-sub">Scopes · Name resolution</div>
+            </div>
+            <div class="arch-node highlight">
+              <div class="an-icon">⚡</div>
+              <div class="an-title">24 LSP Providers</div>
+              <div class="an-sub">Completion · hover · rename…</div>
+            </div>
+            <div class="arch-node highlight">
+              <div class="an-icon">📊</div>
+              <div class="an-title">Analysis Engine</div>
+              <div class="an-sub">Complexity · Mermaid diagrams</div>
+            </div>
+          </div>
+        </div>
+        <div class="arrow-down">↕</div>
+        <!-- AI / MCP Layer -->
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="min-width:120px;font-size:.68rem;font-weight:700;letter-spacing:.12em;
+                      text-transform:uppercase;color:var(--accent2);text-align:right;">AI / MCP Layer</div>
+          <div style="flex:1;display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;">
+            <div class="arch-node highlight2">
+              <div class="an-icon">🛠️</div>
+              <div class="an-title">14 MCP Tools</div>
+              <div class="an-sub">parse · validate · preview…</div>
+            </div>
+            <div class="arch-node highlight2">
+              <div class="an-icon">📝</div>
+              <div class="an-title">3 AI Prompts</div>
+              <div class="an-sub">review · generate · explain</div>
+            </div>
+            <div class="arch-node highlight2">
+              <div class="an-icon">🎯</div>
+              <div class="an-title">10 Quality Criteria</div>
+              <div class="an-sub">Structured scoring rubric</div>
+            </div>
+            <div class="arch-node highlight2">
+              <div class="an-icon">🤖</div>
+              <div class="an-title">Claude / LLM</div>
+              <div class="an-sub">Claude Desktop · Copilot</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ SLIDE 6 — MCP / LLM INTEGRATION ═════════════════════════ -->
+  <section class="slide" id="s6">
+    <div class="bg-grid"></div>
+    <div class="bg-glow" style="width:600px;height:600px;right:-80px;bottom:-80px;
+      background:radial-gradient(circle,rgba(168,85,247,.18) 0%,transparent 70%);"></div>
+    <div class="bg-glow" style="width:400px;height:400px;left:-60px;top:40px;
+      background:radial-gradient(circle,rgba(20,184,166,.15) 0%,transparent 70%);"></div>
+
+    <div style="position:relative;z-index:1;width:100%;max-width:1000px;">
+      <p class="eyebrow">AI Integration</p>
+      <h2 class="headline" style="margin-bottom:10px;">
+        Model Context Protocol —<br><span>Giving LLMs Superpowers</span>
+      </h2>
+      <div class="divider"></div>
+      <div class="two-col" style="margin-top:20px;align-items:start;">
+        <div style="display:flex;flex-direction:column;gap:16px;">
+          <p class="subhead" style="font-size:.88rem;">
+            The <strong>sysml-mcp CLI</strong> exposes the entire language server to any
+            MCP-compatible AI — Claude, VS Code Copilot, or custom tools. The LLM can
+            parse, validate, navigate, and analyse SysML models <em>programmatically</em>.
+          </p>
+          <div class="mcp-flow">
+            <div class="mcp-node" style="background:rgba(168,85,247,.1);border:1px solid rgba(168,85,247,.3);">
+              <div class="mn-icon">🤖</div>
+              <div class="mn-title">Claude / LLM</div>
+              <div class="mn-sub">Reasoning engine</div>
+            </div>
+            <div class="mcp-arrow">&#8596;</div>
+            <div class="mcp-node" style="background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.3);">
+              <div class="mn-icon">🔗</div>
+              <div class="mn-title">MCP Server</div>
+              <div class="mn-sub">sysml-mcp CLI</div>
+            </div>
+            <div class="mcp-arrow">&#8596;</div>
+            <div class="mcp-node" style="background:rgba(20,184,166,.1);border:1px solid rgba(20,184,166,.3);">
+              <div class="mn-icon">⚙️</div>
+              <div class="mn-title">Language Server</div>
+              <div class="mn-sub">Parse · Analyse</div>
+            </div>
+          </div>
+          <div style="padding:14px;border-radius:12px;background:rgba(255,255,255,.04);
+                      border:1px solid rgba(255,255,255,.1);">
+            <div style="font-size:.75rem;font-weight:700;margin-bottom:10px;color:var(--gray-300);
+                        text-transform:uppercase;letter-spacing:.1em;">14 MCP Tools Available</div>
+            <div class="tool-grid">
+              <div class="tool-chip">parse</div>
+              <div class="tool-chip">validate</div>
+              <div class="tool-chip">getDiagnostics</div>
+              <div class="tool-chip">getSymbols</div>
+              <div class="tool-chip">getDefinition</div>
+              <div class="tool-chip">getReferences</div>
+              <div class="tool-chip">getHierarchy</div>
+              <div class="tool-chip">getModelSummary</div>
+              <div class="tool-chip">getComplexity</div>
+              <div class="tool-chip">preview</div>
+              <div class="tool-chip">validateFile</div>
+              <div class="tool-chip">diagnostics</div>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          <div class="card" style="border-color:rgba(168,85,247,.3);">
+            <div style="font-size:.8rem;font-weight:700;color:#d8b4fe;margin-bottom:8px;">📝 review-sysml prompt</div>
+            <div class="code-block" style="font-size:.72rem;">
+              <span class="cm">// LLM reviews model against best practices:</span><br>
+              <span class="kw">1.</span> Fetch model via <span class="ty">getModelSummary</span>()<br>
+              <span class="kw">2.</span> Run <span class="ty">getComplexity</span>() for metrics<br>
+              <span class="kw">3.</span> Check <span class="ty">getDiagnostics</span>() for errors<br>
+              <span class="kw">4.</span> Apply <span class="str">10 quality criteria</span><br>
+              <span class="kw">5.</span> Return scored assessment
+            </div>
+          </div>
+          <div class="card" style="border-color:rgba(34,197,94,.3);">
+            <div style="font-size:.8rem;font-weight:700;color:#86efac;margin-bottom:8px;">✨ generate-sysml prompt</div>
+            <div class="code-block" style="font-size:.72rem;">
+              <span class="cm">// Natural language &rarr; valid SysML v2:</span><br>
+              <span class="kw">Input:</span>  <span class="str">"A drone with 4 motors,<br>
+              &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; battery, and GPS sensor"</span><br>
+              <span class="kw">Output:</span> Syntactically valid .sysml<br>
+              &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; with parts, ports, types
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;">
+            <div class="pill pill-purple">Claude Desktop Config</div>
+            <div class="pill pill-teal">VS Code Copilot</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ SLIDE 7 — 10 AI QUALITY CRITERIA ════════════════════════ -->
+  <section class="slide" id="s7">
+    <div class="bg-grid"></div>
+    <div class="bg-glow" style="width:500px;height:500px;left:-60px;bottom:-60px;
+      background:radial-gradient(circle,rgba(245,158,11,.18) 0%,transparent 70%);"></div>
+
+    <div style="position:relative;z-index:1;width:100%;max-width:1000px;">
+      <p class="eyebrow">The Core Innovation</p>
+      <h2 class="headline" style="margin-bottom:10px;">
+        10 Structured Criteria for<br><span>AI Model Assessment</span>
+      </h2>
+      <div class="divider"></div>
+      <p class="subhead" style="margin-bottom:20px;font-size:.88rem;">
+        Each criterion guides the LLM with scoring guidance (0.0–1.0 harm probability)
+        and confidence levels (HIGH / MEDIUM / LOW), turning free-form AI output into
+        <strong>structured, auditable assessments</strong>.
+      </p>
+      <div class="criteria-grid">
+        <div class="crit-card">
+          <div class="crit-icon">✅</div>
+          <div class="crit-title">Completeness</div>
+          <div class="crit-score">0.0–1.0 harm prob.</div>
+        </div>
+        <div class="crit-card">
+          <div class="crit-icon">🎯</div>
+          <div class="crit-title">Correctness &amp; Intent</div>
+          <div class="crit-score">0.0–1.0 harm prob.</div>
+        </div>
+        <div class="crit-card">
+          <div class="crit-icon">🔀</div>
+          <div class="crit-title">Misrepresentation &amp; Conflation</div>
+          <div class="crit-score">0.0–1.0 harm prob.</div>
+        </div>
+        <div class="crit-card">
+          <div class="crit-icon">♻️</div>
+          <div class="crit-title">Redundancy</div>
+          <div class="crit-score">0.0–1.0 harm prob.</div>
+        </div>
+        <div class="crit-card">
+          <div class="crit-icon">⚔️</div>
+          <div class="crit-title">Conflicting Requirements</div>
+          <div class="crit-score">0.0–1.0 harm prob.</div>
+        </div>
+        <div class="crit-card">
+          <div class="crit-icon">🌍</div>
+          <div class="crit-title">Contextual Plausibility</div>
+          <div class="crit-score">0.0–1.0 harm prob.</div>
+        </div>
+        <div class="crit-card">
+          <div class="crit-icon">🛡️</div>
+          <div class="crit-title">Failure Modes &amp; Resilience</div>
+          <div class="crit-score">0.0–1.0 harm prob.</div>
+        </div>
+        <div class="crit-card">
+          <div class="crit-icon">📐</div>
+          <div class="crit-title">Abstraction Consistency</div>
+          <div class="crit-score">0.0–1.0 harm prob.</div>
+        </div>
+        <div class="crit-card">
+          <div class="crit-icon">💡</div>
+          <div class="crit-title">Assumptions &amp; Rationale</div>
+          <div class="crit-score">0.0–1.0 harm prob.</div>
+        </div>
+        <div class="crit-card">
+          <div class="crit-icon">🌊</div>
+          <div class="crit-title">Emergent System Properties</div>
+          <div class="crit-score">0.0–1.0 harm prob.</div>
+        </div>
+      </div>
+      <div style="margin-top:18px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <span class="pill pill-amber">Scoring: 0.0 &rarr; 1.0</span>
+        <span class="pill pill-green">Confidence: HIGH / MEDIUM / LOW</span>
+        <span class="pill pill-blue">Used as LLM system prompt context</span>
+        <span class="pill pill-purple">Auditable · Repeatable · Structured</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ SLIDE 8 — IN ACTION ══════════════════════════════════════ -->
+  <section class="slide" id="s8">
+    <div class="bg-grid"></div>
+    <div class="bg-glow" style="width:550px;height:550px;right:-60px;top:-60px;
+      background:radial-gradient(circle,rgba(34,197,94,.18) 0%,transparent 70%);"></div>
+
+    <div style="position:relative;z-index:1;width:100%;max-width:1000px;">
+      <p class="eyebrow">In Action</p>
+      <h2 class="headline" style="margin-bottom:10px;">
+        LLM Finds What Humans <span>Miss</span>
+      </h2>
+      <div class="divider"></div>
+      <div class="two-col" style="margin-top:16px;align-items:start;gap:22px;">
+        <!-- Left: code example -->
+        <div>
+          <div style="font-size:.75rem;font-weight:700;color:var(--gray-300);margin-bottom:8px;
+                      text-transform:uppercase;letter-spacing:.1em;">🗂️ Example SysML v2 Model</div>
+          <div class="demo-window">
+            <div class="demo-titlebar">
+              <span class="dot-red"></span>
+              <span class="dot-yellow"></span>
+              <span class="dot-green2"></span>
+              &nbsp; drone-system.sysml
+            </div>
+            <div class="code-block" style="border:none;border-radius:0;font-size:.73rem;">
+              <span class="kw">package</span> <span class="nm">DroneSystem</span> {<br>
+              &nbsp;&nbsp;<span class="kw">part def</span> <span class="nm">Drone</span> {<br>
+              &nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">part</span> motor1 : <span class="ty">Motor</span>;<br>
+              &nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">part</span> motor2 : <span class="ty">Motor</span>;<br>
+              &nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">part</span> battery : <span class="ty">Battery</span>;<br>
+              &nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">part</span> gps : <span class="ty">GPS</span>;<br>
+              &nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// &larr; No failure mode defined</span><br>
+              &nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// &larr; No redundancy for motors</span><br>
+              &nbsp;&nbsp;}<br>
+              &nbsp;&nbsp;<span class="kw">action def</span> <span class="nm">Fly</span> {<br>
+              &nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// &larr; No return-to-home action</span><br>
+              &nbsp;&nbsp;}<br>
+              }
+            </div>
+          </div>
+        </div>
+        <!-- Right: AI assessment -->
+        <div>
+          <div style="font-size:.75rem;font-weight:700;color:var(--gray-300);margin-bottom:8px;
+                      text-transform:uppercase;letter-spacing:.1em;">🤖 AI Assessment (via review-sysml)</div>
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <div class="score-row">
+              <div class="score-label">✅ Completeness</div>
+              <div class="score-bar-wrap">
+                <div class="score-bar" style="width:45%;background:linear-gradient(90deg,#f59e0b,#ef4444);"></div>
+              </div>
+              <div class="score-val" style="color:#fca5a5;">0.55</div>
+            </div>
+            <div class="score-row">
+              <div class="score-label">🛡️ Failure Modes &amp; Resilience</div>
+              <div class="score-bar-wrap">
+                <div class="score-bar" style="width:80%;background:linear-gradient(90deg,#ef4444,#dc2626);"></div>
+              </div>
+              <div class="score-val" style="color:#fca5a5;">0.80</div>
+            </div>
+            <div class="score-row">
+              <div class="score-label">🎯 Correctness &amp; Intent</div>
+              <div class="score-bar-wrap"><div class="score-bar" style="width:20%;"></div></div>
+              <div class="score-val">0.20</div>
+            </div>
+            <div class="score-row">
+              <div class="score-label">🌊 Emergent Properties</div>
+              <div class="score-bar-wrap">
+                <div class="score-bar" style="width:65%;background:linear-gradient(90deg,#f59e0b,#ef4444);"></div>
+              </div>
+              <div class="score-val" style="color:#fcd34d;">0.65</div>
+            </div>
+            <div class="score-row">
+              <div class="score-label">⚔️ Conflicting Requirements</div>
+              <div class="score-bar-wrap"><div class="score-bar" style="width:10%;"></div></div>
+              <div class="score-val">0.10</div>
+            </div>
+            <div style="margin-top:6px;padding:12px 14px;border-radius:10px;
+                        background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.35);">
+              <div style="font-size:.75rem;font-weight:700;color:#fca5a5;margin-bottom:4px;">
+                ⚠️ LLM Finding — HIGH Confidence
+              </div>
+              <div style="font-size:.73rem;color:var(--gray-300);line-height:1.55;">
+                <strong>Missing failure modes for motor loss.</strong> A 2-motor drone with no
+                failsafe has a critical single point of failure. Missing: geofencing,
+                return-to-home action, and motor-loss recovery state machine.
+              </div>
+            </div>
+            <div style="padding:10px 14px;border-radius:10px;
+                        background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.35);">
+              <div style="font-size:.75rem;font-weight:700;color:#fcd34d;margin-bottom:4px;">
+                ⚠️ LLM Finding — MEDIUM Confidence
+              </div>
+              <div style="font-size:.73rem;color:var(--gray-300);line-height:1.55;">
+                Battery capacity not modelled — no constraint links power draw to flight time.
+                This is an emergent system property the model cannot currently verify.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ SLIDE 9 — IMPACT & STATS ═════════════════════════════════ -->
+  <section class="slide" id="s9">
+    <div class="bg-grid"></div>
+    <div class="bg-glow" style="width:700px;height:700px;top:50%;left:50%;
+      transform:translate(-50%,-50%);
+      background:radial-gradient(circle,rgba(59,130,246,.16) 0%,transparent 65%);"></div>
+
+    <div style="position:relative;z-index:1;width:100%;max-width:1000px;">
+      <p class="eyebrow">Impact</p>
+      <h2 class="headline" style="margin-bottom:10px;">
+        Bridging Formal Modelling<br><span>&amp; AI Reasoning</span>
+      </h2>
+      <div class="divider"></div>
+      <div class="three-col" style="margin-top:24px;">
+        <div style="text-align:center;">
+          <div class="stat-num">25+</div>
+          <div style="font-size:.85rem;font-weight:700;margin-bottom:4px;">IDE Features</div>
+          <div style="font-size:.75rem;color:var(--gray-300);">Go-to-def, hover, rename, diagnostics, code actions, folding, formatting and more.</div>
+        </div>
+        <div style="text-align:center;">
+          <div class="stat-num">10</div>
+          <div style="font-size:.85rem;font-weight:700;margin-bottom:4px;">AI Criteria</div>
+          <div style="font-size:.75rem;color:var(--gray-300);">Structured scoring rubric with harm probability and confidence levels for every assessment.</div>
+        </div>
+        <div style="text-align:center;">
+          <div class="stat-num">3</div>
+          <div style="font-size:.85rem;font-weight:700;margin-bottom:4px;">Clients</div>
+          <div style="font-size:.75rem;color:var(--gray-300);">VS Code (Marketplace), browser SPA, zero-dependency Python + Jupyter notebook.</div>
+        </div>
+      </div>
+      <div style="margin-top:28px;display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div class="card" style="border-color:rgba(20,184,166,.3);">
+          <div style="font-size:.8rem;font-weight:700;color:#5eead4;margin-bottom:10px;">🎯 Why This Matters</div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;align-items:flex-start;gap:8px;font-size:.78rem;color:var(--gray-300);">
+              <span style="color:var(--teal);">▸</span>
+              LLMs can now reason over <em>structured</em> system models, not just unstructured text
+            </div>
+            <div style="display:flex;align-items:flex-start;gap:8px;font-size:.78rem;color:var(--gray-300);">
+              <span style="color:var(--teal);">▸</span>
+              Formal tooling prevents hallucination by grounding AI in validated parse data
+            </div>
+            <div style="display:flex;align-items:flex-start;gap:8px;font-size:.78rem;color:var(--gray-300);">
+              <span style="color:var(--teal);">▸</span>
+              10 criteria create auditable, repeatable AI assessments — not one-off opinions
+            </div>
+            <div style="display:flex;align-items:flex-start;gap:8px;font-size:.78rem;color:var(--gray-300);">
+              <span style="color:var(--teal);">▸</span>
+              Open source MIT — anyone can build on this foundation
+            </div>
+          </div>
+        </div>
+        <div class="card" style="border-color:rgba(59,130,246,.3);">
+          <div style="font-size:.8rem;font-weight:700;color:#93c5fd;margin-bottom:10px;">🚀 What's Next</div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;align-items:flex-start;gap:8px;font-size:.78rem;color:var(--gray-300);">
+              <span style="color:var(--accent2);">▸</span>
+              Multi-model comparison — AI spots inconsistencies across system versions
+            </div>
+            <div style="display:flex;align-items:flex-start;gap:8px;font-size:.78rem;color:var(--gray-300);">
+              <span style="color:var(--accent2);">▸</span>
+              Domain-specific criteria packs (aerospace, medical, automotive)
+            </div>
+            <div style="display:flex;align-items:flex-start;gap:8px;font-size:.78rem;color:var(--gray-300);">
+              <span style="color:var(--accent2);">▸</span>
+              CI/CD integration — AI review as a PR gate for model changes
+            </div>
+            <div style="display:flex;align-items:flex-start;gap:8px;font-size:.78rem;color:var(--gray-300);">
+              <span style="color:var(--accent2);">▸</span>
+              Fine-tuned models trained on SysML corpus for deeper domain knowledge
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ SLIDE 10 — THANK YOU ══════════════════════════════════════ -->
+  <section class="slide" id="s10">
+    <div class="bg-grid"></div>
+    <div class="bg-glow" style="width:700px;height:700px;top:50%;left:50%;
+      transform:translate(-50%,-50%);
+      background:radial-gradient(circle,rgba(59,130,246,.22) 0%,transparent 65%);"></div>
+    <div class="bg-glow" style="width:400px;height:400px;bottom:-80px;left:80px;
+      background:radial-gradient(circle,rgba(20,184,166,.2) 0%,transparent 70%);"></div>
+    <div class="bg-glow" style="width:300px;height:300px;top:30px;right:80px;
+      background:radial-gradient(circle,rgba(168,85,247,.2) 0%,transparent 70%);"></div>
+
+    <div style="position:relative;z-index:1;width:100%;max-width:860px;
+                display:flex;flex-direction:column;align-items:center;text-align:center;">
+      <div style="font-size:3rem;margin-bottom:20px;">⚙️</div>
+      <p class="eyebrow">Open Source · MIT License</p>
+      <h2 style="font-size:clamp(2.2rem,5vw,3.6rem);font-weight:900;line-height:1.05;
+                 letter-spacing:-.03em;margin-bottom:16px;">
+        SysML v2
+        <span style="background:linear-gradient(90deg,#60a5fa,#14b8a6);
+                     -webkit-background-clip:text;-webkit-text-fill-color:transparent;">
+          LSP Hack
+        </span>
+      </h2>
+      <p style="font-size:1.05rem;color:var(--gray-300);line-height:1.7;
+                max-width:600px;margin-bottom:36px;">
+        Formal language tooling meets AI reasoning.<br>
+        Helping LLMs spot the issues that matter — before they ship.
+      </p>
+      <div style="display:flex;gap:16px;justify-content:center;margin-bottom:36px;flex-wrap:wrap;">
+        <span class="pill pill-blue" style="font-size:.85rem;padding:8px 18px;">🧩 VS Code Marketplace</span>
+        <span class="pill pill-teal" style="font-size:.85rem;padding:8px 18px;">📦 NPM: sysml-v2-lsp</span>
+        <span class="pill pill-amber" style="font-size:.85rem;padding:8px 18px;">🤖 sysml-mcp CLI</span>
+        <span class="pill pill-green" style="font-size:.85rem;padding:8px 18px;">🌐 <span data-version>v0.8.0</span></span>
+      </div>
+      <div style="display:flex;gap:24px;align-items:center;justify-content:center;flex-wrap:wrap;">
+        <div class="qr-placeholder">🔗</div>
+        <div style="display:flex;flex-direction:column;gap:10px;text-align:left;">
+          <div class="link-row">
+            <span>📦</span>
+            <a href="https://github.com/Loryan2509/sysml-v2-lsp-hack" target="_blank">
+              github.com/Loryan2509/sysml-v2-lsp-hack
+            </a>
+          </div>
+          <div class="link-row">
+            <span>🧩</span>
+            <span>VS Code: <a href="https://marketplace.visualstudio.com/items?itemName=JamieD.sysml-v2-support" target="_blank">JamieD.sysml-v2-support</a></span>
+          </div>
+          <div class="link-row">
+            <span>📖</span>
+            <span>SysML v2 Spec: <a href="https://www.omgsysml.org/SysML-2.htm" target="_blank">omgsysml.org</a></span>
+          </div>
+          <div class="link-row">
+            <span>🔤</span>
+            <span>Grammar: <a href="https://github.com/daltskin/sysml-v2-grammar" target="_blank">daltskin/sysml-v2-grammar</a></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div><!-- /.deck -->
+
+<script>
+  const VERSION = '0.8.0';
+  // Stamp every element that carries a data-version attribute with the version constant
+  document.querySelectorAll('[data-version]').forEach(el => { el.textContent = 'v' + VERSION; });
+
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  const total  = slides.length;
+  let   cur    = 0;
+
+  // Build dots
+  const dotsEl = document.getElementById('dots');
+  slides.forEach((_, i) => {
+    const d = document.createElement('div');
+    d.className = 'dot' + (i === 0 ? ' active' : '');
+    d.addEventListener('click', () => goTo(i));
+    dotsEl.appendChild(d);
+  });
+  const dots = Array.from(dotsEl.querySelectorAll('.dot'));
+
+  function goTo(idx) {
+    if (idx === cur || idx < 0 || idx >= total) return;
+    const prev = cur;
+    cur = idx;
+
+    slides[prev].classList.remove('active');
+    slides[prev].classList.add('exit-left');
+    setTimeout(() => slides[prev].classList.remove('exit-left'), 600);
+
+    slides[cur].classList.add('active');
+
+    dots.forEach((d, i) => d.classList.toggle('active', i === cur));
+    document.getElementById('counter').textContent = (cur + 1) + ' / ' + total;
+    document.getElementById('progress').style.width = ((cur + 1) / total * 100) + '%';
+  }
+
+  // Initialise first slide
+  slides[0].classList.add('active');
+  document.getElementById('counter').textContent = '1 / ' + total;
+  document.getElementById('progress').style.width = (1 / total * 100) + '%';
+
+  document.getElementById('prev').addEventListener('click', () => goTo(cur - 1));
+  document.getElementById('next').addEventListener('click', () => goTo(cur + 1));
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ')
+      { e.preventDefault(); goTo(cur + 1); }
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp')
+      { e.preventDefault(); goTo(cur - 1); }
+    else if (e.key === 'Home') goTo(0);
+    else if (e.key === 'End')  goTo(total - 1);
+  });
+
+  // Touch swipe support
+  let touchStartX = 0;
+  document.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; }, { passive: true });
+  document.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    if (Math.abs(dx) > 50) dx < 0 ? goTo(cur + 1) : goTo(cur - 1);
+  });
+</script>
+</body>
+</html>
