@@ -1,0 +1,27 @@
+{
+  "id": "review-2026-03-26T08-36-01-264Z",
+  "timestamp": "2026-03-26T08:36:01.264Z",
+  "files": [
+    "thermal-conflict"
+  ],
+  "sourceFiles": [
+    {
+      "name": "thermal-conflict",
+      "code": "package thermal_conflict {\r\n    requirement def EmergencyShutdown {\r\n        doc /* The system shall enter emergency shutdown when temperature reaches 80 degrees Celsius. */\r\n    }\r\n\r\n    requirement def CoolingFanActivation {\r\n        doc /* The cooling fan shall turn on when temperature reaches 85 degrees Celsius. */\r\n    }\r\n\r\n    requirement def SprinklerActivation {\r\n        doc /* The sprinkler system shall turn on when temperature reaches 60 degrees Celsius. */\r\n    }\r\n\r\n    part def CoolingSystem {\r\n        attribute temperatureC : Real = 25.0;\r\n        attribute emergencyShutdownThresholdC : Real = 80.0;\r\n        attribute sprinklerStartThresholdC : Real = 60.0;\r\n        attribute coolingFanStartThresholdC : Real = 85.0;\r\n    }\r\n\r\n    part def System {\r\n        part cooling : CoolingSystem;\r\n    }\r\n}"
+    }
+  ],
+  "criteria": [
+    "04_redundancy"
+  ],
+  "fixProposals": {},
+  "results": [
+    {
+      "criterionId": "04_redundancy",
+      "name": "04_redundancy",
+      "score": 0.4,
+      "rawText": "Model Characterisation\n- System purpose: A simple thermal protection/control model defining temperature-triggered safety and mitigation responses for a system.\n- Operational domain: Industrial / embedded control / thermal safety.\n- Model scope: Small fragment containing requirement definitions and a minimal structural definition.\n- Known scope limitations: No behaviour model, no state machines, no verification cases, no interfaces, no allocations, and no package hierarchy beyond one package. Checks requiring those artefacts are assessed only for explicit absence and skipped where appropriate.\n\nCHECK PASSED: 1. Duplicate Requirements  -  The three requirement definitions have distinct wording and distinct trigger temperatures (80C, 85C, 60C); no duplicated or near-duplicated requirement text was found.\n\nCHECK PASSED: 2. Duplicate Block or Part Definitions  -  Only two part definitions are present (`CoolingSystem` and `System`), and they represent different concepts with no duplicated block/interface definitions.\n\nCHECK PASSED: 3. Redundant Relationships  -  No `satisfy`, `allocate`, `connect`, `bind`, or specialization relationships are present, so no redundant relationship instances exist in this model fragment.\n\nCHECK PASSED: 4. Redundant Behaviour Models  -  No state machines, action definitions, sequences, or message exchange behaviour models are present, so behavioural duplication cannot be observed in the provided scope.\n\nCHECK PASSED: 5. Redundant Attributes & Constraints  -  The attributes in `CoolingSystem` are distinct threshold/value properties rather than repeated copies of the same attribute or unit restatements.\n\nCHECK PASSED: 6. Redundant Decomposition  -  The decomposition is minimal (`System` contains `cooling : CoolingSystem`) and does not include empty pass-through intermediate blocks, empty packages, or redundant action decomposition.\n\nISSUE [REDUNDANCY-001]\nElement(s):     thermal_conflict::EmergencyShutdown; thermal_conflict::CoolingFanActivation; thermal_conflict::CoolingSystem::emergencyShutdownThresholdC; thermal_conflict::CoolingSystem::coolingFanStartThresholdC\nCheck:          8. States that are never activated\nFinding:        The model defines a cooling-fan activation condition at 85C while also defining emergency shutdown at 80C. If emergency shutdown removes or halts normal operation as the requirement wording implies, the 85C fan activation condition becomes unreachable and therefore behaviourally redundant.\nEvidence:       Requirement `EmergencyShutdown`: \"The system shall enter emergency shutdown when temperature reaches 80 degrees Celsius.\"; requirement `CoolingFanActivation`: \"The cooling fan shall turn on when temperature reaches 85 degrees Celsius.\"; attributes `emergencyShutdownThresholdC : Real = 80.0;` and `coolingFanStartThresholdC : Real = 85.0;`.\nScore:          0.4  -  Significant defect because one thermal response may never be usable, creating misleading redundant intent in the model.\nConfidence:     MEDIUM  -  This depends on the semantics of \"emergency shutdown\"; the model does not include behaviour showing whether temperature can still rise to 85C or whether the fan is permitted during shutdown.\nRisk:           Reviewers may assume the fan provides mitigation above 85C when in fact shutdown at 80C may preclude that response, leading to inconsistent safety reasoning and redundant implementation or verification effort.\nRecommendation: Remove or revise one threshold strategy, or explicitly model the behavioural sequence and permitted concurrent actions. If the fan is intentional post-shutdown mitigation, annotate that intent and add behaviour showing how 85C remains reachable; otherwise keep the 80C shutdown rule and delete or lower the fan activation condition.\n\nSummary Table\n\n| ID | Score | Confidence | One-line description |\n|---|---:|---|---|\n| REDUNDANCY-001 | 0.4 | MEDIUM | Cooling fan activation at 85C appears redundant because emergency shutdown is triggered earlier at 80C. |\n\nOverall Assessment Score: 0.4\nModel Status: Critical deficiencies  -  major rework required before this model can be used"
+    }
+  ],
+  "overallScore": 0.4,
+  "savedAt": "2026-03-26T08:36:22.424Z"
+}

@@ -3363,9 +3363,14 @@
         alert('No fix proposal is available for this issue yet.');
         return;
       }
-      const fixedCode = proposal.fix.changes?.length
-        ? applyChangeSet(_reviewPrimaryCode || editor.value, proposal.fix.changes)
-        : proposal.fix.code;
+      const baseCode = _reviewPrimaryCode || editor.value;
+      const fixResult = buildCandidateCodeFromFix(baseCode, idx, proposal.fix);
+      if (fixResult.noOp) {
+        const status = document.getElementById('fixStatusText');
+        status.textContent = `✗ No actual SysML changes were produced for issue ${idx + 1}`;
+        return;
+      }
+      const fixedCode = fixResult.candidateCode;
 
       const validation = await validateCandidateFixCode(fixedCode, `issue ${idx + 1}`);
       if (!validation.ok) {
@@ -3517,15 +3522,12 @@
           cacheFixProposalForReport(idx);
 
           const fix = _fixProposals[idx].fix;
-          const changes = enrichProposalChanges(idx, fix.changes || [], fix.code || mergedCode);
-          if (changes.length) {
-            candidateCode = applyChangeSet(mergedCode, changes);
-          } else if (fix.code) {
-            candidateCode = fix.code;
-          } else {
+          const fixResult = buildCandidateCodeFromFix(mergedCode, idx, fix);
+          if (fixResult.noOp) {
             failed.push(idx + 1);
             continue;
           }
+          candidateCode = fixResult.candidateCode;
         } catch (err) {
           console.warn(`Rolling fix generation failed for issue ${idx + 1}, falling back to cached proposal:`, err);
           // Fall back to any pre-generated proposal
@@ -3534,15 +3536,12 @@
             missing.push(idx + 1);
             continue;
           }
-          const changes = enrichProposalChanges(idx, fix.changes || [], fix.code || mergedCode);
-          if (changes.length) {
-            candidateCode = applyChangeSet(mergedCode, changes);
-          } else if (fix.code) {
-            candidateCode = fix.code;
-          } else {
+          const fixResult = buildCandidateCodeFromFix(mergedCode, idx, fix);
+          if (fixResult.noOp) {
             failed.push(idx + 1);
             continue;
           }
+          candidateCode = fixResult.candidateCode;
         }
 
         if (status) {
@@ -3885,6 +3884,26 @@
         updatedCode = updatedCode.replace(before, after);
       });
       return updatedCode;
+    }
+
+    function buildCandidateCodeFromFix(baseCode, issueIndex, fix) {
+      if (!fix) {
+        return { candidateCode: baseCode, noOp: true };
+      }
+
+      const changes = enrichProposalChanges(issueIndex, fix.changes || [], fix.code || baseCode);
+      if (changes.length) {
+        const changedCode = applyChangeSet(baseCode, changes);
+        if (changedCode !== baseCode) {
+          return { candidateCode: changedCode, noOp: false };
+        }
+      }
+
+      if (fix.code && fix.code !== baseCode) {
+        return { candidateCode: fix.code, noOp: false };
+      }
+
+      return { candidateCode: baseCode, noOp: true };
     }
 
     function getFixIssueKey(issue) {

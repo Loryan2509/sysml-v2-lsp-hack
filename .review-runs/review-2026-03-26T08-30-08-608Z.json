@@ -1,0 +1,27 @@
+{
+  "id": "review-2026-03-26T08-30-08-608Z",
+  "timestamp": "2026-03-26T08:30:08.609Z",
+  "files": [
+    "thermal-conflict"
+  ],
+  "sourceFiles": [
+    {
+      "name": "thermal-conflict",
+      "code": "package thermal_conflict {\r\n    requirement def EmergencyShutdown {\r\n        doc /* The system shall enter emergency shutdown when temperature reaches 80 degrees Celsius. */\r\n    }\r\n\r\n    requirement def CoolingFanActivation {\r\n        doc /* The cooling fan shall turn on when temperature reaches 85 degrees Celsius. */\r\n    }\r\n\r\n    part def CoolingSystem {\r\n        attribute temperatureC : Real = 25.0;\r\n        attribute emergencyShutdownThresholdC : Real = 80.0;\r\n        attribute coolingFanStartThresholdC : Real = 85.0;\r\n    }\r\n\r\n    part def System {\r\n        part cooling : CoolingSystem;\r\n    }\r\n}"
+    }
+  ],
+  "criteria": [
+    "04_redundancy"
+  ],
+  "fixProposals": {},
+  "results": [
+    {
+      "criterionId": "04_redundancy",
+      "name": "04_redundancy",
+      "score": 1,
+      "rawText": "Model Characterisation\n- System purpose: A simple thermal control model defining when a system should shut down and when a cooling fan should activate based on temperature.\n- Operational domain: Likely industrial/electromechanical control or embedded system thermal management.\n- Model scope: Small fragment containing two requirements and a minimal structural definition for a cooling subsystem and parent system.\n- Known scope limitations: No behavior models, interfaces, allocations, verification cases, packages beyond one namespace, or decomposition beyond a single contained part. Checks involving those elements are assessed only for what is present and otherwise passed due to absence of duplicate instances.\n\nCHECK PASSED: 1. Duplicate Requirements  -  Two requirement definitions were examined and their texts express different thresholds and different actions, so they are not duplicates or near-duplicates.\n\nCHECK PASSED: 2. Duplicate Block or Part Definitions  -  The model contains only one `part def CoolingSystem` and one `part def System`, with no parallel definitions, aliases, or repeated interface/item definitions.\n\nCHECK PASSED: 3. Redundant Relationships  -  No `satisfy`, `allocate`, `connect`, `bind`, or specialization relationships are present, so no duplicate relationships were found.\n\nCHECK PASSED: 4. Redundant Behaviour Models  -  No state machines, action definitions, sequences, or message exchange models are present, so there is no duplicated behavior content to assess.\n\nCHECK PASSED: 5. Redundant Attributes & Constraints  -  The attributes on `CoolingSystem` are distinct properties (`temperatureC`, `emergencyShutdownThresholdC`, `coolingFanStartThresholdC`) and are not repeated on usages or elsewhere in the model.\n\nCHECK PASSED: 6. Redundant Decomposition  -  The decomposition is minimal (`System` contains one `CoolingSystem` part), but there is no evidence of a redundant pass-through hierarchy, empty package, or single-step action decomposition.\n\nCHECK PASSED: 7. Unintentional vs. Intentional Redundancy  -  No duplicated model content was identified, so there is no redundancy requiring justification as intentional architectural redundancy.\n\nSummary Table\n\n| ID | Score | Confidence | One-line description |\n|---|---:|---|---|\n| None | 1.0 | HIGH | No redundancy issues identified in the provided model fragment. |\n\nOverall Assessment Score: 1.0\nModel Status: Good - minor improvements only"
+    }
+  ],
+  "overallScore": 1,
+  "savedAt": "2026-03-26T08:30:21.975Z"
+}

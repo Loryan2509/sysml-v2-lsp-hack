@@ -15,3 +15,4 @@ test/fixtures/conformance/
 *.patch
 .venv/__pycache__/
 *.pyc
+.fixed-models/Demos/*.mp4

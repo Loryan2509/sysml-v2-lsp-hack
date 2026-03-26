@@ -1,0 +1,49 @@
+{
+  "id": "review-2026-03-25T14-56-56-874Z",
+  "timestamp": "2026-03-25T14:56:56.875Z",
+  "files": [
+    "requirements"
+  ],
+  "sourceFiles": [
+    {
+      "name": "requirements",
+      "code": "package requirements {\r\n    requirement def Shape {\r\n        doc /* The system shall be a perfect cube of 1m^2. */\r\n        \r\n    }\r\n    requirement def Material {\r\n        doc /* The system shall be made of 2024 Aluminium. */\r\n    }\r\n    requirement def Weight {\r\n        doc /* The system shall weigh no more than 1kg. */\r\n    }\r\n}"
+    }
+  ],
+  "criteria": [
+    "05_conflicting_requirements"
+  ],
+  "fixProposals": {
+    "05_conflicting_requirements::The requirement for a \"perfect cube of 1m^2\" conflicts with the requirement to be made of 2024 Aluminium and weigh no more than 1kg. Interpreting the shape requirement as a 1 m cha::0::ISSUE [CONFLICT-001]\nElement(s):     requirements::Shape; requirements::Weight; requirements::Material\nCheck:          4": {
+      "fix": {
+        "title": "Clarify cube geometry and reconcile mass by relaxing the mass limit",
+        "description": "This fix resolves the requirement-level conflict by removing the ambiguous and physically incompatible \"1m^2\" cube statement, replacing it with an unambiguous side-length requirement, and updating the mass requirement to a feasible limit for a solid 2024 aluminium cube. With a 0.1 m side length, the cube volume is 0.001 m^3 and 2024 aluminium yields a mass of about 2.78 kg, so a 3 kg maximum is consistent with the material and shape requirements while preserving the intent that the system remain compact and lightweight.",
+        "code": "package requirements {\n    requirement def Shape {\n        doc /* The system shall be a perfect cube with side length 0.1 m. */\n    }\n\n    requirement def Material {\n        doc /* The system shall be made of 2024 Aluminium. */\n    }\n\n    requirement def Weight {\n        doc /* The system shall weigh no more than 3 kg. */\n    }\n}",
+        "changes": [
+          {
+            "type": "alter",
+            "description": "Replaced the ambiguous and dimensionally unclear shape requirement with an unambiguous cube side-length requirement that can be assessed consistently against material and mass.",
+            "before": "requirement def Shape {\n    doc /* The system shall be a perfect cube of 1m^2. */\n    \n}",
+            "after": "requirement def Shape {\n    doc /* The system shall be a perfect cube with side length 0.1 m. */\n}"
+          },
+          {
+            "type": "alter",
+            "description": "Relaxed the mass requirement from 1 kg to 3 kg so it is physically compatible with a 0.1 m cube made of 2024 Aluminium.",
+            "before": "requirement def Weight {\n    doc /* The system shall weigh no more than 1kg. */\n}",
+            "after": "requirement def Weight {\n    doc /* The system shall weigh no more than 3 kg. */\n}"
+          }
+        ]
+      }
+    }
+  },
+  "results": [
+    {
+      "criterionId": "05_conflicting_requirements",
+      "name": "05_conflicting_requirements",
+      "score": 0.1,
+      "rawText": "Model Characterisation\n- System purpose: Unspecified beyond defining a physical system with shape, material, and weight requirements.\n- Operational domain: Not stated; appears to be a generic physical product/system.\n- Model scope: Very small requirements-only fragment containing three requirement definitions.\n- Known scope limitations: No structure, parametrics, behaviour, interfaces, allocations, safety constructs, or requirement relationships are provided. Checks depending on those artefacts are skipped where direct evidence is absent.\n\nISSUE [CONFLICT-001]\nElement(s):     requirements::Shape; requirements::Weight; requirements::Material\nCheck:          4. Requirement-Level Conflicts\nFinding:        The requirement for a \"perfect cube of 1m^2\" conflicts with the requirement to be made of 2024 Aluminium and weigh no more than 1kg. Interpreting the shape requirement as a 1 m characteristic size cube or 1 m² surface/face specification yields an aluminium object whose mass would be far greater than 1 kg, making the stated set of requirements physically incompatible.\nEvidence:       Shape: \"The system shall be a perfect cube of 1m^2.\"; Material: \"The system shall be made of 2024 Aluminium.\"; Weight: \"The system shall weigh no more than 1kg.\"\nConflict Type:  Soft\nScore:          0.1  -  The stated requirements are very likely physically unsatisfiable together, blocking any feasible design consistent with all three.\nConfidence:     MEDIUM  -  The conflict is strong, but certainty is limited because \"cube of 1m^2\" is dimensionally ambiguous and the model does not define whether this refers to face area, surface area, projected area, or another measure.\nImpact:         Feasible sizing and mass budgeting cannot be performed consistently; downstream design, material selection, and verification would be based on a requirement set with no practical solution space.\nRecommendation: Clarify the shape requirement with unambiguous dimensions and units (e.g., side length, volume, or total surface area), then reconcile it with the material and mass limit. If low mass is mandatory, change material, allow hollow/lightweighted construction, or relax the size or mass requirement.\n\nCHECK PASSED: 1. Numeric Constraint Conflicts  -  The model contains no formal numeric properties, bounds, parametric constraints, budgets, or decomposed subsystem values to compare beyond the textual mass statement, so no separate explicit numeric contradiction could be verified from model structure alone.\n\nCHECK PASSED: 2. Behavioural Conflicts  -  No states, transitions, activities, sequencing rules, liveness statements, or execution deadlines are present in this requirements fragment.\n\nCHECK PASSED: 3. Interface & Protocol Conflicts  -  No ports, flows, connections, protocols, rates, or interface contracts are present in the model.\n\nCHECK PASSED: 5. Allocation Conflicts  -  No functions, components, processors, environments, or allocation relationships are provided.\n\nCHECK PASSED: 6. Safety vs. Functional Conflicts  -  No safety constraints, operational modes, watchdog settings, or functional behaviours are defined, so this check is not applicable to the current fragment.\n\nCHECK PASSED: 7. Priority & Resolution  -  No documented priority ordering, satisfy/refine relations, or rationale notes are present; for the identified conflict, no resolution is documented in the model.\n\nSummary Table\n\n| ID | Score | Confidence | One-line description |\n|---|---:|---|---|\n| CONFLICT-001 | 0.1 | MEDIUM | Size/shape, aluminium material, and 1 kg mass requirements are likely physically incompatible. |\n\nOverall Assessment Score: 0.1  \nModel Status: Critical deficiencies - major rework required before this model can be used"
+    }
+  ],
+  "overallScore": 0.1,
+  "savedAt": "2026-03-25T15:00:11.910Z"
+}

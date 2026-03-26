@@ -1,0 +1,27 @@
+{
+  "id": "review-2026-03-26T09-09-09-502Z",
+  "timestamp": "2026-03-26T09:09:09.502Z",
+  "files": [
+    "thermal-system"
+  ],
+  "sourceFiles": [
+    {
+      "name": "thermal-system",
+      "code": "package thermal_system {\r\n    requirement def EmergencyShutdown {\r\n        doc /* The system shall enter emergency shutdown when temperature reaches 80 degrees Celsius. */\r\n    }\r\n\r\n    requirement def CoolingFanActivation {\r\n        doc /* The cooling fan shall turn on when temperature reaches 85 degrees Celsius. */\r\n    }\r\n\r\n    part def CoolingSystem {\r\n        attribute temperatureC : Real = 25.0;\r\n        attribute emergencyShutdownThresholdC : Real = 80.0;\r\n        attribute coolingFanStartThresholdC : Real = 85.0;\r\n    }\r\n\r\n}"
+    }
+  ],
+  "criteria": [
+    "04_redundancy"
+  ],
+  "fixProposals": {},
+  "results": [
+    {
+      "criterionId": "04_redundancy",
+      "name": "04_redundancy",
+      "score": 0.75,
+      "rawText": "System purpose: Model a simple thermal protection/control concept that monitors temperature and defines emergency shutdown and cooling fan activation thresholds for a cooling-related system.\n\nOperational domain: Likely industrial/electromechanical thermal management or embedded control.\n\nModel scope: Very small model fragment containing two requirement definitions and one part definition.\n\nKnown scope limitations: No behaviour model, no state machine, no verification cases, no decomposition hierarchy beyond a single part definition, no interfaces/allocations/connectors/packages beyond the top package. Checks requiring those elements are assessed as not evidenced in this fragment and skipped/passed accordingly.\n\nCHECK PASSED: 1. Duplicate Requirements  -  The two requirements were examined and are distinct in wording, trigger condition, and intended action; no duplicated or near-duplicated requirement text is present.\n\nCHECK PASSED: 2. Duplicate Block or Part Definitions  -  The model contains only one `part def` (`CoolingSystem`) and no duplicate `item def`, interface, or alternate definition of the same component.\n\nCHECK PASSED: 3. Redundant Relationships  -  No `satisfy`, `allocate`, `connect`, `bind`, or specialization relationships are present, so no redundant relationship duplication exists in this fragment.\n\nCHECK PASSED: 4. Redundant Behaviour Models  -  No state machines, action definitions, sequences, or message exchange models are present, so there is no duplicated behaviour representation to assess.\n\nISSUE [REDUNDANCY-001]\nElement(s):     thermal_system::CoolingSystem::attribute emergencyShutdownThresholdC; thermal_system::EmergencyShutdown; thermal_system::CoolingSystem::attribute coolingFanStartThresholdC; thermal_system::CoolingFanActivation\nCheck:          5. Redundant Attributes & Constraints\nFinding:        The threshold values are defined twice: once in requirement text and again as explicit attributes in `CoolingSystem`. In this fragment there is no traceability, derivation, or binding showing that the attributes are the authoritative parameterization of the requirements, so the numeric constraints are duplicated across requirements and design data.\nEvidence:       `requirement def EmergencyShutdown { doc /* The system shall enter emergency shutdown when temperature reaches 80 degrees Celsius. */ }`; `attribute emergencyShutdownThresholdC : Real = 80.0;`; `requirement def CoolingFanActivation { doc /* The cooling fan shall turn on when temperature reaches 85 degrees Celsius. */ }`; `attribute coolingFanStartThresholdC : Real = 85.0;`\nScore:          0.75  -  Minor-to-moderate redundancy risk: the model is understandable now, but duplicated thresholds can diverge during maintenance.\nConfidence:     HIGH\nRisk:           If a threshold changes in the design attributes but not in the requirement text, or vice versa, the model can silently become inconsistent and support incorrect verification or implementation decisions.\nRecommendation: Keep one authoritative source for each threshold. Prefer modelling the numeric values as requirement parameters or constrained properties and reference/bind them from `CoolingSystem`, or explicitly link the attributes to the requirements via derivation/refinement/redefinition so the duplication is controlled.\n\nCHECK PASSED: 6. Redundant Decomposition  -  The fragment has no multi-level decomposition, empty packages, or parent actions with single-child pass-through structure.\n\nCHECK PASSED: 7. Unintentional vs. Intentional Redundancy  -  No architectural duplication suggesting deliberate fault-tolerance redundancy is present; the only identified redundancy is representational duplication of thresholds and appears unannotated.\n\nCHECK PASSED: 8. States that are never activated  -  Although no explicit behaviour model exists, the stated thresholds imply the cooling fan activation condition at 85°C would be pre-empted by emergency shutdown at 80°C, so there is no duplicated state representation to assess under this check in the absence of states or transitions.\n\n| ID | Score | Confidence | One-line description |\n|---|---:|---|---|\n| REDUNDANCY-001 | 0.75 | HIGH | Temperature thresholds are duplicated in requirement text and design attributes without explicit trace/binding. |\n\nOverall Assessment Score: 0.75"
+    }
+  ],
+  "overallScore": 0.75,
+  "savedAt": "2026-03-26T09:09:35.182Z"
+}

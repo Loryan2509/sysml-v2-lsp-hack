@@ -1,0 +1,27 @@
+{
+  "id": "review-2026-03-26T09-06-35-640Z",
+  "timestamp": "2026-03-26T09:06:35.640Z",
+  "files": [
+    ".fixed-models/thermal-system__review-2026-03-26T09-04-37-723Z__selected-2-issues__2026-03-26T09-05-57-758Z.sysml"
+  ],
+  "sourceFiles": [
+    {
+      "name": ".fixed-models/thermal-system__review-2026-03-26T09-04-37-723Z__selected-2-issues__2026-03-26T09-05-57-758Z.sysml",
+      "code": "package thermal_system {\n    requirement def CoolingFanActivation {\n        doc /* The cooling fan shall turn on when temperature reaches 80 degrees Celsius. */\n    }\n\n    requirement def EmergencyShutdown {\n        doc /* The system shall enter emergency shutdown when temperature reaches 90 degrees Celsius. */\n    }\n\n    part def CoolingSystem {\n        attribute temperatureC : Real = 25.0;\n        attribute coolingFanStartThresholdC : Real = 80.0;\n        attribute emergencyShutdownThresholdC : Real = 90.0;\n    }\n\n    part def System {\n        part cooling : CoolingSystem;\n    }\n}"
+    }
+  ],
+  "criteria": [
+    "04_redundancy"
+  ],
+  "fixProposals": {},
+  "results": [
+    {
+      "criterionId": "04_redundancy",
+      "name": "04_redundancy",
+      "score": 0.78,
+      "rawText": "Model Characterisation\n- System purpose: A thermal protection/control model defining when a cooling fan activates and when an emergency shutdown occurs for a system.\n- Operational domain: Generic thermal control / industrial or embedded control domain.\n- Model scope: Small fragment containing two requirements and two part definitions with threshold attributes.\n- Known scope limitations: No behaviour model, no state machine, no actions, no interfaces, no allocations, no verification cases, no packages beyond one top-level package, and no explicit relationships (`satisfy`, `allocate`, `refine`, `deriveReqt`, `connect`, `bind`). Checks requiring those elements are assessed only against what is present and skipped where truly inapplicable.\n\nCHECK PASSED: 1. Duplicate Requirements  -  Examined both requirement definitions and found distinct texts and thresholds; no copied or near-identical requirement statements are present.\n\nCHECK PASSED: 2. Duplicate Block or Part Definitions  -  Examined `part def CoolingSystem` and `part def System` and found they represent different entities with different contents; no duplicate block/interface definitions are present.\n\nCHECK PASSED: 3. Redundant Relationships  -  No explicit `satisfy`, `allocate`, `connect`, `bind`, or repeated specialization relationships are present in this model fragment, so no redundant relationships were found.\n\nCHECK PASSED: 4. Redundant Behaviour Models  -  No state machines, action definitions, sequences, or message exchange models are present, so there is no duplicated behaviour model content to assess.\n\nCHECK PASSED: 5. Redundant Attributes & Constraints  -  Reviewed the three attributes on `CoolingSystem` and the usage `System::cooling`; the thresholds and temperature are defined once and not redundantly repeated at usage level.\n\nISSUE [REDUNDANCY-001]\nElement(s):     thermal_system::System; thermal_system::System::cooling; thermal_system::CoolingSystem\nCheck:          6. Redundant Decomposition\nFinding:        `System` acts as a single-child pass-through decomposition layer: it contains only one part usage `cooling : CoolingSystem` and adds no additional structure, behaviour, interfaces, constraints, or requirements context. In this fragment, that intermediate layer appears redundant.\nEvidence:       `part def System { part cooling : CoolingSystem; }` and `part def CoolingSystem { attribute temperatureC : Real = 25.0; attribute coolingFanStartThresholdC : Real = 80.0; attribute emergencyShutdownThresholdC : Real = 90.0; }`. `System` contributes only containment of a single child and no other model content.\nScore:          0.78  -  Minor-to-moderate redundancy; it increases maintenance burden but does not currently distort analysis in this small model.\nConfidence:     MEDIUM  -  This depends on modelling intent; `System` may be a planned top-level anchor for future expansion, but that purpose is not stated in the model text.\nRisk:           If the model grows, pass-through containers encourage copy-forward structure and can create unnecessary hierarchy levels that obscure ownership and duplicate context without adding meaning.\nRecommendation: Remove `System` and use `CoolingSystem` as the primary top-level definition for this fragment, or retain `System` only if it is explicitly justified as the intended system-of-interest container for future composition.\n\nCHECK PASSED: 7. Unintentional vs. Intentional Redundancy  -  No duplicated architectural elements suggesting deliberate fault-tolerant redundancy were found, so no missing redundancy annotation issue applies.\n\nCHECK PASSED: 8. States that are never activated  -  The threshold values shown (`coolingFanStartThresholdC = 80.0`, `emergencyShutdownThresholdC = 90.0`) do not indicate a redundant unreachable activation condition, and no behaviour model exists to show blocked state activation.\n\nSummary Table\n\n| ID | Score | Confidence | One-line description |\n|---|---:|---|---|\n| REDUNDANCY-001 | 0.78 | MEDIUM | `System` is a single-child pass-through decomposition that adds no content beyond containing `CoolingSystem`. |\n\nOverall Assessment Score: 0.78  \nModel Status: Notable gaps — address before finalising design decisions"
+    }
+  ],
+  "overallScore": 0.78,
+  "savedAt": "2026-03-26T09:07:03.305Z"
+}

@@ -1,0 +1,70 @@
+{
+  "id": "review-2026-03-26T09-04-37-723Z",
+  "timestamp": "2026-03-26T09:04:37.723Z",
+  "files": [
+    "thermal-system"
+  ],
+  "sourceFiles": [
+    {
+      "name": "thermal-system",
+      "code": "package thermal_system {\r\n    requirement def EmergencyShutdown {\r\n        doc /* The system shall enter emergency shutdown when temperature reaches 80 degrees Celsius. */\r\n    }\r\n\r\n    requirement def CoolingFanActivation {\r\n        doc /* The cooling fan shall turn on when temperature reaches 85 degrees Celsius. */\r\n    }\r\n\r\n    part def CoolingSystem {\r\n        attribute temperatureC : Real = 25.0;\r\n        attribute emergencyShutdownThresholdC : Real = 80.0;\r\n        attribute coolingFanStartThresholdC : Real = 85.0;\r\n    }\r\n\r\n    part def System {\r\n        part cooling : CoolingSystem;\r\n        \r\n    }\r\n}"
+    }
+  ],
+  "criteria": [
+    "04_redundancy"
+  ],
+  "fixProposals": {
+    "04_redundancy::The model contains two parallel thermal-response mechanisms for the same driving variable (temperature): emergency shutdown at 80°C and cooling fan activation at 85°C. Because the ::0::ISSUE [REDUNDANCY-001]\nElement(s):     thermal_system::EmergencyShutdown; thermal_system::CoolingFanActivation; thermal_": {
+      "fix": {
+        "title": "Revise cooling fan activation to occur before emergency shutdown",
+        "description": "This fix removes the apparent dead/redundant thermal-response feature by making cooling fan activation occur at a lower temperature than emergency shutdown. The fan can now contribute operationally before shutdown is triggered, resolving the unintentional redundancy identified by the review. The requirement text and the corresponding threshold attribute are updated consistently to preserve traceability and avoid future divergence.",
+        "code": "package thermal_system {\n    requirement def EmergencyShutdown {\n        doc /* The system shall enter emergency shutdown when temperature reaches 80 degrees Celsius. */\n    }\n\n    requirement def CoolingFanActivation {\n        doc /* The cooling fan shall turn on when temperature reaches 70 degrees Celsius. */\n    }\n\n    part def CoolingSystem {\n        attribute temperatureC : Real = 25.0;\n        attribute emergencyShutdownThresholdC : Real = 80.0;\n        attribute coolingFanStartThresholdC : Real = 70.0;\n    }\n\n    part def System {\n        part cooling : CoolingSystem;\n        \n    }\n}",
+        "changes": [
+          {
+            "type": "alter",
+            "description": "Lowered the cooling fan activation requirement threshold so the fan operates before emergency shutdown, making the feature non-redundant.",
+            "before": "requirement def CoolingFanActivation {\n    doc /* The cooling fan shall turn on when temperature reaches 85 degrees Celsius. */\n}",
+            "after": "requirement def CoolingFanActivation {\n    doc /* The cooling fan shall turn on when temperature reaches 70 degrees Celsius. */\n}"
+          },
+          {
+            "type": "alter",
+            "description": "Updated the CoolingSystem fan-start threshold attribute to match the revised requirement and restore consistent design intent.",
+            "before": "attribute coolingFanStartThresholdC : Real = 85.0;",
+            "after": "attribute coolingFanStartThresholdC : Real = 70.0;"
+          }
+        ]
+      }
+    },
+    "04_redundancy::The requirement for cooling fan activation appears to describe a response state/event that is never reachable in practice if emergency shutdown occurs first at the lower temperatur::1::ISSUE [REDUNDANCY-002]\nElement(s):     thermal_system::EmergencyShutdown; thermal_system::CoolingFanActivation\nCheck:   ": {
+      "fix": {
+        "title": "Make cooling fan activation reachable by lowering its threshold below emergency shutdown",
+        "description": "This fix removes the behavioral redundancy by making the cooling fan activation condition reachable before emergency shutdown. The fan activation requirement is changed from 85°C to 75°C, and the corresponding model attribute is updated to keep the requirement text and design data consistent. This is a single, production-ready correction that directly resolves the unreachable-state finding without introducing speculative behavior not present in the model.",
+        "code": "package thermal_system {\n    requirement def EmergencyShutdown {\n        doc /* The system shall enter emergency shutdown when temperature reaches 80 degrees Celsius. */\n    }\n\n    requirement def CoolingFanActivation {\n        doc /* The cooling fan shall turn on when temperature reaches 75 degrees Celsius. */\n    }\n\n    part def CoolingSystem {\n        attribute temperatureC : Real = 25.0;\n        attribute emergencyShutdownThresholdC : Real = 80.0;\n        attribute coolingFanStartThresholdC : Real = 75.0;\n    }\n\n    part def System {\n        part cooling : CoolingSystem;\n        \n    }\n}",
+        "changes": [
+          {
+            "type": "alter",
+            "description": "Lowered the cooling fan activation requirement threshold from 85°C to 75°C so the fan can activate before emergency shutdown at 80°C, eliminating the unreachable redundant behavior.",
+            "before": "requirement def CoolingFanActivation {\n    doc /* The cooling fan shall turn on when temperature reaches 85 degrees Celsius. */\n}",
+            "after": "requirement def CoolingFanActivation {\n    doc /* The cooling fan shall turn on when temperature reaches 75 degrees Celsius. */\n}"
+          },
+          {
+            "type": "alter",
+            "description": "Updated the CoolingSystem threshold attribute to match the revised reachable activation requirement and maintain internal consistency between requirements and system properties.",
+            "before": "attribute coolingFanStartThresholdC : Real = 85.0;",
+            "after": "attribute coolingFanStartThresholdC : Real = 75.0;"
+          }
+        ]
+      }
+    }
+  },
+  "results": [
+    {
+      "criterionId": "04_redundancy",
+      "name": "04_redundancy",
+      "score": 0.35,
+      "rawText": "Model Characterisation\n- **System purpose**: A thermal protection/control model defining when a system should enter emergency shutdown and when a cooling fan should activate.\n- **Operational domain**: Generic thermal control / industrial or embedded control domain.\n- **Model scope**: Small model fragment containing two requirements and two structural definitions.\n- **Known scope limitations**: No behaviour model, no state machine, no verification cases, no interfaces, no allocations, and no parametric constraints are included. Checks depending on those artefacts are assessed only for what is explicitly present; absence alone is not treated as redundancy unless it creates a directly redundant condition visible in the fragment.\n\nCHECK PASSED: 1. Duplicate Requirements  -  The two requirements were examined for identical or near-identical wording, hierarchy duplication, and cross-package repetition; they express different trigger conditions (80°C shutdown vs 85°C fan activation) and are not duplicates.\n\nCHECK PASSED: 2. Duplicate Block or Part Definitions  -  The model contains only `CoolingSystem` and `System`, which represent distinct entities and do not duplicate each other in name, structure, or role.\n\nCHECK PASSED: 3. Redundant Relationships  -  No `satisfy`, `allocate`, `connect`, `bind`, or repeated specialization relationships are present, so no duplicated relationships were found in this fragment.\n\nCHECK PASSED: 4. Redundant Behaviour Models  -  No state machines, actions, sequences, or message exchange models are present, so there is no duplicated behaviour model content to assess in this fragment.\n\nCHECK PASSED: 5. Redundant Attributes & Constraints  -  The attributes in `CoolingSystem` are distinct (`temperatureC`, `emergencyShutdownThresholdC`, `coolingFanStartThresholdC`) and are not repeated on usages or in derived form elsewhere in the model.\n\nCHECK PASSED: 6. Redundant Decomposition  -  The decomposition shown is minimal (`System` contains `cooling : CoolingSystem`) and does not include empty intermediate parts, empty packages, or single-child pass-through structures beyond what is necessary in this fragment.\n\nISSUE [REDUNDANCY-001]\nElement(s):     thermal_system::EmergencyShutdown; thermal_system::CoolingFanActivation; thermal_system::CoolingSystem::emergencyShutdownThresholdC; thermal_system::CoolingSystem::coolingFanStartThresholdC\nCheck:          7. Unintentional vs. Intentional Redundancy\nFinding:        The model contains two parallel thermal-response mechanisms for the same driving variable (temperature): emergency shutdown at 80°C and cooling fan activation at 85°C. Because the shutdown threshold is lower than the fan-start threshold, the fan-triggering concept is rendered operationally redundant unless some unmodelled behaviour allows fan activation before or during shutdown. No annotation or rationale explains this apparent redundancy.\nEvidence:       Requirement texts: `The system shall enter emergency shutdown when temperature reaches 80 degrees Celsius.` and `The cooling fan shall turn on when temperature reaches 85 degrees Celsius.` Corresponding attributes: `attribute emergencyShutdownThresholdC : Real = 80.0;` and `attribute coolingFanStartThresholdC : Real = 85.0;`\nScore:          0.4  -  Significant defect because an apparently redundant thermal protection feature may never contribute, weakening traceability and design intent.\nConfidence:     MEDIUM  -  This depends on inference from the thresholds because no behavioural semantics for shutdown or fan operation are modelled; a domain author could intend fan activation in another mode not shown here.\nRisk:           The model may preserve a dead or non-contributing requirement and parameter set, causing wasted verification effort, incorrect thermal control analysis, or future inconsistency if one threshold changes while the other remains.\nRecommendation: Either remove or revise the fan activation requirement/threshold so it can operate before shutdown, or explicitly annotate the design intent explaining why fan activation at 85°C is still meaningful under emergency shutdown behaviour.\n\nISSUE [REDUNDANCY-002]\nElement(s):     thermal_system::EmergencyShutdown; thermal_system::CoolingFanActivation\nCheck:          8. States that are never activated\nFinding:        The requirement for cooling fan activation appears to describe a response state/event that is never reachable in practice if emergency shutdown occurs first at the lower temperature threshold. This makes the fan activation condition behaviourally redundant.\nEvidence:       `EmergencyShutdown`: `The system shall enter emergency shutdown when temperature reaches 80 degrees Celsius.` `CoolingFanActivation`: `The cooling fan shall turn on when temperature reaches 85 degrees Celsius.`\nScore:          0.3  -  Significant defect because the model encodes an unreachable activation condition, likely leading to misleading behavioural expectations.\nConfidence:     MEDIUM  -  Reachability cannot be proven definitively without an explicit behaviour model showing whether shutdown prevents further temperature-driven actions.\nRisk:           Analysts may assume the fan provides mitigation above 85°C when, based on the stated thresholds, the system would already be shut down, leading to incorrect safety or performance conclusions.\nRecommendation: Introduce explicit behaviour showing shutdown/fan precedence, or change thresholds so the fan state is reachable; if intentional, document the rationale and conditions under which the fan can still activate.\n\nSummary Table\n\n| ID | Score | Confidence | One-line description |\n|---|---:|---|---|\n| REDUNDANCY-001 | 0.4 | MEDIUM | Shutdown and fan activation define overlapping thermal responses where the higher fan threshold makes that mechanism apparently redundant. |\n| REDUNDANCY-002 | 0.3 | MEDIUM | The cooling-fan activation condition appears unreachable because emergency shutdown is triggered first. |\n\nOverall Assessment Score: 0.35\nModel Status: Critical deficiencies - major rework required before this model can be used"
+    }
+  ],
+  "overallScore": 0.35,
+  "savedAt": "2026-03-26T09:05:40.184Z"
+}

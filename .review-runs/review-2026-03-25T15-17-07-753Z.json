@@ -1,0 +1,27 @@
+{
+  "id": "review-2026-03-25T15-17-07-753Z",
+  "timestamp": "2026-03-25T15:17:07.753Z",
+  "files": [
+    ".fixed-models/editor-current__review-2026-03-25T15-11-57-645Z__selected-3-issues__2026-03-25T15-15-15-549Z.sysml"
+  ],
+  "sourceFiles": [
+    {
+      "name": ".fixed-models/editor-current__review-2026-03-25T15-11-57-645Z__selected-3-issues__2026-03-25T15-15-15-549Z.sysml",
+      "code": "package requirements {\n    requirement def Shape {\n        doc /* The system shall have the external shape of a cube with side length no greater than 0.05 m. */\n    }\n\n    requirement def Material {\n        doc /* The system structure shall be made of 2024 Aluminium. */\n    }\n\n    requirement def Weight {\n        doc /* The system shall have a mass no greater than 1 kg. */\n    }\n\n    requirement def GeometryMaterialMassConsistency {\n        doc /* The geometry, material, and mass requirements shall be jointly satisfied. The maximum cube side length is limited to 0.05 m so that a system using 2024 Aluminium can reasonably comply with the 1 kg mass limit. */\n    }\n\n    requirement GeometryMaterialMassResolution : GeometryMaterialMassConsistency;\n    requirement ShapeReq : Shape;\n    requirement MaterialReq : Material;\n    requirement WeightReq : Weight;\n}"
+    }
+  ],
+  "criteria": [
+    "05_conflicting_requirements"
+  ],
+  "fixProposals": {},
+  "results": [
+    {
+      "criterionId": "05_conflicting_requirements",
+      "name": "05_conflicting_requirements",
+      "score": 1,
+      "rawText": "Model Characterisation\n- System purpose: The model captures top-level requirements for a physical system with constraints on shape, material, and mass.\n- Operational domain: Generic mechanical/structural product domain; no specific industry context is stated.\n- Model scope: Very small requirement-only fragment, not a complete system model. It contains requirement definitions and requirement usages only.\n- Known scope limitations: No behavioural model, no interfaces, no allocations, no parametrics, no state machines, no ports, and no quantified material property calculations are present. Checks requiring such content are assessed only insofar as the requirement text permits; otherwise they are skipped with rationale.\n\nCHECK PASSED: 1. Numeric Constraint Conflicts - Examined the explicit numeric limits in the requirement text; no direct contradictory numeric bounds are stated, and the only numeric relationship present is described as mutually consistent.\n\nCHECK PASSED: 2. Behavioural Conflicts - No behavioural elements (states, transitions, activities, triggers, guards, or timing sequences) are present in this requirement-only fragment, so no behavioural conflict can be evidenced from the model text.\n\nCHECK PASSED: 3. Interface & Protocol Conflicts - No interfaces, ports, flows, connections, or protocol specifications are present in the model fragment, so this check is not applicable.\n\nCHECK PASSED: 4. Requirement-Level Conflicts - Reviewed the four requirement statements together; the model explicitly adds `GeometryMaterialMassConsistency` stating that shape, material, and mass \"shall be jointly satisfied,\" which acts as an explicit resolution note rather than introducing a contradiction.\n\nCHECK PASSED: 5. Allocation Conflicts - No functional, logical-to-physical, or software-to-hardware allocations are present in the model, so allocation conflict checks are not applicable.\n\nCHECK PASSED: 6. Safety vs. Functional Conflicts - No safety requirements, safety constraints, or functional behaviour requirements are present, so no safety/functional conflict can be evidenced.\n\nCHECK PASSED: 7. Priority & Resolution - For the only potentially tensioned set of requirements (shape, material, mass), the model includes an explicit resolution requirement `GeometryMaterialMassResolution : GeometryMaterialMassConsistency;` documenting intended joint satisfaction, and no unresolved conflict is visible in the text.\n\nSummary Table\n\n| ID | Score | Confidence | One-line description |\n|---|---:|---|---|\n| None | 1.0 | HIGH | No conflicting requirements or constraints were evidenced in this model fragment. |\n\nOverall Assessment Score: 1.0  \nModel Status: Good - minor improvements only"
+    }
+  ],
+  "overallScore": 1,
+  "savedAt": "2026-03-25T15:17:22.243Z"
+}

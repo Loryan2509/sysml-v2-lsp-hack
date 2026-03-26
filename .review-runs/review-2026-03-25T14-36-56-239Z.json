@@ -1,0 +1,87 @@
+{
+  "id": "review-2026-03-25T14-36-56-239Z",
+  "timestamp": "2026-03-25T14:36:56.239Z",
+  "files": [
+    "editor (current)",
+    "requirements"
+  ],
+  "sourceFiles": [
+    {
+      "name": "editor (current)",
+      "code": "package requirements {\n    requirement def Shape {\n        doc /* The system shall be a perfect cube of 1m^2. */\n        \n    }\n    requirement def Material {\n        doc /* The system shall be made of 2024 Aluminium. */\n    }\n    requirement def Weight {\n        doc /* The system shall weigh no more than 1kg. */\n    }\n}"
+    },
+    {
+      "name": "requirements",
+      "code": "package requirements {\r\n    requirement def Shape {\r\n        doc /* The system shall be a perfect cube of 1m^2. */\r\n        \r\n    }\r\n    requirement def Material {\r\n        doc /* The system shall be made of 2024 Aluminium. */\r\n    }\r\n    requirement def Weight {\r\n        doc /* The system shall weigh no more than 1kg. */\r\n    }\r\n}"
+    }
+  ],
+  "criteria": [
+    "05_conflicting_requirements"
+  ],
+  "fixProposals": {
+    "05_conflicting_requirements::The stated geometry/material combination is in direct tension with the stated maximum weight. A perfect cube associated with a size of \"1m^2\" and made of 2024 aluminium would have ::0::ISSUE [CONFLICT-001]\nElement(s):     requirements::Shape; requirements::Weight; requirements::Material\nCheck:          1": {
+      "fix": {
+        "title": "Clarify cube geometry as hollow and reconcile mass limit with aluminium construction",
+        "description": "This fix removes the ambiguous and effectively infeasible geometry requirement by replacing it with explicit, satisfiable requirements: a cube with 1 m edge length, hollow shell construction, and a bounded wall thickness. Retaining 2024 aluminium is then compatible with the 1 kg mass limit because the design space is no longer implicitly a solid cube. The updated requirements directly address the cited conflict by clarifying dimensions, construction assumptions, and the mass-driving parameter.",
+        "code": "package requirements {\n    requirement def Shape {\n        doc /* The system shall have the external shape of a perfect cube with an edge length of 1 m. */\n    }\n\n    requirement def Construction {\n        doc /* The system shall be a hollow shell and shall not be a solid cube. */\n    }\n\n    requirement def WallThickness {\n        doc /* The aluminium shell wall thickness shall be no greater than 0.09 mm. */\n    }\n\n    requirement def Material {\n        doc /* The system shall be made of 2024 Aluminium. */\n    }\n\n    requirement def Weight {\n        doc /* The system shall weigh no more than 1 kg. */\n    }\n}",
+        "changes": [
+          {
+            "type": "alter",
+            "description": "Replaced the ambiguous shape requirement \"perfect cube of 1m^2\" with a dimensionally correct external geometry requirement using edge length, eliminating ambiguity about the governing size parameter.",
+            "before": "requirement def Shape {\n    doc /* The system shall be a perfect cube of 1m^2. */\n    \n}",
+            "after": "requirement def Shape {\n    doc /* The system shall have the external shape of a perfect cube with an edge length of 1 m. */\n}"
+          },
+          {
+            "type": "add",
+            "description": "Added an explicit construction requirement stating that the article is a hollow shell rather than a solid cube, resolving the core feasibility conflict between geometry, material, and mass.",
+            "before": "",
+            "after": "requirement def Construction {\n    doc /* The system shall be a hollow shell and shall not be a solid cube. */\n}"
+          },
+          {
+            "type": "add",
+            "description": "Added a wall-thickness requirement to bound the aluminium mass and reconcile the retained 2024 aluminium material requirement with the 1 kg maximum weight requirement.",
+            "before": "",
+            "after": "requirement def WallThickness {\n    doc /* The aluminium shell wall thickness shall be no greater than 0.09 mm. */\n}"
+          }
+        ]
+      }
+    },
+    "05_conflicting_requirements::The apparent conflict among geometry, material, and weight is not accompanied by any documented priority ordering, rationale, or refinement showing which requirement takes preceden::0::ISSUE [CONFLICT-003]\nElement(s):     requirements::Shape; requirements::Material; requirements::Weight\nCheck:          7": {
+      "fix": {
+        "title": "Add explicit conflict resolution requirement and rationale with precedence",
+        "description": "This fix resolves CONFLICT-003 by documenting stakeholder-approved priority and trade resolution across the geometry, material, and mass requirements. It retains the three original requirements, adds a derived requirement that defines precedence, and records rationale that geometry and material are mandatory while the mass limit is a goal subject to escalation if infeasible. This provides direct implementation guidance and makes the latent conflict explicitly managed rather than undocumented.",
+        "code": "package requirements {\n    requirement def Shape {\n        doc /* The system shall be a perfect cube of 1 m on each edge. */\n    }\n\n    requirement def Material {\n        doc /* The system shall be made of 2024 Aluminium. */\n    }\n\n    requirement def Weight {\n        doc /* The system shall weigh no more than 1 kg. */\n    }\n\n    requirement def ConflictResolution {\n        doc /* Priority and resolution for the Shape, Material, and Weight requirements shall be as follows: (1) Shape and Material are mandatory and take precedence; (2) Weight is a secondary objective that shall be met if feasible within the mandated geometry and material; (3) if analysis shows the 1 kg limit cannot be achieved with a perfect 1 m cube made of 2024 Aluminium, the conflict shall be formally escalated for stakeholder rewrite of the Weight requirement rather than changing Shape or Material without approval. */\n    }\n\n    requirement resolution : ConflictResolution;\n    refine requirement resolution to Shape;\n    refine requirement resolution to Material;\n    refine requirement resolution to Weight;\n\n    comment conflictRationale {\n        doc /* Rationale: explicit precedence is required because the combination of geometry, material, and mass may be infeasible. This model records the approved trade: preserve geometry and material, treat mass as the adjustable requirement, and escalate if infeasible. */\n    }\n}\n",
+        "changes": [
+          {
+            "type": "alter",
+            "description": "Corrected the Shape requirement text so the geometry is expressed unambiguously as a cube with 1 m edge length, avoiding reliance on an area unit in the requirement statement while preserving the intended geometric constraint.",
+            "before": "requirement def Shape {\n    doc /* The system shall be a perfect cube of 1m^2. */\n    \n}",
+            "after": "requirement def Shape {\n    doc /* The system shall be a perfect cube of 1 m on each edge. */\n}"
+          },
+          {
+            "type": "add",
+            "description": "Added an explicit conflict resolution requirement that documents precedence, acceptable trade space, and escalation path for the apparent conflict among shape, material, and weight.",
+            "before": "",
+            "after": "requirement def ConflictResolution {\n    doc /* Priority and resolution for the Shape, Material, and Weight requirements shall be as follows: (1) Shape and Material are mandatory and take precedence; (2) Weight is a secondary objective that shall be met if feasible within the mandated geometry and material; (3) if analysis shows the 1 kg limit cannot be achieved with a perfect 1 m cube made of 2024 Aluminium, the conflict shall be formally escalated for stakeholder rewrite of the Weight requirement rather than changing Shape or Material without approval. */\n}\n\nrequirement resolution : ConflictResolution;\nrefine requirement resolution to Shape;\nrefine requirement resolution to Material;\nrefine requirement resolution to Weight;"
+          },
+          {
+            "type": "add",
+            "description": "Added rationale text capturing why the precedence exists and how the trade is to be interpreted by design teams.",
+            "before": "",
+            "after": "comment conflictRationale {\n    doc /* Rationale: explicit precedence is required because the combination of geometry, material, and mass may be infeasible. This model records the approved trade: preserve geometry and material, treat mass as the adjustable requirement, and escalate if infeasible. */\n}"
+          }
+        ]
+      }
+    }
+  },
+  "results": [
+    {
+      "criterionId": "05_conflicting_requirements",
+      "name": "05_conflicting_requirements",
+      "score": 0.27,
+      "rawText": "Model Characterisation\n- System purpose: The model defines three high-level product requirements for an unspecified system: geometric shape, material selection, and maximum weight.\n- Operational domain: Not stated. The model is domain-agnostic from the provided text.\n- Model scope: Very small requirements fragment only; no structure, behaviour, interfaces, allocations, parametrics, or requirement relationships are provided.\n- Known scope limitations: Checks requiring behavioural models, interface definitions, allocations, timing chains, protocol specifications, or parent/child requirement decomposition cannot be fully applied because those model elements are absent. Only requirement-text conflict analysis and coarse physical consistency checks are in scope.\n\nISSUE [CONFLICT-001]\nElement(s):     requirements::Shape; requirements::Weight; requirements::Material\nCheck:          1. Numeric Constraint Conflicts\nFinding:        The stated geometry/material combination is in direct tension with the stated maximum weight. A perfect cube associated with a size of \"1m^2\" and made of 2024 aluminium would have a mass far exceeding 1 kg under any ordinary interpretation of a solid cube, creating an effectively unsatisfiable design space.\nEvidence:       Shape: \"The system shall be a perfect cube of 1m^2.\"; Material: \"The system shall be made of 2024 Aluminium.\"; Weight: \"The system shall weigh no more than 1kg.\"\nConflict Type:  Soft\nScore:          0.2 - The requirement set is very likely infeasible as written, so design trades based on these requirements would likely be invalid.\nConfidence:     MEDIUM - The conflict is strongly suggested by the explicit text, but certainty is limited because \"cube of 1m^2\" is dimensionally ambiguous and the model does not state whether the cube is solid, hollow, or a shell structure.\nImpact:         Feasibility assessment and concept selection are undermined because no plausible implementation may satisfy the combined size, material, and weight requirements as stated.\nRecommendation: Clarify the geometric requirement using correct dimensional terms (e.g., edge length, surface area, or volume), specify whether the article is solid or hollow and allowable wall thickness, then reconcile the mass limit with the selected material or relax one of the constraints.\n\nISSUE [CONFLICT-002]\nElement(s):     requirements::Shape\nCheck:          4. Requirement-Level Conflicts\nFinding:        The shape requirement is internally inconsistent because it specifies a three-dimensional object (\"perfect cube\") using an area unit (\"1m^2\"). This makes the requirement semantically contradictory and prevents consistent interpretation against other requirements.\nEvidence:       Shape: \"The system shall be a perfect cube of 1m^2.\"\nConflict Type:  Hard\nScore:          0.1 - The requirement cannot be interpreted unambiguously enough to support valid downstream analysis or conflict resolution.\nConfidence:     HIGH\nImpact:         Geometry-based verification, mass estimation, packaging analysis, and conflict analysis with the weight requirement are blocked by the malformed dimensional specification.\nRecommendation: Replace \"1m^2\" with a proper cube-defining quantity such as \"1 m edge length\", \"1 m^3 volume\", or \"6 m^2 total surface area\", depending on intent.\n\nCHECK PASSED: 2. Behavioural Conflicts - No behavioural model elements, states, transitions, activities, or execution constraints are present, so no behavioural conflicts can be identified in this fragment.\n\nCHECK PASSED: 3. Interface & Protocol Conflicts - No ports, connections, item flows, or protocol definitions are present, so interface and protocol conflict checks are not applicable to this model fragment.\n\nCHECK PASSED: 5. Allocation Conflicts - No functional allocations, processors, hardware mappings, or environmental allocations are present, so allocation conflict checks cannot be applied.\n\nCHECK PASSED: 6. Safety vs. Functional Conflicts - No safety requirements, functional behaviours, shutdown logic, or watchdog constraints are present, so no safety-functional conflict is observable in the provided model.\n\nISSUE [CONFLICT-003]\nElement(s):     requirements::Shape; requirements::Material; requirements::Weight\nCheck:          7. Priority & Resolution\nFinding:        The apparent conflict among geometry, material, and weight is not accompanied by any documented priority ordering, rationale, or refinement showing which requirement takes precedence or how the trade is resolved.\nEvidence:       Only three standalone requirements are present: \"The system shall be a perfect cube of 1m^2.\", \"The system shall be made of 2024 Aluminium.\", and \"The system shall weigh no more than 1kg.\" No satisfy/refine/rationale/derivation/prioritisation elements are shown.\nConflict Type:  Latent\nScore:          0.5 - The unresolved trade leaves design teams without decision guidance, increasing the chance of inconsistent implementation choices.\nConfidence:     HIGH\nImpact:         Stakeholders cannot determine whether to preserve mass, material, or geometry when the requirement set proves infeasible, delaying resolution and invalidating compliance claims.\nRecommendation: Add explicit requirement relations or rationale identifying precedence, acceptable trade space, or stakeholder-approved resolution; if all three are mandatory, record the conflict formally and escalate for requirement rewrite.\n\nSummary Table\n\n| ID | Score | Confidence | One-line description |\n|---|---:|---|---|\n| CONFLICT-001 | 0.2 | MEDIUM | Material, cube size, and 1 kg mass limit appear physically infeasible in combination. |\n| CONFLICT-002 | 0.1 | HIGH | The cube requirement is internally contradictory because it uses an area unit to define a 3D shape. |\n| CONFLICT-003 | 0.5 | HIGH | No documented priority or resolution exists for the apparent requirement conflict. |\n\nOverall Assessment Score: 0.27\nModel Status: Critical deficiencies - major rework required before this model can be used."
+    }
+  ],
+  "overallScore": 0.27,
+  "savedAt": "2026-03-25T14:39:31.957Z"
+}

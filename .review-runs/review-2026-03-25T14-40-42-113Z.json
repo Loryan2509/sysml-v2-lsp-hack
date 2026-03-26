@@ -1,0 +1,27 @@
+{
+  "id": "review-2026-03-25T14-40-42-113Z",
+  "timestamp": "2026-03-25T14:40:42.113Z",
+  "files": [
+    ".fixed-models/editor-current__review-2026-03-25T14-36-56-239Z__selected-3-issues__2026-03-25T14-40-19-121Z.sysml"
+  ],
+  "sourceFiles": [
+    {
+      "name": ".fixed-models/editor-current__review-2026-03-25T14-36-56-239Z__selected-3-issues__2026-03-25T14-40-19-121Z.sysml",
+      "code": "package requirements {\n    requirement def Shape {\n        doc /* The system shall have an external cubic form with side length no greater than 0.05 m. */\n    }\n\n    requirement def Material {\n        doc /* The system enclosure shall be made of 2024 aluminium. */\n    }\n\n    requirement def Weight {\n        doc /* The total system mass shall be no more than 1 kg. */\n    }\n\n    requirement def TradeResolution {\n        doc /* The geometry, material, and mass requirements shall be satisfied together by applying the cubic size limit to the external enclosure and the 2024 aluminium requirement to the enclosure, while maintaining total system mass at or below 1 kg. In case of design trade studies, compliance with the total mass limit and the use of 2024 aluminium for the enclosure take precedence, and internal volume allocation shall be adjusted within the allowed cubic size. */\n    }\n}"
+    }
+  ],
+  "criteria": [
+    "05_conflicting_requirements"
+  ],
+  "fixProposals": {},
+  "results": [
+    {
+      "criterionId": "05_conflicting_requirements",
+      "name": "05_conflicting_requirements",
+      "score": 1,
+      "rawText": "Model Characterisation\n- System purpose: The model defines a small physical system with requirements on external shape, enclosure material, and total mass; the intended stakeholder or end use is not stated.\n- Operational domain: Not specified in the model text; appears to be a generic physical product/mechanical enclosure context.\n- Model scope: Very limited requirements fragment containing four requirement definitions only.\n- Known scope limitations: No structural decomposition, no quantitative material properties, no behavior, no interfaces, no allocations, no safety constraints, and no requirement relationships (`satisfy`, `refine`, derivation, containment) are present. Checks depending on those elements are assessed as not evidenced in this fragment and not raised as false conflicts.\n\nCHECK PASSED: 1. Numeric Constraint Conflicts - The model contains only one explicit numeric bound (`side length no greater than 0.05 m`) and one system mass limit (`no more than 1 kg`); no second bound, subcomponent budgets, timing, throughput, power, or temperature constraints are present to create a demonstrable numeric contradiction within this fragment.\n\nCHECK PASSED: 2. Behavioural Conflicts - No state machines, activities, transitions, triggers, guards, liveness conditions, or execution deadlines are present in the model fragment, so no behavioural conflict can be evidenced.\n\nCHECK PASSED: 3. Interface & Protocol Conflicts - No ports, flows, connections, protocols, rates, directions, or handshake specifications are present in the model fragment, so no interface/protocol conflict can be evidenced.\n\nCHECK PASSED: 4. Requirement-Level Conflicts - The stated requirements are potentially co-satisfiable as written, and `TradeResolution` explicitly asserts they are to be satisfied together with a precedence statement rather than introducing a contradiction. No explicit opposing quality attribute requirement is stated in the text.\n\nCHECK PASSED: 5. Allocation Conflicts - No functions, physical components, processors, or allocation relationships are present in the model fragment, so no allocation conflict can be evidenced.\n\nCHECK PASSED: 6. Safety vs. Functional Conflicts - No safety requirements, prohibited behaviors, watchdog constraints, or functional behavior requirements are present in the model fragment, so no safety-functional conflict can be evidenced.\n\nCHECK PASSED: 7. Priority & Resolution - For the only potential trade tension in the fragment (shape/material/mass), `TradeResolution` provides an explicit resolution statement and priority ordering: mass limit and enclosure material take precedence, with internal volume allocation to be adjusted within the cubic size constraint.\n\nSummary Table\n\n| ID | Score | Confidence | One-line description |\n|---|---:|---|---|\n| None | 1.0 | HIGH | No conflicting requirements or constraints are explicitly evidenced in this limited model fragment. |\n\nOverall Assessment Score: 1.0\nModel Status: Good - minor improvements only"
+    }
+  ],
+  "overallScore": 1,
+  "savedAt": "2026-03-25T14:40:58.985Z"
+}

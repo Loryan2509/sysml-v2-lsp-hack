@@ -1,0 +1,27 @@
+{
+  "id": "review-2026-03-25T15-47-54-197Z",
+  "timestamp": "2026-03-25T15:47:54.197Z",
+  "files": [
+    ".fixed-models/rocket__review-2026-03-25T15-45-40-750Z__selected-2-issues__2026-03-25T15-47-43-658Z.sysml"
+  ],
+  "sourceFiles": [
+    {
+      "name": ".fixed-models/rocket__review-2026-03-25T15-45-40-750Z__selected-2-issues__2026-03-25T15-47-43-658Z.sysml",
+      "code": "package rocket {\n    requirement def Thrusters {\n        doc /* The rocket shall have 3 thrusters. */\n    }\n\n    part def Thruster;\n\n    part def Fuel;\n\n    part def Rocket {\n        doc /* A vehicle designed to propel itself by expelling exhaust gas. */\n\n        part thrusters : Thruster[3];\n        part fuel : Fuel;\n\n        attribute maxSpeed : Real;\n        attribute range : Real;\n    }\n\n    requirement thrustersReq : Thrusters;\n\n    satisfy thrustersSatisfaction {\n        subject = Rocket;\n        requirement = thrustersReq;\n    }\n}"
+    }
+  ],
+  "criteria": [
+    "05_conflicting_requirements"
+  ],
+  "fixProposals": {},
+  "results": [
+    {
+      "criterionId": "05_conflicting_requirements",
+      "name": "05_conflicting_requirements",
+      "score": 1,
+      "rawText": "Model Characterisation\n- System purpose: A simple rocket system model intended to describe a rocket with thrusters and fuel, and to relate the rocket design to a requirement about thruster count.\n- Operational domain: Aerospace / rocket vehicle domain.\n- Model scope: Small model fragment containing one requirement definition, one instantiated requirement, one system part definition, and one satisfy relationship.\n- Known scope limitations: The model contains no behavioural model, no interface model, no protocol definitions, no allocations, no safety constraints, no numeric bounds beyond thruster multiplicity, and no requirement hierarchy beyond a single requirement. Checks depending on those absent views are assessed as not evidenced in this fragment and are not raised as false conflicts.\n\nCHECK PASSED: 1. Numeric Constraint Conflicts - Examined the only explicit quantitative constraint (`thrusters : Thruster[3]`) and the single requirement text (\"shall have 3 thrusters\"); these are consistent and no contradictory numeric bounds are present.\n\nCHECK PASSED: 2. Behavioural Conflicts - No state machines, activities, transitions, triggers, guards, sequencing constraints, deadlines, or liveness/safety behavioural statements are present in this model fragment.\n\nCHECK PASSED: 3. Interface & Protocol Conflicts - No ports, flows, connectors, signal types, rates, handshakes, retries, or protocol specifications are present, so no interface-side conflicts are evidenced.\n\nCHECK PASSED: 4. Requirement-Level Conflicts - The model contains only one requirement instance (`thrustersReq : Thrusters`) with one stated condition, and no second requirement or parent/child decomposition exists to create a contradiction.\n\nCHECK PASSED: 5. Allocation Conflicts - No functional allocations, processors, execution platforms, environmental zones, or connectivity allocations are modeled in this fragment.\n\nCHECK PASSED: 6. Safety vs. Functional Conflicts - No safety requirements, safety constraints, watchdogs, shutdown logic, or competing functional mandates are present.\n\nCHECK PASSED: 7. Priority & Resolution - No actual conflicts were identified in the model, so no conflict-priority or resolution mechanism was required for this assessment.\n\nSummary Table\n\n| ID | Score | Confidence | One-line description |\n|---|---:|---|---|\n| None | 1.0 | HIGH | No conflicting requirements, constraints, or specifications were evidenced in this model fragment. |\n\nOverall Assessment Score: 1.0\nModel Status: Good - minor improvements only"
+    }
+  ],
+  "overallScore": 1,
+  "savedAt": "2026-03-25T15:48:09.870Z"
+}

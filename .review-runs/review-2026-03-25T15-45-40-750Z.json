@@ -1,0 +1,70 @@
+{
+  "id": "review-2026-03-25T15-45-40-750Z",
+  "timestamp": "2026-03-25T15:45:40.751Z",
+  "files": [
+    "rocket"
+  ],
+  "sourceFiles": [
+    {
+      "name": "rocket",
+      "code": "package rocket {\r\n    requirement def Thrusters {\r\n        doc /* The rocket shall have 2 thrusters. */\r\n          \r\n}\r\n        part def Rocket {\r\n        doc /* A vehicle designed to propel itself by expelling exhaust gas. */\r\n\r\n        part thrusters : Thrusters[3];\r\n        part fuel : Fuel;\r\n\r\n        attribute maxSpeed : Real;\r\n        attribute range : Real;\r\n    }\r\n}"
+    }
+  ],
+  "criteria": [
+    "05_conflicting_requirements"
+  ],
+  "fixProposals": {
+    "05_conflicting_requirements::The requirement definition states the rocket shall have 2 thrusters, but the structural model instantiates the rocket with thrusters multiplicity [3]. These conditions cannot both ::8::ISSUE [CONFLICT-001]\nElement(s):     rocket::Thrusters; rocket::Rocket::thrusters\nCheck:          4. Requirement-Level C": {
+      "fix": {
+        "title": "Align rocket thruster multiplicity with the 2-thruster requirement",
+        "description": "This fix resolves the hard requirement-level conflict by making the structural model consistent with the stated requirement that the rocket shall have 2 thrusters. The rocket part definition is updated from `Thrusters[3]` to `Thrusters[2]`, eliminating the direct contradiction without introducing undocumented variance or waiver behavior.",
+        "code": "package rocket {\n    requirement def Thrusters {\n        doc /* The rocket shall have 2 thrusters. */\n    }\n\n    part def Fuel;\n\n    part def Rocket {\n        doc /* A vehicle designed to propel itself by expelling exhaust gas. */\n\n        part thrusters : Thrusters[2];\n        part fuel : Fuel;\n\n        attribute maxSpeed : Real;\n        attribute range : Real;\n    }\n}",
+        "changes": [
+          {
+            "type": "alter",
+            "description": "Changed the rocket's thruster part multiplicity from 3 to 2 so the structural model satisfies the requirement definition stating the rocket shall have 2 thrusters.",
+            "before": "part thrusters : Thrusters[3];",
+            "after": "part thrusters : Thrusters[2];"
+          }
+        ]
+      }
+    },
+    "05_conflicting_requirements::The identified contradiction between the thruster-count requirement and the modeled thruster multiplicity has no documented priority, satisfy relationship, refine relationship, or ::2::ISSUE [CONFLICT-002]\nElement(s):     rocket::Thrusters; rocket::Rocket::thrusters\nCheck:          7. Priority & Resoluti": {
+      "fix": {
+        "title": "Align thruster multiplicity with requirement and add explicit satisfy/rationale resolution",
+        "description": "This fix removes the hard contradiction at its source by changing the Rocket thruster multiplicity from 3 to 2, then documents the resolution explicitly with a requirement usage, a satisfy relationship from the design element to that requirement, and a rationale note stating that the requirement governs verification and implementation. This addresses the missing priority/resolution metadata and leaves the model with a single, production-ready interpretation: the rocket is built and verified with 2 thrusters.",
+        "code": "package rocket {\n    requirement def Thrusters {\n        doc /* The rocket shall have 2 thrusters. */\n    }\n\n    requirement thrusterCountRequirement : Thrusters;\n\n    part def Rocket {\n        doc /* A vehicle designed to propel itself by expelling exhaust gas. */\n\n        part thrusters : Thrusters[2] {\n            doc /* Resolved to 2 instances to satisfy thrusterCountRequirement; requirement takes precedence over the previous conflicting multiplicity of 3. */\n        }\n        part fuel : Fuel;\n\n        attribute maxSpeed : Real;\n        attribute range : Real;\n\n        satisfy thrusterCountSatisfaction : thrusterCountRequirement by thrusters;\n\n        doc /* Conflict resolution rationale: the requirement-defined thruster count is authoritative for implementation and verification, so the design multiplicity has been updated from [3] to [2]. */\n    }\n}",
+        "changes": [
+          {
+            "type": "alter",
+            "description": "Changed the Rocket thrusters multiplicity from [3] to [2] so the design no longer contradicts the requirement stating the rocket shall have 2 thrusters.",
+            "before": "part thrusters : Thrusters[3];",
+            "after": "part thrusters : Thrusters[2] {\n            doc /* Resolved to 2 instances to satisfy thrusterCountRequirement; requirement takes precedence over the previous conflicting multiplicity of 3. */\n        }"
+          },
+          {
+            "type": "add",
+            "description": "Added an explicit requirement usage and satisfy relationship so the model documents how the design fulfills the requirement and resolves the previously undocumented conflict.",
+            "before": "",
+            "after": "requirement thrusterCountRequirement : Thrusters;\n\nsatisfy thrusterCountSatisfaction : thrusterCountRequirement by thrusters;"
+          },
+          {
+            "type": "add",
+            "description": "Added rationale text documenting precedence and resolution, making clear that the requirement governs implementation and verification.",
+            "before": "",
+            "after": "doc /* Conflict resolution rationale: the requirement-defined thruster count is authoritative for implementation and verification, so the design multiplicity has been updated from [3] to [2]. */"
+          }
+        ]
+      }
+    }
+  },
+  "results": [
+    {
+      "criterionId": "05_conflicting_requirements",
+      "name": "05_conflicting_requirements",
+      "score": 0.2,
+      "rawText": "Model Characterisation\n- System purpose: A rocket/vehicle model intended to represent a propelled vehicle with thrusters and fuel.\n- Operational domain: Aerospace.\n- Model scope: Very small fragment of a structural/requirements model; not a complete system model.\n- Known scope limitations: The model contains only one requirement definition and one part definition with minimal attributes. There are no explicit constraints, behaviors, interfaces, allocations, safety requirements, or protocol definitions. Checks requiring those elements are assessed against explicit absence and skipped where appropriate rather than treated as conflicts.\n\nISSUE [CONFLICT-001]\nElement(s):     rocket::Thrusters; rocket::Rocket::thrusters\nCheck:          4. Requirement-Level Conflicts\nFinding:        The requirement definition states the rocket shall have 2 thrusters, but the structural model instantiates the rocket with thrusters multiplicity [3]. These conditions cannot both be true for the same design instance unless variance, optionality, or a waiver is documented.\nEvidence:       Requirement text: `requirement def Thrusters { doc /* The rocket shall have 2 thrusters. */ }`; Structural element: `part thrusters : Thrusters[3];`\nConflict Type:  Hard\nScore:          0.1  -  Direct contradiction between required quantity and modeled part multiplicity makes the current design instance inconsistent.\nConfidence:     HIGH\nImpact:         The model cannot support a consistent design decision on propulsion architecture, verification of requirement satisfaction will fail, and any downstream mass, control, or reliability analysis based on thruster count will be contradictory.\nRecommendation: Align the requirement and the structural model by either changing the requirement to 3 thrusters, changing the part multiplicity to [2], or introducing an explicit variant/derivation rationale showing why the modeled rocket is exempt or a different configuration.\n\nCHECK PASSED: 1. Numeric Constraint Conflicts  -  Examined available numeric content and found no explicit bounded numeric constraints, budgets, durations, rates, power, or thermal limits to compare for contradiction in this fragment.\n\nCHECK PASSED: 2. Behavioural Conflicts  -  No state machines, activities, transitions, triggers, guards, sequencing constraints, or execution timing constraints are present in the model fragment.\n\nCHECK PASSED: 3. Interface & Protocol Conflicts  -  No ports, connections, flow specifications, interface definitions, or protocol/handshake behavior are present, so no interface conflict can be established from the supplied model.\n\nCHECK PASSED: 5. Allocation Conflicts  -  No functional allocations, processors, execution platforms, environmental zones, or hardware/software mappings are modeled in this fragment.\n\nCHECK PASSED: 6. Safety vs. Functional Conflicts  -  No safety requirements, safety constraints, watchdogs, shutdown logic, or functional behaviors are modeled, so no safety-functional contradiction is evidenced.\n\nISSUE [CONFLICT-002]\nElement(s):     rocket::Thrusters; rocket::Rocket::thrusters\nCheck:          7. Priority & Resolution\nFinding:        The identified contradiction between the thruster-count requirement and the modeled thruster multiplicity has no documented priority, satisfy relationship, refine relationship, or rationale showing how the conflict is resolved.\nEvidence:       Conflicting elements: `doc /* The rocket shall have 2 thrusters. */` and `part thrusters : Thrusters[3];`; No `satisfy`, `refine`, rationale note, or precedence statement is present anywhere in the provided model text.\nConflict Type:  Hard\nScore:          0.3  -  The unresolved contradiction leaves the model with no documented basis for deciding which element governs implementation or verification.\nConfidence:     HIGH\nImpact:         Reviewers and implementers cannot determine whether to build and verify a 2-thruster or 3-thruster rocket, blocking requirement satisfaction analysis and stakeholder approval.\nRecommendation: Add explicit resolution metadata: define which requirement/design element has precedence, add a `satisfy`/`refine` chain, and record rationale if this is an intentional variant; otherwise remove the contradiction at source.\n\nSummary Table\n\n| ID | Score | Confidence | One-line description |\n|---|---:|---|---|\n| CONFLICT-001 | 0.1 | HIGH | Requirement says 2 thrusters, but the modeled rocket contains thrusters with multiplicity [3]. |\n| CONFLICT-002 | 0.3 | HIGH | No documented resolution or priority exists for the 2-thruster versus 3-thruster contradiction. |\n\nOverall Assessment Score: 0.2\nModel Status: Critical deficiencies  -  major rework required before this model can be used"
+    }
+  ],
+  "overallScore": 0.2,
+  "savedAt": "2026-03-25T15:46:40.514Z"
+}

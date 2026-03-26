@@ -82,6 +82,9 @@ For any redundancy identified, determine whether it could be **intentional desig
 - If a duplicated element lacks any such annotation or justification, it should be flagged as potentially unintentional.
 - If redundancy appears in requirements or model structure (not in physical architecture), it is almost certainly unintentional.
 
+### 8. States that are never activated
+
+Behaviour architecture can prohibit the possibility of some modelled events occuring, for example, if a cooling fan is triggered at 85 degrees celcius, but an emergency shut down kicks in at 80 degrees celcius, the cooling fan will never be triggered and is redundant.
 ---
 
 ## Scoring

@@ -1,0 +1,55 @@
+{
+  "id": "review-2026-03-26T09-03-25-274Z",
+  "timestamp": "2026-03-26T09:03:25.274Z",
+  "files": [
+    "thermal-system"
+  ],
+  "sourceFiles": [
+    {
+      "name": "thermal-system",
+      "code": "package thermal_system {\r\n    requirement def EmergencyShutdown {\r\n        doc /* The system shall enter emergency shutdown when temperature reaches 80 degrees Celsius. */\r\n    }\r\n\r\n    requirement def CoolingFanActivation {\r\n        doc /* The cooling fan shall turn on when temperature reaches 85 degrees Celsius. */\r\n    }\r\n\r\n    part def CoolingSystem {\r\n        attribute temperatureC : Real = 25.0;\r\n        attribute emergencyShutdownThresholdC : Real = 80.0;\r\n        attribute coolingFanStartThresholdC : Real = 85.0;\r\n    }\r\n\r\n    part def System {\r\n        part cooling : CoolingSystem;\r\n        part sprinkler : SprinklerSystem;\r\n    }\r\n}"
+    }
+  ],
+  "criteria": [
+    "04_redundancy"
+  ],
+  "fixProposals": {
+    "04_redundancy::The model defines a cooling fan activation condition at 85°C while also defining emergency shutdown at 80°C. If shutdown prevents further operation of the cooling function, the fan::0::ISSUE [REDUNDANCY-001]\nElement(s):     thermal_system::EmergencyShutdown; thermal_system::CoolingFanActivation; thermal_": {
+      "fix": {
+        "title": "Lower cooling fan activation threshold below emergency shutdown",
+        "description": "This fix removes the unreachable/redundant behaviour by revising the cooling fan activation requirement and corresponding parameter so the fan activates before emergency shutdown. Setting the fan start threshold to 75°C preserves both behaviours with a clear operational ordering: cooling mitigation first, shutdown as a higher-temperature protective action.",
+        "code": "package thermal_system {\n    requirement def EmergencyShutdown {\n        doc /* The system shall enter emergency shutdown when temperature reaches 80 degrees Celsius. */\n    }\n\n    requirement def CoolingFanActivation {\n        doc /* The cooling fan shall turn on when temperature reaches 75 degrees Celsius. */\n    }\n\n    part def CoolingSystem {\n        attribute temperatureC : Real = 25.0;\n        attribute emergencyShutdownThresholdC : Real = 80.0;\n        attribute coolingFanStartThresholdC : Real = 75.0;\n    }\n\n    part def SprinklerSystem;\n\n    part def System {\n        part cooling : CoolingSystem;\n        part sprinkler : SprinklerSystem;\n    }\n}",
+        "changes": [
+          {
+            "type": "alter",
+            "description": "Revised the cooling fan activation requirement threshold from 85°C to 75°C so it can be activated before emergency shutdown occurs.",
+            "before": "requirement def CoolingFanActivation {\n    doc /* The cooling fan shall turn on when temperature reaches 85 degrees Celsius. */\n}",
+            "after": "requirement def CoolingFanActivation {\n    doc /* The cooling fan shall turn on when temperature reaches 75 degrees Celsius. */\n}"
+          },
+          {
+            "type": "alter",
+            "description": "Updated the cooling fan start threshold attribute from 85.0 to 75.0 to keep the design parameter consistent with the revised requirement and eliminate the unreachable state.",
+            "before": "attribute coolingFanStartThresholdC : Real = 85.0;",
+            "after": "attribute coolingFanStartThresholdC : Real = 75.0;"
+          },
+          {
+            "type": "add",
+            "description": "Added the missing SprinklerSystem definition so the provided full model remains complete and syntactically resolvable after update.",
+            "before": "",
+            "after": "part def SprinklerSystem;"
+          }
+        ]
+      }
+    }
+  },
+  "results": [
+    {
+      "criterionId": "04_redundancy",
+      "name": "04_redundancy",
+      "score": 0.4,
+      "rawText": "Model Characterisation\n- System purpose: A thermal control/protection model defining when a system should shut down and when a cooling fan should activate, for a generic engineered system operator/designer.\n- Operational domain: Industrial / generic thermal management.\n- Model scope: Small model fragment containing two requirements and a minimal structural definition.\n- Known scope limitations: No behaviour model, no state machine, no verification cases, no allocations, no interfaces, and only partial structure are provided. Checks requiring those artefacts are assessed only against what is present; absence alone is not treated as redundancy unless duplication is explicit.\n\nCHECK PASSED: 1. Duplicate Requirements  -  The two requirements have distinct text and distinct thresholds (80°C shutdown vs 85°C fan activation), so no duplicated requirement statement was found.\n\nCHECK PASSED: 2. Duplicate Block or Part Definitions  -  Only one relevant part definition (`CoolingSystem`) is defined in the provided fragment, so no duplicate block or interface definition can be observed.\n\nCHECK PASSED: 3. Redundant Relationships  -  No `satisfy`, `allocate`, `connect`, `bind`, or repeated specialization relationships are present in the fragment.\n\nCHECK PASSED: 4. Redundant Behaviour Models  -  No state machines, actions, sequences, or message exchange models are present, so no behavioural duplication can be identified in the provided scope.\n\nCHECK PASSED: 5. Redundant Attributes & Constraints  -  The attributes in `CoolingSystem` are distinct (`temperatureC`, `emergencyShutdownThresholdC`, `coolingFanStartThresholdC`) and do not repeat the same property or value under another name.\n\nCHECK PASSED: 6. Redundant Decomposition  -  The decomposition shown is minimal and does not contain any explicit empty intermediate block, single-child pass-through block, or redundant action decomposition.\n\nCHECK PASSED: 7. Unintentional vs. Intentional Redundancy  -  No duplicated model elements were found, so there is no ambiguity between intentional architectural redundancy and accidental duplication.\n\nISSUE [REDUNDANCY-001]\nElement(s):     thermal_system::EmergencyShutdown; thermal_system::CoolingFanActivation; thermal_system::CoolingSystem::emergencyShutdownThresholdC; thermal_system::CoolingSystem::coolingFanStartThresholdC\nCheck:          8. States that are never activated\nFinding:        The model defines a cooling fan activation condition at 85°C while also defining emergency shutdown at 80°C. If shutdown prevents further operation of the cooling function, the fan activation condition becomes unreachable and therefore redundant.\nEvidence:       Requirement text: `The system shall enter emergency shutdown when temperature reaches 80 degrees Celsius.` Requirement text: `The cooling fan shall turn on when temperature reaches 85 degrees Celsius.` Attributes: `attribute emergencyShutdownThresholdC : Real = 80.0;` and `attribute coolingFanStartThresholdC : Real = 85.0;`\nScore:          0.4  -  Significant defect because the later threshold likely creates unreachable behaviour and a redundant requirement/parameter that can mislead analysis.\nConfidence:     MEDIUM  -  The threshold conflict is explicit, but confirming true unreachability requires behavioural semantics for what \"emergency shutdown\" disables, which are not provided in the fragment.\nRisk:           Analysts may assume the cooling fan contributes to thermal mitigation even though the shutdown threshold occurs first, leading to incorrect operational reasoning, wasted verification effort, or dead requirements that are never satisfiable in operation.\nRecommendation: Remove or revise one of the conflicting thresholds; either lower the fan activation threshold below shutdown, define shutdown behaviour so the fan can still operate after shutdown if intended, or explicitly annotate the fan requirement as post-shutdown/non-redundant behaviour.\n\nSummary Table\n\n| ID | Score | Confidence | One-line description |\n|---|---:|---|---|\n| REDUNDANCY-001 | 0.4 | MEDIUM | Cooling fan activation at 85°C is likely unreachable because emergency shutdown is triggered earlier at 80°C. |\n\nOverall Assessment Score: 0.4"
+    }
+  ],
+  "overallScore": 0.4,
+  "savedAt": "2026-03-26T09:04:02.803Z"
+}
