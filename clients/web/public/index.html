@@ -1159,7 +1159,7 @@
     .review-report-header {
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      gap: 12px;
       padding: 10px 16px;
       background: var(--bg-panel);
       border-bottom: 1px solid var(--border);
@@ -1172,12 +1172,79 @@
       text-transform: uppercase;
       letter-spacing: 0.06em;
       color: var(--text-muted);
+      white-space: nowrap;
     }
 
     .review-progress-text {
       font-size: 12px;
       color: var(--text-muted);
       font-style: italic;
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* ── Report toolbar (expand / collapse / filter controls) ── */
+    .report-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      border-left: 1px solid var(--border);
+      padding-left: 12px;
+      flex-shrink: 0;
+    }
+
+    .report-tool-btn {
+      padding: 4px 10px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--bg-surface);
+      color: var(--text-secondary);
+      font-family: var(--font-ui);
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all var(--transition);
+      white-space: nowrap;
+    }
+
+    .report-tool-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .report-tool-btn.active {
+      background: rgba(59, 130, 246, 0.15);
+      border-color: rgba(59, 130, 246, 0.4);
+      color: var(--accent);
+    }
+
+    /* ── Criterion issue / pass count chips shown in collapsed headers ── */
+    .criterion-chips {
+      display: flex;
+      gap: 3px;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .criterion-chip {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 1px 6px;
+      border-radius: 8px;
+      white-space: nowrap;
+    }
+
+    .criterion-chip.issues {
+      background: rgba(239, 68, 68, 0.15);
+      color: var(--red);
+    }
+
+    .criterion-chip.passes {
+      background: rgba(34, 197, 94, 0.12);
+      color: var(--green);
     }
 
     .review-report-body {
@@ -1227,6 +1294,18 @@
 
     .criterion-header.done {
       border-left-color: var(--green);
+    }
+
+    .criterion-header.done.score-notable {
+      border-left-color: var(--amber);
+    }
+
+    .criterion-header.done.score-significant {
+      border-left-color: #f97316;
+    }
+
+    .criterion-header.done.score-critical {
+      border-left-color: var(--red);
     }
 
     .criterion-header.error {
@@ -1588,6 +1667,16 @@
       background: var(--bg-panel);
       border-radius: var(--radius-sm);
       border: 1px solid var(--border);
+      transition: background var(--transition), border-color var(--transition);
+    }
+
+    .summary-card.clickable {
+      cursor: pointer;
+    }
+
+    .summary-card.clickable:hover {
+      background: var(--bg-hover);
+      border-color: var(--text-muted);
     }
 
     .summary-card-label {
@@ -2355,6 +2444,11 @@
         <div class="review-report-header">
           <span class="review-report-title">Review Report</span>
           <span class="review-progress-text" id="reviewProgressText"></span>
+          <div class="report-toolbar" id="reportToolbar" style="display:none;">
+            <button class="report-tool-btn" id="issuesOnlyBtn" onclick="toggleIssuesOnly()" title="Show only criteria with issues">Issues Only</button>
+            <button class="report-tool-btn" onclick="setAllSectionsCollapsed(true)" title="Collapse all criteria sections">Collapse All</button>
+            <button class="report-tool-btn" onclick="setAllSectionsCollapsed(false)" title="Expand all criteria sections">Expand All</button>
+          </div>
         </div>
         <div class="review-report-body" id="reviewReport">
           <div class="review-empty">
@@ -3112,6 +3206,8 @@
     const savedRunsList = document.getElementById('savedRunsList');
     const downloadJsonBtn = document.getElementById('downloadJsonBtn');
     const fixIssuesBtn = document.getElementById('fixIssuesBtn');
+    const reportToolbar = document.getElementById('reportToolbar');
+    const issuesOnlyBtn = document.getElementById('issuesOnlyBtn');
     const reviewFooterStatus = document.getElementById('reviewFooterStatus');
 
     let _reviewAbortController = null;
@@ -3120,6 +3216,7 @@
     let _exampleFiles = [];  // cached {name, code}
     let _reviewJsonReport = null;
     let _savedReviewRuns = [];
+    let _issuesOnlyMode = false;
 
     // ─── Enter / Exit review mode ───
     function enterReviewMode() {
@@ -4187,6 +4284,9 @@
       downloadJsonBtn.style.display = 'none';
       fixIssuesBtn.disabled = true;
       reviewFooterStatus.textContent = '';
+      reportToolbar.style.display = 'none';
+      _issuesOnlyMode = false;
+      issuesOnlyBtn.classList.remove('active');
 
       // Reset criteria states
       _criteriaData.forEach(c => setCriterionState(c.id, 'pending', null));
@@ -4268,6 +4368,29 @@
       }
     }
 
+    // ─── Expand / Collapse all criterion sections ───
+    function setAllSectionsCollapsed(collapsed) {
+      document.querySelectorAll('#reviewReport .criterion-header').forEach(h => {
+        h.classList.toggle('collapsed', collapsed);
+      });
+      document.querySelectorAll('#reviewReport .criterion-stream').forEach(s => {
+        s.classList.toggle('collapsed', collapsed);
+      });
+    }
+
+    // ─── Toggle "Issues Only" view (hide criteria that had no issues) ───
+    function toggleIssuesOnly() {
+      _issuesOnlyMode = !_issuesOnlyMode;
+      issuesOnlyBtn.classList.toggle('active', _issuesOnlyMode);
+      document.querySelectorAll('#reviewReport .criterion-section').forEach(section => {
+        if (_issuesOnlyMode && section.dataset.hasIssues === 'false') {
+          section.style.display = 'none';
+        } else {
+          section.style.display = '';
+        }
+      });
+    }
+
     function handleReviewEvent(event, data, sections, texts) {
       switch (event) {
         case 'start':
@@ -4328,11 +4451,26 @@
 
             const score = extractOverallScore(texts[data.id] || '');
 
+            // Color-code the left border by score
+            if (score !== null) {
+              header.classList.add(getScoreClass(score));
+            }
+
             if (score !== null) {
               const badge = document.createElement('span');
               badge.className = `criterion-score-badge ${getScoreClass(score)}`;
               badge.textContent = score.toFixed(2);
               header.insertBefore(badge, header.querySelector('.criterion-chevron'));
+            }
+
+            // Count issues & passes — add chips and mark section for filtering
+            const { issueCount, passCount } = countIssuesAndPasses(texts[data.id] || '');
+            section.dataset.hasIssues = issueCount > 0 ? 'true' : 'false';
+
+            const chipsHtml = buildCriterionChipsHtml(issueCount, passCount);
+            if (chipsHtml) {
+              const insertBefore = header.querySelector('.criterion-score-badge') || header.querySelector('.criterion-chevron');
+              insertBefore.insertAdjacentHTML('beforebegin', chipsHtml);
             }
 
             setCriterionState(data.id, 'done', score);
@@ -4360,6 +4498,7 @@
             if (stream) {
               stream.innerHTML = `<div style="color:var(--red);padding:8px;">Error: ${escHtml(data.error)}</div>`;
             }
+            section.dataset.hasIssues = 'true'; // treat errors as "has issues" for filter
           }
           setCriterionState(data.id, 'error', null);
 
@@ -4377,6 +4516,19 @@
         case 'done': {
           reviewProgressText.textContent = 'Review complete.';
           buildReviewSummary(texts);
+
+          // Auto-collapse criteria that passed cleanly (high score, no issues)
+          document.querySelectorAll('#reviewReport .criterion-section').forEach(section => {
+            if (section.dataset.hasIssues === 'false') {
+              const h = section.querySelector('.criterion-header');
+              const s = section.querySelector('.criterion-stream');
+              h?.classList.add('collapsed');
+              s?.classList.add('collapsed');
+            }
+          });
+
+          // Show toolbar controls
+          reportToolbar.style.display = '';
 
           // Enable downloads and fix-issues link
           downloadJsonBtn.style.display = '';
@@ -4452,6 +4604,8 @@
       reviewProgressText.textContent = 'Loaded saved review.';
       downloadJsonBtn.style.display = '';
       fixIssuesBtn.disabled = !(report.results || []).length;
+      _issuesOnlyMode = false;
+      issuesOnlyBtn.classList.remove('active');
 
       _criteriaData.forEach(c => setCriterionState(c.id, 'pending', null));
       restoreSelectedCriteria(report.criteria || []);
@@ -4465,6 +4619,7 @@
       }
 
       buildReviewSummary(texts);
+      reportToolbar.style.display = '';
 
       const total = report.results?.length || 0;
       const avgScore = typeof report.overallScore === 'number'
@@ -4485,11 +4640,19 @@
       section.className = 'criterion-section';
       section.id = `review-section-${result.criterionId}`;
 
+      const { issueCount, passCount } = countIssuesAndPasses(result.rawText || '');
+      section.dataset.hasIssues = (result.error || issueCount > 0) ? 'true' : 'false';
+
+      const scoreClass = typeof result.score === 'number' ? getScoreClass(result.score) : '';
       const header = document.createElement('div');
-      header.className = `criterion-header ${result.error ? 'error' : 'done'}`;
+      header.className = `criterion-header ${result.error ? 'error' : `done ${scoreClass}`}`;
+
+      const chipsHtml = buildCriterionChipsHtml(issueCount, passCount);
+
       header.innerHTML = `
         <div class="criterion-title">${escHtml(result.name || result.criterionId)}</div>
-        ${typeof result.score === 'number' ? `<span class="criterion-score-badge ${getScoreClass(result.score)}">${result.score.toFixed(2)}</span>` : ''}
+        ${chipsHtml}
+        ${typeof result.score === 'number' ? `<span class="criterion-score-badge ${scoreClass}">${result.score.toFixed(2)}</span>` : ''}
         <span class="criterion-chevron">▼</span>
       `;
       header.addEventListener('click', () => {
@@ -4520,6 +4683,22 @@
       a.download = `sysml-review-${new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')}.json`;
       a.click();
       URL.revokeObjectURL(url);
+    }
+
+    // ─── Count issues and passes in LLM output text ───
+    function countIssuesAndPasses(text) {
+      return {
+        issueCount: text.match(/^ISSUE \[/gm)?.length ?? 0,
+        passCount: text.match(/^CHECK PASSED:/gm)?.length ?? 0,
+      };
+    }
+
+    // ─── Build criterion chip HTML string (issues + passes) ───
+    function buildCriterionChipsHtml(issueCount, passCount) {
+      const parts = [];
+      if (issueCount > 0) parts.push(`<span class="criterion-chip issues">${issueCount} issue${issueCount > 1 ? 's' : ''}</span>`);
+      if (passCount > 0) parts.push(`<span class="criterion-chip passes">${passCount} passed</span>`);
+      return parts.length ? `<span class="criterion-chips">${parts.join('')}</span>` : '';
     }
 
     // ─── Extract overall assessment score from LLM output ───
@@ -4565,10 +4744,9 @@
           scores.push({ id, name: criterion?.name ?? id, score });
         }
         // Count issues and passes in this criterion
-        const issueMatches = text.match(/^ISSUE \[/gm);
-        const passMatches = text.match(/^CHECK PASSED:/gm);
-        if (issueMatches) totalIssues += issueMatches.length;
-        if (passMatches) totalPassed += passMatches.length;
+        const { issueCount, passCount } = countIssuesAndPasses(text);
+        totalIssues += issueCount;
+        totalPassed += passCount;
       }
       if (!scores.length) return;
 
@@ -4599,13 +4777,29 @@
                 <div class="summary-card-value" style="color:var(--green)">${totalPassed}</div>
             </div>
             ${scores.map(s => `
-                <div class="summary-card">
+                <div class="summary-card clickable" title="Jump to ${escHtml(s.name)}" data-criterion-id="${escHtml(s.id)}">
                     <div class="summary-card-label">${escHtml(s.name)}</div>
                     <div class="summary-card-value" style="color:${getScoreColor(s.score)}">${s.score.toFixed(2)}</div>
                 </div>
             `).join('')}
         </div>
     `;
+      // Wire up clickable criterion cards to scroll-and-expand their section
+      summaryEl.querySelectorAll('.summary-card.clickable').forEach(card => {
+        card.addEventListener('click', () => {
+          const id = card.dataset.criterionId;
+          const section = document.getElementById(`review-section-${id}`);
+          if (!section) return;
+          // Expand the section if it's collapsed
+          const h = section.querySelector('.criterion-header');
+          const s = section.querySelector('.criterion-stream');
+          h?.classList.remove('collapsed');
+          s?.classList.remove('collapsed');
+          // Also make it visible if "Issues Only" mode hid it
+          section.style.display = '';
+          section.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+        });
+      });
       reviewReport.insertBefore(summaryEl, reviewReport.firstChild);
     }
 
